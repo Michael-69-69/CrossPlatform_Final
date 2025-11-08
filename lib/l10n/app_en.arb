@@ -1,0 +1,29 @@
+{
+  "appTitle": "E-Learning",
+  "login": "Login",
+  "emailHint": "Email / Username",
+  "passwordHint": "Password",
+  "courses": "My Courses",
+  "instructorDashboard": "Instructor Dashboard",
+  "logout": "Logout",
+  "semester": "Semester",
+  "sessionsLabel": "sessions",
+  "calendarTitle": "Calendar",
+  "classworkTitle": "Classwork",
+  "filterByCourse": "Filter by course",
+  "assignmentStatus": "Assignment status",
+  "allCourses": "All courses",
+  "all": "All",
+  "completed": "Completed",
+  "notSubmitted": "Not submitted",
+  "noAssignments": "No matching assignments",
+  "viewDetails": "View details",
+  "due": "Due",
+  "score": "Score",
+  "openGoogleForm": "Open Google Form",
+  "subjects": "Subjects",
+  "@sessionsLabel": {
+    "description": "Label for number of sessions, e.g., 15 sessions"
+  },
+  "@@locale": "en"
+}

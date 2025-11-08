@@ -1,0 +1,29 @@
+{
+  "appTitle": "E-Learning",
+  "login": "Đăng nhập",
+  "emailHint": "Email / Tên đăng nhập",
+  "passwordHint": "Mật khẩu",
+  "courses": "Lớp học của tôi",
+  "instructorDashboard": "Bảng điều khiển giảng viên",
+  "logout": "Đăng xuất",
+  "semester": "Học kỳ",
+  "sessionsLabel": "buổi",
+  "calendarTitle": "Lịch học",
+  "classworkTitle": "Việc cần làm",
+  "filterByCourse": "Lọc theo lớp học",
+  "assignmentStatus": "Trạng thái bài tập",
+  "allCourses": "Tất cả lớp học",
+  "all": "Tất cả",
+  "completed": "Hoàn thành",
+  "notSubmitted": "Chưa nộp",
+  "noAssignments": "Không có bài tập nào phù hợp",
+  "viewDetails": "Xem chi tiết",
+  "due": "Đến hạn",
+  "score": "Điểm",
+  "openGoogleForm": "Mở Google Biểu mẫu",
+  "subjects": "Môn học",
+  "@sessionsLabel": {
+    "description": "Label for number of sessions, e.g., 15 sessions"
+  },
+  "@@locale": "vi"
+}
