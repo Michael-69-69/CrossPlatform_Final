@@ -19,7 +19,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('E-Learning Login')),
+      appBar: AppBar(title: const Text('E-Learning Login Mai Thai Phong init')),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
