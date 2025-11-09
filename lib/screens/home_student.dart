@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:ggclassroom/l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../screens/calendar_screen.dart';
-import '../screens/course_homework_screen.dart'; // ← ADDED THIS LINE
-import '../main.dart'; // for localeProvider
+import '../screens/course_homework_screen.dart';
+import '../main.dart';
+import '../models/user.dart'; // MUST BE HERE
 
-// Locale provider
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
 
 class HomeStudent extends ConsumerWidget {
@@ -87,57 +87,33 @@ class HomeStudent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context)!;
-    final user = ref.watch(authProvider);
+    final user = ref.watch(authProvider)!;
 
     return Scaffold(
-      drawer: _SideMenu(courses: _courses),
+      drawer: _SideMenu(courses: _courses, user: user),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.class_, color: Colors.green),
             SizedBox(width: 8),
-            Text(
-              "Lớp học",
-              style: TextStyle(
-                color: Colors.black87,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text("Lớp học", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
           ],
         ),
         actions: [
           PopupMenuButton<Locale>(
             icon: const Icon(Icons.language),
-            onSelected: (locale) {
-              ref.read(localeProvider.notifier).state = locale;
-            },
+            onSelected: (locale) => ref.read(localeProvider.notifier).state = locale,
             itemBuilder: (context) => [
-              PopupMenuItem(
-                value: const Locale('vi'),
-                child: const Text('Tiếng Việt'),
-              ),
-              PopupMenuItem(
-                value: const Locale('en'),
-                child: const Text('English'),
-              ),
+              const PopupMenuItem(value: Locale('vi'), child: Text('Tiếng Việt')),
+              const PopupMenuItem(value: Locale('en'), child: Text('English')),
             ],
           ),
-          IconButton(
-            tooltip: "Tạo hoặc tham gia lớp học",
-            onPressed: () {},
-            icon: const Icon(Icons.add, color: Colors.black87),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.apps, color: Colors.black87),
-          ),
+          IconButton(tooltip: "Tạo hoặc tham gia lớp học", onPressed: () {}, icon: const Icon(Icons.add)),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.apps)),
           const SizedBox(width: 4),
-          const CircleAvatar(
-            backgroundImage: AssetImage("assets/images/student_avatar.jpg"),
-            radius: 16,
-          ),
+          const CircleAvatar(backgroundImage: AssetImage("assets/images/student_avatar.jpg"), radius: 16),
           const SizedBox(width: 12),
         ],
       ),
@@ -153,10 +129,7 @@ class HomeStudent extends ConsumerWidget {
               crossAxisSpacing: 16,
               childAspectRatio: 1.3,
             ),
-            itemBuilder: (context, i) {
-              final course = _courses[i];
-              return _CourseCard(course: course);
-            },
+            itemBuilder: (context, i) => _CourseCard(course: _courses[i]),
           ),
         ),
       ),
@@ -164,7 +137,6 @@ class HomeStudent extends ConsumerWidget {
   }
 }
 
-// ← ONLY THIS CLASS IS UPDATED
 class _CourseCard extends StatelessWidget {
   final Map<String, dynamic> course;
   const _CourseCard({required this.course});
@@ -187,10 +159,7 @@ class _CourseCard extends StatelessWidget {
                 image: DecorationImage(
                   image: AssetImage(course['cover']),
                   fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(0.2),
-                    BlendMode.darken,
-                  ),
+                  colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.2), BlendMode.darken),
                 ),
               ),
               child: Stack(
@@ -201,31 +170,15 @@ class _CourseCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          course["title"],
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          course["teacher"],
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
+                        Text(course["title"], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(course["teacher"], style: const TextStyle(color: Colors.white70, fontSize: 12)),
                       ],
                     ),
                   ),
                   Positioned(
                     right: 12,
                     bottom: 8,
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundImage: AssetImage(course["avatar"]),
-                    ),
+                    child: CircleAvatar(radius: 20, backgroundImage: AssetImage(course["avatar"])),
                   ),
                 ],
               ),
@@ -236,21 +189,18 @@ class _CourseCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  // ← CLICKABLE ASSIGNMENT ICON
                   IconButton(
                     icon: const Icon(Icons.assignment, size: 20),
                     tooltip: "Bài tập của lớp",
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => CourseHomeworkScreen(course: course),
-                        ),
+                        MaterialPageRoute(builder: (_) => CourseHomeworkScreen(course: course)),
                       );
                     },
                   ),
-                  Icon(Icons.folder_open_outlined, size: 20),
-                  Icon(Icons.more_vert, size: 20),
+                  const Icon(Icons.folder_open_outlined, size: 20),
+                  const Icon(Icons.more_vert, size: 20),
                 ],
               ),
             ),
@@ -263,7 +213,8 @@ class _CourseCard extends StatelessWidget {
 
 class _SideMenu extends StatelessWidget {
   final List<Map<String, dynamic>> courses;
-  const _SideMenu({super.key, required this.courses});
+  final AppUser user;
+  const _SideMenu({super.key, required this.courses, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -274,93 +225,78 @@ class _SideMenu extends StatelessWidget {
         children: [
           DrawerHeader(
             decoration: const BoxDecoration(color: Colors.white),
-            child: Row(
-              children: const [
-                Icon(Icons.class_, color: Colors.green, size: 28),
-                SizedBox(width: 8),
-                Text(
-                  "Lớp học",
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircleAvatar(radius: 36, backgroundImage: AssetImage("assets/images/student_avatar.jpg")),
+                const SizedBox(height: 8),
+                Text(user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text(user.email, style: const TextStyle(fontSize: 12, color: Colors.black54)),
               ],
             ),
           ),
           _drawerItem(Icons.home_outlined, "Màn hình chính", true),
-          _drawerItem(
-            Icons.calendar_today_outlined,
-            "Lịch",
-            false,
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CalendarScreen(courses: courses),
-                ),
-              );
-            },
-          ),
+          _drawerItem(Icons.calendar_today_outlined, "Lịch", false, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (_) => CalendarScreen(courses: courses)));
+          }),
           ListTile(
             leading: const Icon(Icons.assignment_outlined),
             title: const Text('Việc cần làm'),
             onTap: () {
               context.go('/classwork', extra: courses);
-              Navigator.pop(context); // close drawer
+              Navigator.pop(context);
             },
           ),
           ExpansionTile(
             leading: const Icon(Icons.school_outlined),
             title: const Text("Đã đăng ký"),
-            children: courses
-                .map(
-                  (c) => _drawerItem(Icons.class_outlined, c["title"], false),
-                )
-                .toList(),
+            children: courses.map((c) => _drawerItem(Icons.class_outlined, c["title"], false)).toList(),
           ),
           _drawerItem(Icons.archive_outlined, "Lớp học đã lưu trữ", false),
           _drawerItem(Icons.settings_outlined, "Cài đặt", false),
+          const Divider(),
+          Consumer(
+            builder: (context, ref, child) {
+              return ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text("Đăng xuất", style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  ref.read(authProvider.notifier).logout();
+                  context.go('/');
+                },
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _drawerItem(IconData icon, String title, bool selected,
-      {VoidCallback? onTap}) {
+  Widget _drawerItem(IconData icon, String title, bool selected, {VoidCallback? onTap}) {
     return ListTile(
       selected: selected,
       selectedTileColor: const Color(0xFFE3F2FD),
       leading: Icon(icon, color: selected ? Colors.green : Colors.black54),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: selected ? Colors.green : Colors.black87,
-          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
+      title: Text(title, style: TextStyle(color: selected ? Colors.green : Colors.black87, fontWeight: selected ? FontWeight.w600 : FontWeight.normal)),
       onTap: onTap,
     );
   }
 }
 
-class ClassworkScreen extends StatefulWidget {
+class ClassworkScreen extends ConsumerStatefulWidget {
   final List<Map<String, dynamic>> courses;
   const ClassworkScreen({super.key, required this.courses});
 
   @override
-  State<ClassworkScreen> createState() => _ClassworkScreenState();
+  ConsumerState<ClassworkScreen> createState() => _ClassworkScreenState();
 }
 
-class _ClassworkScreenState extends State<ClassworkScreen> {
+class _ClassworkScreenState extends ConsumerState<ClassworkScreen> {
   String _selectedFilter = "Tất cả";
 
   List<Map<String, dynamic>> get _assignments {
-    return widget.courses
-        .expand((course) => course["assignments"] as List<Map<String, dynamic>>)
-        .toList();
+    return widget.courses.expand((course) => course["assignments"] as List<Map<String, dynamic>>).toList();
   }
 
   List<Map<String, dynamic>> get _filteredAssignments {
@@ -370,13 +306,12 @@ class _ClassworkScreenState extends State<ClassworkScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authProvider)!; // NOW WORKS — ConsumerStatefulWidget
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          "Việc cần làm",
-          style: TextStyle(color: Colors.black87),
-        ),
+        title: const Text("Việc cần làm", style: TextStyle(color: Colors.black87)),
         backgroundColor: Colors.white,
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Colors.black87),
@@ -384,15 +319,9 @@ class _ClassworkScreenState extends State<ClassworkScreen> {
       body: Column(
         children: [
           const SizedBox(height: 16),
-          const CircleAvatar(
-            radius: 36,
-            backgroundImage: AssetImage("assets/images/student_avatar.jpg"),
-          ),
+          const CircleAvatar(radius: 36, backgroundImage: AssetImage("assets/images/student_avatar.jpg")),
           const SizedBox(height: 8),
-          const Text(
-            "Phong Mai",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
+          Text(user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -400,9 +329,7 @@ class _ClassworkScreenState extends State<ClassworkScreen> {
               value: _selectedFilter,
               decoration: InputDecoration(
                 labelText: "Bộ lọc việc cần làm",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
               items: const [
                 DropdownMenuItem(value: "Tất cả", child: Text("Tất cả")),
@@ -423,23 +350,11 @@ class _ClassworkScreenState extends State<ClassworkScreen> {
                   margin: const EdgeInsets.symmetric(vertical: 6),
                   elevation: 0.3,
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
-                    title: Text(
-                      a["title"],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    title: Text(a["title"], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
                     subtitle: Text("Đến hạn ${a["due"]}"),
-                    trailing: Text(
-                      a["score"],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    leading: const Icon(
-                      Icons.assignment_outlined,
-                      color: Colors.blueAccent,
-                    ),
+                    trailing: Text(a["score"] ?? "", style: const TextStyle(fontWeight: FontWeight.bold)),
+                    leading: const Icon(Icons.assignment_outlined, color: Colors.blueAccent),
                   ),
                 );
               },
