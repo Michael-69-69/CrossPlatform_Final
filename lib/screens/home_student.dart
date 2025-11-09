@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ggclassroom/l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../screens/calendar_screen.dart';
+import '../screens/course_homework_screen.dart'; // ← ADDED THIS LINE
 import '../main.dart'; // for localeProvider
 
 // Locale provider
@@ -82,7 +83,6 @@ class HomeStudent extends ConsumerWidget {
       ],
     },
   ];
-
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -164,6 +164,7 @@ class HomeStudent extends ConsumerWidget {
   }
 }
 
+// ← ONLY THIS CLASS IS UPDATED
 class _CourseCard extends StatelessWidget {
   final Map<String, dynamic> course;
   const _CourseCard({required this.course});
@@ -234,8 +235,20 @@ class _CourseCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: const [
-                  Icon(Icons.camera_alt_outlined, size: 20),
+                children: [
+                  // ← CLICKABLE ASSIGNMENT ICON
+                  IconButton(
+                    icon: const Icon(Icons.assignment, size: 20),
+                    tooltip: "Bài tập của lớp",
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CourseHomeworkScreen(course: course),
+                        ),
+                      );
+                    },
+                  ),
                   Icon(Icons.folder_open_outlined, size: 20),
                   Icon(Icons.more_vert, size: 20),
                 ],
