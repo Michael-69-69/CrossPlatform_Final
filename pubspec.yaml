@@ -4,15 +4,16 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"   # <-- safe for intl 0.20.2
+  sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  intl: ^0.20.2           # <-- now works
-
+  intl: ^0.20.2
+  mongo_dart: ^0.7.0
+  flutter_dotenv: ^5.1.0
   flutter_riverpod: ^2.5.1
   go_router: ^14.2.0
   hive: ^2.2.3
@@ -29,3 +30,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - .env
