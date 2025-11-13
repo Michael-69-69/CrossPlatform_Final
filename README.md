@@ -51,7 +51,7 @@ assets/
 | Feature                        | Status   | Notes                                      |
 |--------------------------------|----------|--------------------------------------------|
 | Flutter + Cross-platform setup | CHECKED  | `flutter run` works on Android, Windows, Web |
-| Login Screen                   | CHECKED  | Hardcoded `admin/admin` + student login    |
+| Login / Register Screen        | CHECKED  | Uses MongoDB Atlas `users` collection      |
 | Role-based Homepages           | CHECKED  | `home_student.dart` & `home_instructor.dart` |
 | Student Dashboard              | CHECKED  | Shows courses, "Việc cần làm" (Classwork)  |
 | Classwork Screen               | CHECKED  | Lists assignments, filter by course/status |
@@ -70,7 +70,7 @@ assets/
 
 | Feature                        | Status   | Why?                                       |
 |--------------------------------|----------|---------------------------------------------|
-| Backend (Firebase / Custom)    | CROSS    | No database, no real data persistence       |
+| Backend (Firebase / Custom)    | CROSS    | Only auth stored in MongoDB; courses/mock data still static |
 | Semester Management            | CROSS    | No CRUD for semesters                       |
 | Course Management              | CROSS    | No CRUD for courses                         |
 | Group Management               | CROSS    | No groups                                   |
@@ -122,8 +122,21 @@ flutter pub get
 flutter gen-l10n   # if you modify .arb files
 flutter run        # works on Android, Windows, Web
 
-Note: All data is mocked in code. No backend. No persistence.
+Note: User login/register uses MongoDB; the rest of the data (courses, assignments) is still mocked.
 ```
+
+### Environment Setup
+
+Create a `.env` file at project root with the MongoDB Atlas credentials:
+
+```
+MONGODB_USERNAME=starboy_user
+MONGODB_PASSWORD=55359279
+MONGODB_CLUSTER=cluster0.qnn7pyq.mongodb.net
+DATABASE_NAME=GoogleClarroom
+```
+
+Ensure the cluster has a `GoogleClarroom` database and a `users` collection before running.
 
 ---
 
