@@ -6,7 +6,7 @@ import '../providers/auth_provider.dart';
 import '../screens/calendar_screen.dart';
 import '../screens/course_homework_screen.dart';
 import '../main.dart';
-import '../models/user.dart'; // MUST BE HERE
+import '../models/user.dart'; 
 
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
 

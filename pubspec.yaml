@@ -19,11 +19,14 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.4
+  csv: ^5.1.1             
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.11
 
 flutter:
   generate: true

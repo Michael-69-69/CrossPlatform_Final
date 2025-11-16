@@ -1,3 +1,4 @@
+// services/mongodb_service.dart
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -15,55 +16,43 @@ class MongoDBService {
   }
 
   static Future<void> connect() async {
-    if (_isConnected && _db != null) {
+    if (_isConnected && _db != null && _db!.isConnected) {
       return;
     }
 
     try {
+      await _db?.close();
       _db = await Db.create(connectionString);
       await _db!.open();
       _isConnected = true;
       print('MongoDB connected successfully');
     } catch (e) {
       print('MongoDB connection error: $e');
+      _isConnected = false;
       rethrow;
     }
   }
 
   static Future<void> disconnect() async {
-    if (_db != null) {
-      await _db!.close();
-      _db = null;
-      _isConnected = false;
-      print('MongoDB disconnected');
-    }
+    await _db?.close();
+    _db = null;
+    _isConnected = false;
+    print('MongoDB disconnected');
   }
 
+  // CRITICAL FIX: Return FRESH collection every time
   static DbCollection getCollection(String collectionName) {
-    if (_db == null || !_isConnected) {
+    if (_db == null || !_isConnected || !_db!.isConnected) {
       throw Exception('MongoDB not connected. Call connect() first.');
     }
-    // MongoDB automatically creates collections on first insert,
-    // but we can ensure it exists by getting the collection reference
-    final collection = _db!.collection(collectionName);
     print('Using collection: $collectionName');
-    return collection;
+    return _db!.collection(collectionName); // ← Always fresh
   }
 
-  /// Ensures a collection exists in the database
-  /// MongoDB creates collections automatically on first insert,
-  /// so we just verify the connection is ready
   static Future<void> ensureCollectionExists(String collectionName) async {
-    if (_db == null || !_isConnected) {
-      throw Exception('MongoDB not connected. Call connect() first.');
-    }
-    
-    // MongoDB automatically creates collections on first insert
-    // The collection will be created automatically when we insert the first document
-    print('Collection "$collectionName" is ready (will be created on first insert if needed)');
+    await connect(); // Ensure connected
+    print('Collection "$collectionName" is ready');
   }
 
-  static bool get isConnected => _isConnected;
+  static bool get isConnected => _isConnected && _db?.isConnected == true;
 }
-
-
