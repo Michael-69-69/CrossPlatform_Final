@@ -1,11 +1,11 @@
-// screens/instructor_class_detail.dart
+// screens/instructor/instructor_class_detail.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../models/class.dart';                 // <-- Your existing ClassModel
-import '../providers/class_provider.dart';      // <-- MongoDB-backed provider
-import '../providers/group_provider.dart';      // <-- For future group linking
-import '../models/group.dart' as app;          // <-- Avoid mongo_dart Group conflict
+import '../../models/class.dart';                 // <-- Your existing ClassModel
+import '../../providers/class_provider.dart';      // <-- MongoDB-backed provider
+import '../../providers/group_provider.dart';      // <-- For future group linking
+import '../../models/group.dart' as app;          // <-- Avoid mongo_dart Group conflict
 
 class InstructorClassDetail extends ConsumerStatefulWidget {
   final ClassModel cls;

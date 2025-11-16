@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
-import '../screens/calendar_screen.dart';
-import '../screens/course_homework_screen.dart';
-import '../models/user.dart'; 
+import '../../providers/auth_provider.dart';
+import 'calendar_screen.dart';
+import 'course_homework_screen.dart';
+import '../../models/user.dart'; 
 
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
 
@@ -362,3 +362,4 @@ class _ClassworkScreenState extends ConsumerState<ClassworkScreen> {
     );
   }
 }
+

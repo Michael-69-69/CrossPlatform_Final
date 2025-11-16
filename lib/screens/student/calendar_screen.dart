@@ -347,3 +347,4 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return now.add(Duration(days: weekdayIndex - todayIndex));
   }
 }
+

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:ggclassroom/l10n/app_localizations.dart';
 
 class AssignmentDetailScreen extends StatelessWidget {
@@ -79,3 +78,4 @@ class AssignmentDetailScreen extends StatelessWidget {
     );
   }
 }
+

@@ -1,8 +1,8 @@
-// screens/exam_create.dart
+// screens/instructor/exam_create.dart
 import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/class_provider.dart';
+import '../../providers/class_provider.dart';
 
 class ExamCreateScreen extends ConsumerStatefulWidget {
   final String classId;
@@ -71,20 +71,21 @@ class _ExamCreateScreenState extends ConsumerState<ExamCreateScreen> {
   Widget build(BuildContext context) {
     final isEditMode = widget.initialExam != null;
 
-    return WillPopScope(
-      onWillPop: () async {
-        if (_isNavigating || _isSaving) return false;
+    return PopScope(
+      canPop: !_hasUnsavedChanges && !_isNavigating && !_isSaving,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (_isNavigating || _isSaving) return;
         if (_hasUnsavedChanges) {
           final save = await _showUnsavedDialog();
           if (save == true) {
             await _saveAndPop();
-            return false;
           } else if (save == false) {
-            return true;
+            if (mounted) context.pop();
           }
-          return false;
+        } else {
+          if (mounted) context.pop();
         }
-        return true;
       },
       child: Scaffold(
         appBar: AppBar(

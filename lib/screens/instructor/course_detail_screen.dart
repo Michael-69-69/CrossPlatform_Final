@@ -9,6 +9,8 @@ import '../../models/user.dart';
 import 'announcements_tab.dart';
 import 'assignments_tab.dart';
 import 'groups_tab.dart';
+import 'quiz_tab.dart';
+import 'material_tab.dart';
 
 class CourseDetailScreen extends ConsumerStatefulWidget {
   final Course course;
@@ -150,10 +152,18 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   Widget _buildQuizTab() {
-    return const Center(child: Text('Quiz Tab - Coming Soon'));
+    return QuizTab(
+      courseId: widget.course.id,
+      courseName: widget.course.name,
+      students: widget.students,
+    );
   }
 
   Widget _buildMaterialTab() {
-    return const Center(child: Text('Material Tab - Coming Soon'));
+    return MaterialTab(
+      courseId: widget.course.id,
+      courseName: widget.course.name,
+      students: widget.students,
+    );
   }
 }

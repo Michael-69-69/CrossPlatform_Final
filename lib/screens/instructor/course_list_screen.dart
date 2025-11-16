@@ -5,7 +5,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/semester_provider.dart';
 import '../../providers/course_provider.dart';
 import '../../models/semester.dart';
-import '../../models/course.dart';
 
 class CourseListScreen extends ConsumerStatefulWidget {
   const CourseListScreen({super.key});

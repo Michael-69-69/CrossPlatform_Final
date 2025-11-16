@@ -1,7 +1,6 @@
 // screens/instructor/group_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:csv/csv.dart';
 
 import '../../providers/course_provider.dart';
 import '../../providers/group_provider.dart';

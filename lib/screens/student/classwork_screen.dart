@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:ggclassroom/screens/assignment_detail_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ggclassroom/l10n/app_localizations.dart';
 
@@ -265,3 +264,4 @@ class _ClassworkScreenState extends State<ClassworkScreen> {
     );
   }
 }
+

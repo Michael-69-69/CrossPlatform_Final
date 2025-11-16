@@ -1,4 +1,4 @@
-// lib/screens/course_homework_screen.dart
+// lib/screens/student/course_homework_screen.dart
 import 'package:flutter/material.dart';
 import 'assignment_detail_screen.dart';
 
@@ -156,3 +156,4 @@ class _CourseHomeworkScreenState extends State<CourseHomeworkScreen> {
     );
   }
 }
+

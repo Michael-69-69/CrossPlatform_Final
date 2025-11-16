@@ -1,16 +1,16 @@
-// screens/home_instructor.dart
+// screens/instructor/home_instructor.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/auth_provider.dart';
-import '../providers/semester_provider.dart';
-import '../providers/course_provider.dart';
-import '../providers/student_provider.dart';
-import '../providers/group_provider.dart';
-import '../models/semester.dart';
-import '../models/course.dart';
-import '../models/user.dart';
-import 'instructor/csv_preview_screen.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/semester_provider.dart';
+import '../../providers/course_provider.dart';
+import '../../providers/student_provider.dart';
+import '../../providers/group_provider.dart';
+import '../../models/semester.dart';
+import '../../models/course.dart';
+import '../../models/user.dart';
+import 'csv_preview_screen.dart';
 
 class HomeInstructor extends ConsumerStatefulWidget {
   const HomeInstructor({super.key});
