@@ -1,10 +1,12 @@
 // services/mongodb_service.dart
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class MongoDBService {
   static Db? _db;
   static bool _isConnected = false;
+  static bool _isWeb = kIsWeb;
 
   static String get connectionString {
     final username = dotenv.env['MONGODB_USERNAME'] ?? 'starboy_user';
@@ -16,6 +18,13 @@ class MongoDBService {
   }
 
   static Future<void> connect() async {
+    // Skip MongoDB connection on web - mongo_dart doesn't support web
+    if (_isWeb) {
+      print('MongoDB: Skipping direct connection on web platform');
+      _isConnected = false;
+      return;
+    }
+
     if (_isConnected && _db != null && _db!.isConnected) {
       return;
     }
@@ -42,6 +51,9 @@ class MongoDBService {
 
   // CRITICAL FIX: Return FRESH collection every time
   static DbCollection getCollection(String collectionName) {
+    if (_isWeb) {
+      throw Exception('MongoDB direct connection not supported on web. Use HTTP API instead.');
+    }
     if (_db == null || !_isConnected || !_db!.isConnected) {
       throw Exception('MongoDB not connected. Call connect() first.');
     }
@@ -50,9 +62,18 @@ class MongoDBService {
   }
 
   static Future<void> ensureCollectionExists(String collectionName) async {
+    if (_isWeb) {
+      print('MongoDB: Skipping collection check on web platform');
+      return;
+    }
     await connect(); // Ensure connected
     print('Collection "$collectionName" is ready');
   }
 
-  static bool get isConnected => _isConnected && _db?.isConnected == true;
+  static bool get isConnected {
+    if (_isWeb) return false; // Web doesn't support direct connection
+    return _isConnected && _db?.isConnected == true;
+  }
+
+  static bool get isWebPlatform => _isWeb;
 }

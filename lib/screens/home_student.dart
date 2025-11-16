@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ggclassroom/l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../screens/calendar_screen.dart';
 import '../screens/course_homework_screen.dart';
-import '../main.dart';
 import '../models/user.dart'; 
 
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
@@ -86,7 +84,6 @@ class HomeStudent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final loc = AppLocalizations.of(context)!;
     final user = ref.watch(authProvider)!;
 
     return Scaffold(
@@ -214,7 +211,7 @@ class _CourseCard extends StatelessWidget {
 class _SideMenu extends StatelessWidget {
   final List<Map<String, dynamic>> courses;
   final AppUser user;
-  const _SideMenu({super.key, required this.courses, required this.user});
+  const _SideMenu({required this.courses, required this.user});
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +227,7 @@ class _SideMenu extends StatelessWidget {
               children: [
                 const CircleAvatar(radius: 36, backgroundImage: AssetImage("assets/images/student_avatar.jpg")),
                 const SizedBox(height: 8),
-                Text(user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                Text(user.fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 Text(user.email, style: const TextStyle(fontSize: 12, color: Colors.black54)),
               ],
             ),
@@ -321,7 +318,7 @@ class _ClassworkScreenState extends ConsumerState<ClassworkScreen> {
           const SizedBox(height: 16),
           const CircleAvatar(radius: 36, backgroundImage: AssetImage("assets/images/student_avatar.jpg")),
           const SizedBox(height: 8),
-          Text(user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          Text(user.fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

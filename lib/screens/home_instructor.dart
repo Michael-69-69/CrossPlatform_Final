@@ -10,8 +10,7 @@ import '../providers/group_provider.dart';
 import '../models/semester.dart';
 import '../models/course.dart';
 import '../models/user.dart';
-import '../screens/instructor/course_detail_screen.dart';
-import '../screens/instructor/semester_create_screen.dart';
+import 'instructor/csv_preview_screen.dart';
 
 class HomeInstructor extends ConsumerStatefulWidget {
   const HomeInstructor({super.key});
@@ -22,7 +21,6 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     with TickerProviderStateMixin {
   String? _selectedSemesterId;
   bool _isLoading = false;
-  String? _errorMessage;
   late TabController _tabController;
 
   @override
@@ -41,7 +39,6 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   Future<void> _refreshData() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
     });
 
     try {
@@ -52,7 +49,6 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
       ]);
     } catch (e, stack) {
       print('Refresh error: $e\n$stack');
-      setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -71,7 +67,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('GV: ${user.name}'),
+        title: Text('GV: ${user.fullName}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -191,10 +187,28 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: courses.length,
-      itemBuilder: (context, i) {
+    return Column(
+      children: [
+        // Add Course Button
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.add_circle),
+            label: const Text('Thêm Môn Học'),
+            onPressed: () => _showCreateCourseDialog(context, semesters, user),
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
+        // Courses List
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: courses.length,
+            itemBuilder: (context, i) {
         final course = courses[i];
         final semester = semesters.firstWhere((s) => s.id == course.semesterId,
             orElse: () => Semester(id: '', code: 'N/A', name: 'Không xác định'));
@@ -222,6 +236,133 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
           ),
         );
       },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ────── CREATE COURSE DIALOG ──────
+  void _showCreateCourseDialog(BuildContext context, List<Semester> semesters, AppUser user) {
+    final codeCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final sessionsCtrl = TextEditingController(text: '10');
+    String? selectedSemesterId;
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Thêm Môn Học'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: codeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Mã môn học *',
+                      hintText: 'VD: WEB101',
+                      prefixIcon: Icon(Icons.code),
+                    ),
+                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Tên môn học *',
+                      hintText: 'VD: Lập trình Web',
+                      prefixIcon: Icon(Icons.book),
+                    ),
+                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: sessionsCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Số buổi học *',
+                      hintText: 'VD: 10, 15, 20',
+                      prefixIcon: Icon(Icons.calendar_today),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      if (v?.trim().isEmpty == true) return 'Bắt buộc';
+                      final n = int.tryParse(v!);
+                      if (n == null || n < 1) return 'Phải là số dương';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedSemesterId,
+                    decoration: const InputDecoration(
+                      labelText: 'Học kỳ *',
+                      prefixIcon: Icon(Icons.school),
+                    ),
+                    items: semesters.isEmpty
+                        ? [const DropdownMenuItem(value: null, child: Text('Chưa có học kỳ'))]
+                        : [
+                            const DropdownMenuItem(value: null, child: Text('Chọn học kỳ')),
+                            ...semesters.map((s) => DropdownMenuItem(
+                                  value: s.id,
+                                  child: Text('${s.code}: ${s.name}'),
+                                )),
+                          ],
+                    onChanged: semesters.isEmpty
+                        ? null
+                        : (v) => setDialogState(() => selectedSemesterId = v),
+                    validator: (v) => v == null ? 'Bắt buộc chọn học kỳ' : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                if (selectedSemesterId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Vui lòng chọn học kỳ')),
+                  );
+                  return;
+                }
+
+                try {
+                  await ref.read(courseProvider.notifier).createCourse(
+                        code: codeCtrl.text.trim(),
+                        name: nameCtrl.text.trim(),
+                        sessions: int.parse(sessionsCtrl.text.trim()),
+                        semesterId: selectedSemesterId!,
+                        instructorId: user.id,
+                        instructorName: user.fullName,
+                      );
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Đã thêm môn học: ${nameCtrl.text.trim()}')),
+                  );
+                  await _refreshData();
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Lỗi: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Tạo'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -253,10 +394,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                       child: ListTile(
                         leading: CircleAvatar(
                           child: Text(
-                            s.code.isNotEmpty ? s.code[0] : '?',
+                            s.code != null && s.code!.isNotEmpty ? s.code![0] : '?',
                           ),
                         ),
-                        title: Text(s.name),
+                        title: Text(s.fullName),
                         subtitle: Text('${s.code} • ${s.email}'),
                       ),
                     );
@@ -323,212 +464,238 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Thêm sinh viên'),
-        content: DefaultTabController(
+      builder: (ctx) {
+        return DefaultTabController(
           length: 2,
-          child: SizedBox(
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const TabBar(
-                  tabs: [
-                    Tab(text: 'Thủ công'),
-                    Tab(text: 'Tạo nhanh'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 280,
-                  child: TabBarView(
-                    children: [
-                      Form(
-                        key: formKey,
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: codeCtrl,
-                              decoration: const InputDecoration(labelText: 'Mã SV *'),
-                              validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+          child: Builder(
+            builder: (tabContext) {
+              final tabController = DefaultTabController.of(tabContext);
+              
+              return AlertDialog(
+                title: const Text('Thêm sinh viên'),
+                content: SizedBox(
+                      width: 400,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const TabBar(
+                            tabs: [
+                              Tab(text: 'Thủ công'),
+                              Tab(text: 'Tạo nhanh'),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 280,
+                            child: TabBarView(
+                              children: [
+                                Form(
+                                  key: formKey,
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        TextFormField(
+                                          controller: codeCtrl,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Mã SV *',
+                                            hintText: 'VD: 2023001',
+                                            prefixIcon: Icon(Icons.badge),
+                                            helperText: 'Mã sinh viên (bắt buộc)',
+                                          ),
+                                          validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        TextFormField(
+                                          controller: nameCtrl,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Họ và tên *',
+                                            hintText: 'VD: Nguyễn Văn An',
+                                            prefixIcon: Icon(Icons.person),
+                                            helperText: 'Tên đầy đủ (bắt buộc)',
+                                          ),
+                                          validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        TextFormField(
+                                          controller: emailCtrl,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Email',
+                                            hintText: 'VD: an@school.com',
+                                            prefixIcon: Icon(Icons.email),
+                                            helperText: 'Email (tùy chọn, mặc định: mãSV@school.com)',
+                                          ),
+                                          keyboardType: TextInputType.emailAddress,
+                                          validator: (v) {
+                                            if (v?.trim().isEmpty == true) return null;
+                                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!)) {
+                                              return 'Email không hợp lệ';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Divider(),
+                                        const Text(
+                                          'Thông tin tài khoản:',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          '• Mật khẩu mặc định: Mã SV\n• Vai trò: Sinh viên\n• Tài khoản sẽ được tạo tự động',
+                                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Form(
+                                  key: quickFormKey,
+                                  child: Column(
+                                    children: [
+                                      TextFormField(
+                                        controller: quickBaseCodeCtrl,
+                                        decoration: const InputDecoration(labelText: 'Mã SV bắt đầu *'),
+                                        keyboardType: TextInputType.number,
+                                        validator: (v) {
+                                          if (v?.trim().isEmpty == true) return 'Bắt buộc';
+                                          if (int.tryParse(v!) == null) return 'Phải là số';
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: quickCountCtrl,
+                                        decoration: const InputDecoration(labelText: 'Số lượng *'),
+                                        keyboardType: TextInputType.number,
+                                        validator: (v) {
+                                          if (v?.trim().isEmpty == true) return 'Bắt buộc';
+                                          final n = int.tryParse(v!);
+                                          if (n == null || n < 1 || n > 50) return '1-50';
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'Tên & email sẽ được tạo tự động\nVD: Nguyễn An → an2023001@school.com',
+                                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: nameCtrl,
-                              decoration: const InputDecoration(labelText: 'Họ tên *'),
-                              validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: emailCtrl,
-                              decoration: const InputDecoration(labelText: 'Email'),
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (v) {
-                                if (v?.trim().isEmpty == true) return null;
-                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!)) {
-                                  return 'Email không hợp lệ';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      Form(
-                        key: quickFormKey,
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: quickBaseCodeCtrl,
-                              decoration: const InputDecoration(labelText: 'Mã SV bắt đầu *'),
-                              keyboardType: TextInputType.number,
-                              validator: (v) {
-                                if (v?.trim().isEmpty == true) return 'Bắt buộc';
-                                if (int.tryParse(v!) == null) return 'Phải là số';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: quickCountCtrl,
-                              decoration: const InputDecoration(labelText: 'Số lượng *'),
-                              keyboardType: TextInputType.number,
-                              validator: (v) {
-                                if (v?.trim().isEmpty == true) return 'Bắt buộc';
-                                final n = int.tryParse(v!);
-                                if (n == null || n < 1 || n > 50) return '1-50';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Tên & email sẽ được tạo tự động\nVD: Nguyễn An → an2023001@school.com',
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+                  ElevatedButton(
+                    onPressed: () async {
+                      // Get current tab index from the controller
+                      final tabIndex = tabController.index;
+
+                      if (tabIndex == 0) {
+                        if (!formKey.currentState!.validate()) return;
+                        final code = codeCtrl.text.trim();
+                        final name = nameCtrl.text.trim();
+                        final email = emailCtrl.text.trim();
+
+                        final exists = ref.read(studentProvider).any((s) => s.code == code);
+                        if (exists) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Mã SV đã tồn tại')),
+                          );
+                          return;
+                        }
+
+                        try {
+                          await ref.read(studentProvider.notifier).createStudent(
+                            code: code,
+                            fullName: name,
+                            email: email,
+                          );
+                          await ref.read(studentProvider.notifier).loadStudents();
+                          Navigator.pop(ctx);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Đã thêm: $name (Mật khẩu: $code)')),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                          }
+                        }
+                      } else {
+                        if (!quickFormKey.currentState!.validate()) return;
+                        final baseCode = int.parse(quickBaseCodeCtrl.text.trim());
+                        final count = int.parse(quickCountCtrl.text.trim());
+                        final existingCodes = ref.read(studentProvider).map((s) => s.code).toSet();
+                        final created = <AppUser>[];
+
+                        for (int i = 0; i < count; i++) {
+                          final code = '${baseCode + i}';
+                          if (existingCodes.contains(code)) continue;
+
+                          final first = firstNames[DateTime.now().millisecond % firstNames.length];
+                          final last = lastNames[(baseCode + i) % lastNames.length];
+                          final name = '$first $last';
+                          final email = '${last.toLowerCase()}$code@school.com';
+
+                          try {
+                            await ref.read(studentProvider.notifier).createStudent(
+                              code: code,
+                              fullName: name,
+                              email: email,
+                            );
+                            final now = DateTime.now();
+                            created.add(AppUser(
+                              id: '',
+                              fullName: name,
+                              email: email,
+                              role: UserRole.student,
+                              createdAt: now,
+                              updatedAt: now,
+                              code: code,
+                            ));
+                          } catch (e) {
+                            print('Quick create error: $e');
+                          }
+                        }
+
+                        await ref.read(studentProvider.notifier).loadStudents();
+                        Navigator.pop(ctx);
+                        if (mounted && created.isNotEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Đã tạo ${created.length} sinh viên mẫu (Mật khẩu = Mã SV)')),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('Thêm'),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () async {
-              final tabIndex = DefaultTabController.of(ctx).index;
-
-              if (tabIndex == 0) {
-                if (!formKey.currentState!.validate()) return;
-                final code = codeCtrl.text.trim();
-                final name = nameCtrl.text.trim();
-                final email = emailCtrl.text.trim();
-
-                final exists = ref.read(studentProvider).any((s) => s.code == code);
-                if (exists) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Mã SV đã tồn tại')),
-                  );
-                  return;
-                }
-
-                try {
-                  await ref.read(studentProvider.notifier).createStudent(
-                    code: code,
-                    name: name,
-                    email: email,
-                  );
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Đã thêm: $name')),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
-                }
-              } else {
-                if (!quickFormKey.currentState!.validate()) return;
-                final baseCode = int.parse(quickBaseCodeCtrl.text.trim());
-                final count = int.parse(quickCountCtrl.text.trim());
-                final existingCodes = ref.read(studentProvider).map((s) => s.code).toSet();
-                final created = <AppUser>[];
-
-                for (int i = 0; i < count; i++) {
-                  final code = '${baseCode + i}';
-                  if (existingCodes.contains(code)) continue;
-
-                  final first = firstNames[DateTime.now().millisecond % firstNames.length];
-                  final last = lastNames[(baseCode + i) % lastNames.length];
-                  final name = '$first $last';
-                  final email = '${last.toLowerCase()}$code@school.com';
-
-                  try {
-                    await ref.read(studentProvider.notifier).createStudent(
-                      code: code,
-                      name: name,
-                      email: email,
-                    );
-                    created.add(AppUser(id: '', code: code, name: name, email: email, role: UserRole.student));
-                  } catch (e) {
-                    print('Quick create error: $e');
-                  }
-                }
-
-                Navigator.pop(ctx);
-                if (created.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Đã tạo ${created.length} sinh viên mẫu')),
-                  );
-                }
-              }
+                ],
+              );
             },
-            child: const Text('Thêm'),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   void _showCsvImportDialog(BuildContext context) {
-    final csvCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nhập từ CSV'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Dòng 1: Mã SV,Tên,Email\nDòng 2+: dữ liệu'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: csvCtrl,
-              maxLines: 8,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: '2023001,Nguyễn Văn A,a@example.com\n...',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () async {
-              final created = await ref.read(studentProvider.notifier).importStudentsFromCsv(csvCtrl.text);
-              Navigator.pop(ctx);
-              if (created.isNotEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Đã thêm ${created.length} sinh viên')),
-                );
-              }
-            },
-            child: const Text('Nhập'),
-          ),
-        ],
+    // Navigate to CSV preview screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => const CsvPreviewScreen(),
       ),
-    );
+    ).then((_) {
+      // Refresh student list after import
+      ref.read(studentProvider.notifier).loadStudents();
+    });
   }
 }

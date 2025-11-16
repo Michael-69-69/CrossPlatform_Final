@@ -119,7 +119,7 @@ class _GroupListScreenState extends ConsumerState<GroupListScreen> {
             children: [
               const Text('Sinh viên hiện tại:'),
               ...currentStudents.map((s) => ListTile(
-                    title: Text(s.name),
+                    title: Text(s.fullName),
                     subtitle: Text('${s.code} – ${s.email}'),
                   )),
               const Divider(),

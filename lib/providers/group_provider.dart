@@ -66,26 +66,41 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
           ? groupDoc['courseId'].toHexString()
           : groupDoc['courseId'].toString();
 
+      final courseOid = ObjectId.fromHexString(courseId);
       final existingGroups = await groupCol
-          .find(where.eq('courseId', ObjectId.fromHexString(courseId)))
+          .find(where.eq('courseId', courseOid))
           .toList();
 
       for (final studentId in studentIds) {
         final sid = ObjectId.fromHexString(studentId);
-        final alreadyInGroup = existingGroups.any((g) {
-          final ids = (g['studentIds'] as List).cast<ObjectId>();
-          return ids.contains(sid);
-        });
-        if (alreadyInGroup) continue;
+        
+        // Remove student from all other groups in the same course (one student per course rule)
+        for (final otherGroup in existingGroups) {
+          if (otherGroup['_id'] == groupOid) continue; // Skip current group
+          
+          final otherGroupIds = (otherGroup['studentIds'] as List).cast<ObjectId>();
+          if (otherGroupIds.contains(sid)) {
+            // Remove from other group
+            await groupCol.updateOne(
+              where.id(otherGroup['_id'] as ObjectId),
+              ModifierBuilder().pull('studentIds', sid),
+            );
+          }
+        }
 
-        await groupCol.updateOne(
-          where.id(groupOid),
-          ModifierBuilder().push('studentIds', sid),
-        );
+        // Add to current group if not already there
+        final currentGroupIds = (groupDoc['studentIds'] as List).cast<ObjectId>();
+        if (!currentGroupIds.contains(sid)) {
+          await groupCol.updateOne(
+            where.id(groupOid),
+            ModifierBuilder().push('studentIds', sid),
+          );
+        }
       }
       await loadGroups();
     } catch (e) {
       print('addStudents error: $e');
+      rethrow;
     }
   }
 
@@ -102,6 +117,48 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
       await loadGroups();
     } catch (e) {
       print('removeStudent error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateGroup(String groupId, String newName) async {
+    final oid = _oid(groupId);
+    if (oid == null) return;
+    try {
+      await MongoDBService.connect();
+      final col = MongoDBService.getCollection('groups');
+      await col.updateOne(
+        where.id(oid),
+        ModifierBuilder().set('name', newName),
+      );
+      state = state.map((g) {
+        if (g.id == groupId) {
+          return app.Group(
+            id: g.id,
+            name: newName,
+            courseId: g.courseId,
+            studentIds: g.studentIds,
+          );
+        }
+        return g;
+      }).toList();
+    } catch (e) {
+      print('updateGroup error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteGroup(String id) async {
+    final oid = _oid(id);
+    if (oid == null) return;
+    try {
+      await MongoDBService.connect();
+      final col = MongoDBService.getCollection('groups');
+      await col.deleteOne(where.id(oid));
+      state = state.where((g) => g.id != id).toList();
+    } catch (e) {
+      print('deleteGroup error: $e');
+      rethrow;
     }
   }
 

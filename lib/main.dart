@@ -14,11 +14,16 @@ void main() async {
   await dotenv.load(fileName: ".env");
   await Hive.initFlutter();
   
-  // Initialize MongoDB connection
+  // Initialize MongoDB connection (skip on web)
   try {
     await MongoDBService.connect();
   } catch (e) {
-    print('Warning: MongoDB connection failed: $e');
+    // On web, this is expected - MongoDB direct connection not supported
+    if (MongoDBService.isWebPlatform) {
+      print('Info: MongoDB direct connection not available on web platform');
+    } else {
+      print('Warning: MongoDB connection failed: $e');
+    }
     // Continue anyway - connection will be retried when needed
   }
   

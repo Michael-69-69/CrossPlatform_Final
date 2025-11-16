@@ -64,8 +64,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               final student = availableStudents[i];
               return ListTile(
 leading: CircleAvatar(
-  child: Text(student.code.isNotEmpty ? student.code[0] : '?'),
-),                title: Text(student.name),
+  child: Text((student.code?.isNotEmpty ?? false) ? student.code![0] : '?'),
+),                title: Text(student.fullName),
                 subtitle: Text('${student.code} • ${student.email}'),
                 trailing: IconButton(
                   icon: const Icon(Icons.add, color: Colors.green),
@@ -87,7 +87,7 @@ leading: CircleAvatar(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xác nhận'),
-        content: Text('Thêm ${selected.name} vào nhóm ${widget.group.name}?'),
+        content: Text('Thêm ${selected.fullName} vào nhóm ${widget.group.name}?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
           ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Đồng ý')),
@@ -101,7 +101,7 @@ leading: CircleAvatar(
       await ref.read(groupProvider.notifier).addStudents(widget.group.id, [selected.id]);
       if (mounted) {
         setState(() => currentStudents.add(selected));
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã thêm ${selected.name}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã thêm ${selected.fullName}')));
       }
     } catch (e) {
       if (mounted) {
@@ -253,9 +253,9 @@ leading: IconButton(
                         return Card(
                           child: ListTile(
                             leading: CircleAvatar(
-                              child: Text(student.code.isNotEmpty ? student.code[0] : '?'),
+                              child: Text((student.code?.isNotEmpty ?? false) ? student.code![0] : '?'),
                             ),
-                            title: Text(student.name),
+                            title: Text(student.fullName),
                             subtitle: Text('${student.code} • ${student.email}'),
                             trailing: IconButton(
                               icon: const Icon(Icons.remove_circle, color: Colors.red),
@@ -320,7 +320,7 @@ leading: IconButton(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xác nhận'),
-        content: Text('Xóa ${student.name} khỏi nhóm?'),
+        content: Text('Xóa ${student.fullName} khỏi nhóm?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
           ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Xóa')),
@@ -334,7 +334,7 @@ leading: IconButton(
       await ref.read(groupProvider.notifier).removeStudent(widget.group.id, student.id);
       if (mounted) {
         setState(() => currentStudents.removeWhere((s) => s.id == student.id));
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã xóa ${student.name}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã xóa ${student.fullName}')));
       }
     } catch (e) {
       if (mounted) {

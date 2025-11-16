@@ -16,6 +16,30 @@ Built with **Flutter**, **Riverpod**, **go_router**, **Hive**, **Flutter Localiz
 
 ---
 
+## Recent Updates (Latest Implementation)
+
+### Course Management System
+- **Announcements Tab**: Full announcement system with rich-text content, file attachments, scope selection (one/multiple/all groups), social media-style comments, view tracking, and download tracking
+- **Assignments Tab**: Complete assignment management with:
+  - File attachments (picker and download)
+  - Deadline management with late submission support
+  - Maximum submission attempts
+  - Real-time tracking table with filtering, sorting, and search
+  - CSV export for assignment submissions
+  - Grading interface
+- **Groups Tab**: Full group management within courses:
+  - Create, edit, and delete groups
+  - Add/remove students with automatic enforcement of one-student-per-course rule
+  - Uses all students from the dataset (not limited to course-specific students)
+- **Tab Organization**: Tabs are properly spaced with Groups as the 5th tab (after Quiz and Materials)
+
+### Data Management
+- All data now stored in MongoDB Atlas (semesters, courses, groups, students, announcements, assignments)
+- Full CRUD operations for all entities
+- CSV import/export functionality
+
+---
+
 ## Current Project Structure
 
 ```
@@ -30,10 +54,33 @@ lib/
     classwork_screen.dart
     assignment_detail_screen.dart
     calendar_screen.dart
+    instructor/
+      course_detail_screen.dart
+      course_list_screen.dart
+      announcements_tab.dart
+      assignments_tab.dart
+      groups_tab.dart
+      group_detail_screen.dart
+      group_list_screen.dart
   providers/
     auth_provider.dart
+    semester_provider.dart
+    course_provider.dart
+    group_provider.dart
+    student_provider.dart
+    announcement_provider.dart
+    assignment_provider.dart
   models/
     user.dart
+    semester.dart
+    course.dart
+    group.dart
+    announcement.dart
+    assignment.dart
+    csv_preview_item.dart
+  services/
+    mongodb_service.dart
+    data_loader.dart
   l10n/
     app_en.arb
     app_vi.arb
@@ -54,15 +101,27 @@ assets/
 | Login / Register Screen        | CHECKED  | Uses MongoDB Atlas `users` collection      |
 | Role-based Homepages           | CHECKED  | `home_student.dart` & `home_instructor.dart` |
 | Student Dashboard              | CHECKED  | Shows courses, "Việc cần làm" (Classwork)  |
-| Classwork Screen               | CHECKED  | Lists assignments, filter by course/status |
+| Classwork Screen               | CHECKED  | Lists assignments, filter by course/status | 
 | Assignment Detail Screen       | CHECKED  | Title, due date, score, description, comments, link |
 | Calendar Screen                | CHECKED  | Weekly view with course blocks             |
 | Localization (EN + VI)         | CHECKED  | `app_en.arb`, `app_vi.arb`, `flutter gen-l10n` |
 | go_router Navigation           | CHECKED  | With `extra` passing, redirects, aliases   |
-| Riverpod State Management      | CHECKED  | `auth_provider.dart`                       |
+| Riverpod State Management      | CHECKED  | `auth_provider.dart` and all other providers |
 | User Model + Roles             | CHECKED  | `models/user.dart`                         |
 | Responsive UI                  | CHECKED  | Works on mobile, tablet, desktop           |
 | Avatar & Profile UI            | CHECKED  | Images in `assets/images/`                 |
+| Semester Management            | CHECKED  | Full CRUD with MongoDB, filter by semester |
+| Course Management              | CHECKED  | Full CRUD with MongoDB, linked to semesters |
+| Group Management               | CHECKED  | Full CRUD, one student per course rule enforced |
+| Student Management             | CHECKED  | Full CRUD, CSV import, quick create mode |
+| Announcements                  | CHECKED  | Create, view, comment, scope (one/multiple/all groups), view/download tracking |
+| Assignments (real)             | CHECKED  | Full CRUD, deadlines, late submissions, max attempts, file attachments |
+| CSV Export / Import            | CHECKED  | CSV import for students, CSV export for assignment tracking |
+| File Attachments               | CHECKED  | File picker for assignments, download functionality |
+| View/Download Tracking         | CHECKED  | Announcement view tracking, file download tracking |
+| Submission Tracking            | CHECKED  | Real-time tracking table with filtering, sorting, status |
+| Late Submission Rules          | CHECKED  | Configurable late deadlines, late submission tracking |
+| Search, Filter, Sort           | CHECKED  | Full search/filter/sort for assignments and tracking |
 
 ---
 
@@ -70,28 +129,16 @@ assets/
 
 | Feature                        | Status   | Why?                                       |
 |--------------------------------|----------|---------------------------------------------|
-| Backend (Firebase / Custom)    | CROSS    | Only auth stored in MongoDB; courses/mock data still static |
-| Semester Management            | CROSS    | No CRUD for semesters                       |
-| Course Management              | CROSS    | No CRUD for courses                         |
-| Group Management               | CROSS    | No groups                                   |
-| Student Management             | CROSS    | No student CRUD, no CSV import              |
-| Announcements                  | CROSS    | Not implemented                             |
-| Assignments (real)             | CROSS    | Static mock data only                       |
-| Quizzes & Question Bank        | CROSS    | Not implemented                             |
-| Materials                      | CROSS    | Not implemented                             |
-| Forums / Discussions           | CROSS    | No comment threads                          |
+| Backend (Firebase / Custom)    | CROSS    | Using MongoDB Atlas directly, no custom backend server |
+| Quizzes & Question Bank        | CROSS    | Not implemented (tab placeholder exists)   |
+| Materials                      | CROSS    | Not implemented (tab placeholder exists)    |
+| Forums / Discussions           | CROSS    | No comment threads (announcements have simple comments) |
 | Private Messaging              | CROSS    | Not implemented                             |
 | Notifications (In-app / Email) | CROSS    | Not implemented                             |
-| CSV Export / Import            | CROSS    | Not implemented                             |
-| Search, Filter, Sort           | CROSS    | Basic filter only, no search/sort           |
 | Offline Mode (Hive/SQLite sync)| CROSS    | No offline support                          |
-| Instructor Dashboard Metrics   | CROSS    | No charts, no stats                         |
+| Instructor Dashboard Metrics | CROSS    | No charts, no stats                         |
 | Semester Switcher              | CROSS    | Not implemented                             |
 | Read-only Past Semesters       | CROSS    | Not implemented                             |
-| File Attachments               | CROSS    | No upload/download                          |
-| View/Download Tracking         | CROSS    | Not implemented                             |
-| Submission Tracking            | CROSS    | Not implemented                             |
-| Late Submission Rules          | CROSS    | Not implemented                             |
 | Quiz Randomization             | CROSS    | Not implemented                             |
 | APK (arm64) + Windows EXE      | CROSS    | Not built                                   |
 | Web Deployment (Firebase/GitHub Pages) | CROSS | Not deployed                        |

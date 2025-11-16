@@ -78,7 +78,7 @@ class _CourseListScreenState extends ConsumerState<CourseListScreen> {
                                 sessions: _sessions,
                                 semesterId: _selectedSemesterId!,
                                 instructorId: user.id,
-                                instructorName: user.name,
+                                instructorName: user.fullName,
                               );
                           _codeCtrl.clear();
                           _nameCtrl.clear();
