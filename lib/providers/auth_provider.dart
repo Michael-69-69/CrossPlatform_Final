@@ -1,10 +1,9 @@
 // providers/auth_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../models/user.dart';
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 import '../services/data_loader.dart';
 
 class AuthNotifier extends StateNotifier<AppUser?> {
@@ -24,16 +23,13 @@ class AuthNotifier extends StateNotifier<AppUser?> {
 
   Future<void> login(String email, String password) async {
     try {
-      // Check if running on web
-      if (MongoDBService.isWebPlatform) {
-        throw Exception("MongoDB không hỗ trợ trên web. Vui lòng sử dụng ứng dụng mobile hoặc desktop.");
-      }
+      await DatabaseService.connect();
+      await DatabaseService.ensureCollectionExists('users');
 
-      await MongoDBService.connect();
-      await MongoDBService.ensureCollectionExists('users');
-      final collection = MongoDBService.getCollection('users');
-
-      final userMap = await collection.findOne({'email': email});
+      final userMap = await DatabaseService.findOne(
+        collection: 'users',
+        filter: {'email': email},
+      );
 
       if (userMap == null) {
         throw Exception("Sai email hoặc mật khẩu");
@@ -73,16 +69,13 @@ class AuthNotifier extends StateNotifier<AppUser?> {
     required UserRole role,
   }) async {
     try {
-      // Check if running on web
-      if (MongoDBService.isWebPlatform) {
-        throw Exception("MongoDB không hỗ trợ trên web. Vui lòng sử dụng ứng dụng mobile hoặc desktop.");
-      }
+      await DatabaseService.connect();
+      await DatabaseService.ensureCollectionExists('users');
 
-      await MongoDBService.connect();
-      await MongoDBService.ensureCollectionExists('users');
-      final collection = MongoDBService.getCollection('users');
-
-      final existingUser = await collection.findOne({'email': email});
+      final existingUser = await DatabaseService.findOne(
+        collection: 'users',
+        filter: {'email': email},
+      );
       if (existingUser != null) {
         throw Exception("Email đã được sử dụng");
       }
@@ -95,14 +88,19 @@ class AuthNotifier extends StateNotifier<AppUser?> {
         'email': email,
         'password_hash': passwordHash,
         'role': role.name,
-        'created_at': now,
-        'updated_at': now,
+        'created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
       };
 
-      final result = await collection.insertOne(userDoc);
-      final insertedId = result.id as ObjectId;
+      final insertedId = await DatabaseService.insertOne(
+        collection: 'users',
+        document: userDoc,
+      );
 
-      final insertedUser = await collection.findOne(where.id(insertedId));
+      final insertedUser = await DatabaseService.findOne(
+        collection: 'users',
+        filter: {'_id': insertedId},
+      );
       if (insertedUser != null) {
         state = AppUser.fromMap(insertedUser);
 

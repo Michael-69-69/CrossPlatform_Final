@@ -1,12 +1,11 @@
 // providers/student_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:csv/csv.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../models/user.dart';
 import '../models/csv_preview_item.dart';
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 
 final studentProvider = StateNotifierProvider<StudentNotifier, List<AppUser>>((ref) => StudentNotifier());
 
@@ -16,14 +15,11 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
   // ────── LOAD ALL STUDENTS ──────
   Future<void> loadStudents() async {
     try {
-      if (MongoDBService.isWebPlatform) {
-        print('loadStudents: Skipping on web platform');
-        state = [];
-        return;
-      }
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('users');
-      final data = await col.find(where.eq('role', 'student')).toList();
+      await DatabaseService.connect();
+      final data = await DatabaseService.find(
+        collection: 'users',
+        filter: {'role': 'student'},
+      );
       state = data.map(AppUser.fromMap).toList();
     } catch (e) {
       print('loadStudents error: $e');
@@ -46,19 +42,18 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
     String? password, // Optional, defaults to code if not provided
   }) async {
     try {
-      if (MongoDBService.isWebPlatform) {
-        throw Exception("MongoDB không hỗ trợ trên web. Vui lòng sử dụng ứng dụng mobile hoặc desktop.");
-      }
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('users');
+      await DatabaseService.connect();
 
       // Check duplicate code and email
-      final exists = await col.findOne({
-        r'$or': [
-          {'code': code},
-          {'email': email.isNotEmpty ? email : null},
-        ]
-      });
+      final exists = await DatabaseService.findOne(
+        collection: 'users',
+        filter: {
+          r'$or': [
+            {'code': code},
+            if (email.isNotEmpty) {'email': email},
+          ]
+        },
+      );
       if (exists != null) {
         if (exists['code'] == code) {
           throw Exception('Mã sinh viên "$code" đã tồn tại');
@@ -77,14 +72,19 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
         'full_name': fullName,
         'password_hash': passwordHash,
         'role': 'student',
-        'created_at': now,
-        'updated_at': now,
+        'created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
       };
 
-      final result = await col.insertOne(doc);
-      final insertedId = result.id as ObjectId;
+      final insertedId = await DatabaseService.insertOne(
+        collection: 'users',
+        document: doc,
+      );
 
-      final insertedUser = await col.findOne(where.id(insertedId));
+      final insertedUser = await DatabaseService.findOne(
+        collection: 'users',
+        filter: {'_id': insertedId},
+      );
       if (insertedUser != null) {
         final newUser = AppUser.fromMap(insertedUser);
         state = [...state, newUser];
@@ -209,10 +209,6 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
   Future<Map<String, dynamic>> importStudentsFromCsvPreview(
     List<CsvPreviewItem> previewItems,
   ) async {
-    if (MongoDBService.isWebPlatform) {
-      throw Exception("MongoDB không hỗ trợ trên web. Vui lòng sử dụng ứng dụng mobile hoặc desktop.");
-    }
-
     final List<AppUser> created = [];
     final List<String> errors = [];
     final List<String> skipped = [];
@@ -229,18 +225,20 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
       };
     }
 
-    await MongoDBService.connect();
-    final col = MongoDBService.getCollection('users');
+    await DatabaseService.connect();
 
     for (var item in itemsToImport) {
       try {
         // Double-check existence before insert
-        final existing = await col.findOne({
-          r'$or': [
-            {'code': item.code},
-            if (item.email.isNotEmpty) {'email': item.email},
-          ]
-        });
+        final existing = await DatabaseService.findOne(
+          collection: 'users',
+          filter: {
+            r'$or': [
+              {'code': item.code},
+              if (item.email.isNotEmpty) {'email': item.email},
+            ]
+          },
+        );
 
         if (existing != null) {
           skipped.add('Dòng ${item.rowIndex}: ${item.code} - ${item.fullName} (đã tồn tại)');
@@ -257,14 +255,19 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
           'full_name': item.fullName,
           'password_hash': passwordHash,
           'role': 'student',
-          'created_at': now,
-          'updated_at': now,
+          'created_at': now.toIso8601String(),
+          'updated_at': now.toIso8601String(),
         };
 
-        final result = await col.insertOne(doc);
-        final insertedId = result.id as ObjectId;
+        final insertedId = await DatabaseService.insertOne(
+          collection: 'users',
+          document: doc,
+        );
 
-        final insertedUser = await col.findOne(where.id(insertedId));
+        final insertedUser = await DatabaseService.findOne(
+          collection: 'users',
+          filter: {'_id': insertedId},
+        );
         if (insertedUser != null) {
           final user = AppUser.fromMap(insertedUser);
           created.add(user);
@@ -287,17 +290,12 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
   Future<List<AppUser>> importStudentsFromCsv(String csvContent) async {
     if (csvContent.trim().isEmpty) return [];
 
-    if (MongoDBService.isWebPlatform) {
-      throw Exception("MongoDB không hỗ trợ trên web. Vui lòng sử dụng ứng dụng mobile hoặc desktop.");
-    }
-
     final rows = const CsvToListConverter().convert(csvContent);
     final List<AppUser> created = [];
 
     if (rows.isEmpty) return created;
 
-    await MongoDBService.connect();
-    final col = MongoDBService.getCollection('users');
+    await DatabaseService.connect();
 
     for (var i = 1; i < rows.length; i++) {
       final row = rows[i];
@@ -309,13 +307,16 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
 
       if (code.isEmpty || fullName.isEmpty) continue;
 
-      // FIXED: Use $or operator directly in map
-      final existing = await col.findOne({
-        r'$or': [
-          {'email': email},
-          {'code': code},
-        ]
-      });
+      // Check if exists
+      final existing = await DatabaseService.findOne(
+        collection: 'users',
+        filter: {
+          r'$or': [
+            {'email': email},
+            {'code': code},
+          ]
+        },
+      );
 
       if (existing != null) continue;
 
@@ -330,15 +331,20 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
         'full_name': fullName,
         'password_hash': passwordHash,
         'role': 'student',
-        'created_at': now,
-        'updated_at': now,
+        'created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
       };
 
       try {
-        final result = await col.insertOne(doc);
-        final insertedId = result.id as ObjectId;
+        final insertedId = await DatabaseService.insertOne(
+          collection: 'users',
+          document: doc,
+        );
 
-        final insertedUser = await col.findOne(where.id(insertedId));
+        final insertedUser = await DatabaseService.findOne(
+          collection: 'users',
+          filter: {'_id': insertedId},
+        );
         if (insertedUser != null) {
           final user = AppUser.fromMap(insertedUser);
           created.add(user);

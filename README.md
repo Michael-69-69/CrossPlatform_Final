@@ -16,6 +16,53 @@ Built with **Flutter**, **Riverpod**, **go_router**, **Hive**, **Flutter Localiz
 
 ---
 
+## Web Platform Support
+
+### MongoDB Web Compatibility
+The app now supports web platform through an HTTP API layer:
+- **Native platforms** (Android, iOS, Windows, Linux, macOS): Direct MongoDB connection using `mongo_dart`
+- **Web platform**: HTTP API requests to a backend server
+
+### Backend API Setup
+To run the app on web, you need to set up the backend API server:
+
+1. **Navigate to backend API directory:**
+   ```bash
+   cd backend-api-example
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment:**
+   Create a `.env` file:
+   ```
+   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
+   PORT=3000
+   ```
+
+4. **Start the server:**
+   ```bash
+   npm start
+   ```
+
+5. **Update Flutter app `.env` file:**
+   Add the API base URL:
+   ```
+   API_BASE_URL=http://localhost:3000/api
+   ```
+
+6. **Run Flutter web app:**
+   ```bash
+   flutter run -d chrome
+   ```
+
+See `backend-api-example/README.md` for detailed setup and deployment instructions.
+
+---
+
 ## Recent Updates (Latest Implementation)
 
 ### Course Management System

@@ -1,14 +1,14 @@
 // screens/instructor/csv_preview_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io' if (dart.library.html) 'dart:html' as io;
-import 'dart:convert';
 import '../../models/csv_preview_item.dart';
 import '../../models/user.dart';
 import '../../providers/student_provider.dart';
+
+// Platform-specific file reading
+import 'file_reader_io.dart' if (dart.library.html) 'file_reader_web.dart' as file_reader;
 
 class CsvPreviewScreen extends ConsumerStatefulWidget {
   const CsvPreviewScreen({super.key});
@@ -41,26 +41,10 @@ class _CsvPreviewScreenState extends ConsumerState<CsvPreviewScreen> {
       if (result != null) {
         _fileName = result.files.single.name;
         final filePath = result.files.single.path;
+        final bytes = result.files.single.bytes;
         
-        // Read file content
-        if (kIsWeb) {
-          // Web: use bytes directly
-          final bytes = result.files.single.bytes;
-          if (bytes != null) {
-            _csvContent = utf8.decode(bytes);
-          }
-        } else {
-          // Mobile/Desktop: read from file path or bytes
-          if (filePath != null && filePath.isNotEmpty) {
-            final file = io.File(filePath);
-            _csvContent = await file.readAsString();
-          } else {
-            final bytes = result.files.single.bytes;
-            if (bytes != null) {
-              _csvContent = utf8.decode(bytes);
-            }
-          }
-        }
+        // Read file content using platform-agnostic helper
+        _csvContent = await file_reader.readFileContent(filePath, bytes);
 
         if (_csvContent != null) {
           await _previewCsv();
