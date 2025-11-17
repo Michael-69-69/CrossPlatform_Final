@@ -17,7 +17,7 @@ class DatabaseService {
     int? skip,
   }) async {
     if (isWeb) {
-      // Use HTTP API on web
+      // ✅ WEB: Use Render FastAPI backend
       return await ApiService.find(
         collection: collection,
         filter: filter,
@@ -26,16 +26,14 @@ class DatabaseService {
         skip: skip,
       );
     } else {
-      // Use direct MongoDB on native
+      // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
       
-      // Get all results first
       var results = await col.find(filter ?? {}).toList();
       
-      // Apply sorting in Dart (MongoDB sort can be complex, so we do it in Dart for simplicity)
+      // Apply sorting
       if (sort != null && sort.isNotEmpty) {
-        // Simple sort implementation - sort by first key in sort map
         final sortKey = sort.keys.first;
         final sortOrder = sort[sortKey];
         results.sort((a, b) {
@@ -69,15 +67,16 @@ class DatabaseService {
     Map<String, dynamic>? filter,
   }) async {
     if (isWeb) {
+      // ✅ WEB: Use Render FastAPI backend
       return await ApiService.findOne(
         collection: collection,
         filter: filter,
       );
     } else {
+      // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
-      final result = await col.findOne(filter ?? {});
-      return result;
+      return await col.findOne(filter ?? {});
     }
   }
 
@@ -87,21 +86,48 @@ class DatabaseService {
     required Map<String, dynamic> document,
   }) async {
     if (isWeb) {
+      // ✅ WEB: Use Render FastAPI backend
       return await ApiService.insertOne(
         collection: collection,
         document: document,
       );
     } else {
+      // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
-      
-      // Convert ObjectId strings to ObjectId if needed
       final doc = _prepareDocument(document);
-      
       final result = await col.insertOne(doc);
       return result.id.toHexString();
     }
   }
+
+/// Insert many documents
+static Future<List<String>> insertMany({
+  required String collection,
+  required List<Map<String, dynamic>> documents,
+}) async {
+  if (isWeb) {
+    // ✅ WEB: Use Render FastAPI backend
+    return await ApiService.insertMany(
+      collection: collection,
+      documents: documents,
+    );
+  } else {
+    // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
+    await MongoDBService.connect();
+    final col = MongoDBService.getCollection(collection);
+    final preparedDocs = documents.map(_prepareDocument).toList();
+    
+    // Insert documents one by one and collect IDs
+    final insertedIds = <String>[];
+    for (final doc in preparedDocs) {
+      final result = await col.insertOne(doc);
+      insertedIds.add(result.id.toHexString());
+    }
+    
+    return insertedIds;
+  }
+}
 
   /// Update one document
   static Future<void> updateOne({
@@ -110,18 +136,17 @@ class DatabaseService {
     required Map<String, dynamic> update,
   }) async {
     if (isWeb) {
+      // ✅ WEB: Use Render FastAPI backend
       await ApiService.updateOne(
         collection: collection,
         id: id,
         update: update,
       );
     } else {
+      // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
-      
-      // Convert update document
       final updateDoc = _prepareUpdate(update);
-      
       await col.updateOne(
         where.id(ObjectId.fromHexString(id)),
         updateDoc,
@@ -135,11 +160,13 @@ class DatabaseService {
     required String id,
   }) async {
     if (isWeb) {
+      // ✅ WEB: Use Render FastAPI backend
       await ApiService.deleteOne(
         collection: collection,
         id: id,
       );
     } else {
+      // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
       await col.deleteOne(where.id(ObjectId.fromHexString(id)));
@@ -152,11 +179,13 @@ class DatabaseService {
     Map<String, dynamic>? filter,
   }) async {
     if (isWeb) {
+      // ✅ WEB: Use Render FastAPI backend
       return await ApiService.count(
         collection: collection,
         filter: filter,
       );
     } else {
+      // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
       return await col.count(filter ?? {});
@@ -192,7 +221,6 @@ class DatabaseService {
                  (entry.key.contains('Id') || entry.key.contains('id')) &&
                  entry.key != 'id' &&
                  entry.key != '_id') {
-        // Try to convert string IDs to ObjectId
         try {
           result[entry.key] = ObjectId.fromHexString(entry.value as String);
         } catch (e) {
@@ -234,4 +262,3 @@ class DatabaseService {
     }
   }
 }
-

@@ -1,8 +1,7 @@
 // providers/material_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import '../models/material.dart' as app;
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 
 final materialProvider = StateNotifierProvider<MaterialNotifier, List<app.Material>>((ref) {
   return MaterialNotifier();
@@ -19,13 +18,11 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
 
   Future<void> loadMaterials({String? courseId}) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('materials');
-      var query = where;
-      if (courseId != null) {
-        query = where.eq('courseId', ObjectId.fromHexString(courseId));
-      }
-      final data = await collection.find(query).toList();
+      final filter = courseId != null ? {'courseId': courseId} : null;
+      final data = await DatabaseService.find(
+        collection: 'materials',
+        filter: filter,
+      );
       state = data.map((e) => app.Material.fromMap(e)).toList();
     } catch (e) {
       print('Error loading materials: $e');
@@ -39,18 +36,21 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
     required List<app.MaterialAttachment> attachments,
   }) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('materials');
       final now = DateTime.now();
       final doc = {
-        'courseId': ObjectId.fromHexString(courseId),
+        'courseId': courseId,
         'title': title,
         if (description != null) 'description': description,
         'attachments': attachments.map((a) => a.toMap()).toList(),
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       };
-      await collection.insertOne(doc);
+      
+      await DatabaseService.insertOne(
+        collection: 'materials',
+        document: doc,
+      );
+      
       await loadMaterials();
     } catch (e) {
       print('Error creating material: $e');
@@ -60,17 +60,19 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
 
   Future<void> updateMaterial(app.Material material) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('materials');
       final now = DateTime.now();
-      await collection.updateOne(
-        where.id(ObjectId.fromHexString(material.id)),
-        ModifierBuilder()
-          ..set('title', material.title)
-          ..set('description', material.description)
-          ..set('attachments', material.attachments.map((a) => a.toMap()).toList())
-          ..set('updatedAt', now.toIso8601String()),
+      
+      await DatabaseService.updateOne(
+        collection: 'materials',
+        id: material.id,
+        update: {
+          'title': material.title,
+          if (material.description != null) 'description': material.description,
+          'attachments': material.attachments.map((a) => a.toMap()).toList(),
+          'updatedAt': now.toIso8601String(),
+        },
       );
+      
       await loadMaterials();
     } catch (e) {
       print('Error updating material: $e');
@@ -80,9 +82,10 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
 
   Future<void> deleteMaterial(String materialId) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('materials');
-      await collection.deleteOne(where.id(ObjectId.fromHexString(materialId)));
+      await DatabaseService.deleteOne(
+        collection: 'materials',
+        id: materialId,
+      );
       await loadMaterials();
     } catch (e) {
       print('Error deleting material: $e');
@@ -92,19 +95,15 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
 }
 
 class MaterialViewNotifier extends StateNotifier<List<app.MaterialView>> {
-  MaterialViewNotifier() : super([]) {
-    loadViews();
-  }
+  MaterialViewNotifier() : super([]);
 
   Future<void> loadViews({String? materialId}) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('material_views');
-      var query = where;
-      if (materialId != null) {
-        query = where.eq('materialId', ObjectId.fromHexString(materialId));
-      }
-      final data = await collection.find(query).toList();
+      final filter = materialId != null ? {'materialId': materialId} : null;
+      final data = await DatabaseService.find(
+        collection: 'material_views',
+        filter: filter,
+      );
       state = data.map((e) => app.MaterialView.fromMap(e)).toList();
     } catch (e) {
       print('Error loading material views: $e');
@@ -117,38 +116,61 @@ class MaterialViewNotifier extends StateNotifier<List<app.MaterialView>> {
     bool downloaded = false,
   }) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('material_views');
-      
       // Check if view already exists
-      final existing = await collection.findOne(where
-          .eq('materialId', ObjectId.fromHexString(materialId))
-          .eq('studentId', ObjectId.fromHexString(studentId)));
+      final existing = await DatabaseService.findOne(
+        collection: 'material_views',
+        filter: {
+          'materialId': materialId,
+          'studentId': studentId,
+        },
+      );
       
       if (existing != null) {
         // Update existing view
-        await collection.updateOne(
-          where.id(existing['_id'] as ObjectId),
-          ModifierBuilder()
-            ..set('viewedAt', DateTime.now().toIso8601String())
-            ..set('downloaded', downloaded),
+        await DatabaseService.updateOne(
+          collection: 'material_views',
+          id: existing['_id'].toString(),
+          update: {
+            'viewedAt': DateTime.now().toIso8601String(),
+            'downloaded': downloaded,
+          },
         );
       } else {
         // Create new view
         final now = DateTime.now();
         final doc = {
-          'materialId': ObjectId.fromHexString(materialId),
-          'studentId': ObjectId.fromHexString(studentId),
+          'materialId': materialId,
+          'studentId': studentId,
           'viewedAt': now.toIso8601String(),
           'downloaded': downloaded,
         };
-        await collection.insertOne(doc);
+        
+        await DatabaseService.insertOne(
+          collection: 'material_views',
+          document: doc,
+        );
       }
+      
       await loadViews();
     } catch (e) {
       print('Error recording material view: $e');
       rethrow;
     }
   }
-}
 
+  Future<void> trackDownload({
+    required String materialId,
+    required String studentId,
+  }) async {
+    try {
+      await recordView(
+        materialId: materialId,
+        studentId: studentId,
+        downloaded: true,
+      );
+    } catch (e) {
+      print('Error tracking download: $e');
+      rethrow;
+    }
+  }
+}

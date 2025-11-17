@@ -1,8 +1,7 @@
 // providers/course_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import '../models/course.dart';
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 
 final courseProvider = StateNotifierProvider<CourseNotifier, List<Course>>((ref) => CourseNotifier());
 
@@ -11,9 +10,7 @@ class CourseNotifier extends StateNotifier<List<Course>> {
 
   Future<void> loadCourses() async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('courses');
-      final data = await col.find().toList();
+      final data = await DatabaseService.find(collection: 'courses');
       state = data.map(Course.fromMap).toList();
     } catch (e) {
       print('loadCourses error: $e');
@@ -30,24 +27,24 @@ class CourseNotifier extends StateNotifier<List<Course>> {
     required String instructorName,
   }) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('courses');
       final doc = {
         'code': code,
         'name': name,
         'sessions': sessions,
-        'semesterId': ObjectId.fromHexString(semesterId),
-        'instructorId': ObjectId.fromHexString(instructorId),
+        'semesterId': semesterId,
+        'instructorId': instructorId,
         'instructorName': instructorName,
       };
 
-      final result = await col.insertOne(doc);
-      final insertedId = result.id as ObjectId;
+      final insertedId = await DatabaseService.insertOne(
+        collection: 'courses',
+        document: doc,
+      );
 
       state = [
         ...state,
         Course(
-          id: insertedId.toHexString(),
+          id: insertedId,
           code: code,
           name: name,
           sessions: sessions,
@@ -63,17 +60,14 @@ class CourseNotifier extends StateNotifier<List<Course>> {
   }
 
   Future<void> deleteCourse(String id) async {
-    final oid = _oid(id);
-    if (oid == null) return;
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('courses');
-      await col.deleteOne(where.id(oid));
+      await DatabaseService.deleteOne(
+        collection: 'courses',
+        id: id,
+      );
       state = state.where((c) => c.id != id).toList();
     } catch (e) {
       print('deleteCourse error: $e');
     }
   }
-
-  ObjectId? _oid(String id) => id.length == 24 ? ObjectId.fromHexString(id) : null;
 }

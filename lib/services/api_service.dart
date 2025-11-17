@@ -7,7 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ApiService {
   static String get baseUrl {
     // Get API URL from environment or use default
-    final apiUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000/api';
+    final apiUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000/api';
     return apiUrl;
   }
 
@@ -125,7 +125,23 @@ class ApiService {
         'document': document,
       },
     );
-    return response['id'] as String;
+    // ✅ FIXED: Changed from 'id' to 'insertedId' to match FastAPI response
+    return response['insertedId'] as String;
+  }
+
+  static Future<List<String>> insertMany({
+    required String collection,
+    required List<Map<String, dynamic>> documents,
+  }) async {
+    final response = await _request(
+      method: 'POST',
+      endpoint: '/insertMany',
+      body: {
+        'collection': collection,
+        'documents': documents,
+      },
+    );
+    return List<String>.from(response['insertedIds'] ?? []);
   }
 
   static Future<void> updateOne({
@@ -134,7 +150,7 @@ class ApiService {
     required Map<String, dynamic> update,
   }) async {
     await _request(
-      method: 'PUT',
+      method: 'POST',
       endpoint: '/updateOne',
       body: {
         'collection': collection,
@@ -149,7 +165,7 @@ class ApiService {
     required String id,
   }) async {
     await _request(
-      method: 'DELETE',
+      method: 'POST',
       endpoint: '/deleteOne',
       body: {
         'collection': collection,
@@ -173,4 +189,3 @@ class ApiService {
     return response['count'] as int;
   }
 }
-

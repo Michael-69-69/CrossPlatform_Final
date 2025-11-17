@@ -1,8 +1,7 @@
 // providers/announcement_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import '../models/announcement.dart';
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 
 final announcementProvider = StateNotifierProvider<AnnouncementNotifier, List<Announcement>>((ref) => AnnouncementNotifier());
 
@@ -11,10 +10,10 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
   Future<void> loadAnnouncements(String courseId) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('announcements');
-      final oid = ObjectId.fromHexString(courseId);
-      final data = await col.find(where.eq('courseId', oid)).toList();
+      final data = await DatabaseService.find(
+        collection: 'announcements',
+        filter: {'courseId': courseId},
+      );
       state = data.map(Announcement.fromMap).toList()
         ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
     } catch (e) {
@@ -34,31 +33,34 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
     List<AnnouncementAttachment> attachments = const [],
   }) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('announcements');
       final now = DateTime.now();
       
-      final announcement = Announcement(
-        id: '',
-        courseId: courseId,
-        title: title,
-        content: content,
-        attachments: attachments,
-        scope: scope,
-        groupIds: groupIds,
-        instructorId: instructorId,
-        instructorName: instructorName,
-        createdAt: now,
-        publishedAt: now,
-        isPublished: true,
+      final doc = {
+        'courseId': courseId,
+        'title': title,
+        'content': content,
+        'attachments': attachments.map((a) => a.toMap()).toList(),
+        'scope': scope.name,
+        'groupIds': groupIds,
+        'instructorId': instructorId,
+        'instructorName': instructorName,
+        'comments': [],
+        'viewedBy': [],
+        'downloadTracking': {},
+        'createdAt': now.toIso8601String(),
+        'publishedAt': now.toIso8601String(),
+        'isPublished': true,
+      };
+
+      final insertedId = await DatabaseService.insertOne(
+        collection: 'announcements',
+        document: doc,
       );
 
-      final result = await col.insertOne(announcement.toMap());
-      final insertedId = result.id as ObjectId;
-
+      // Add to state
       state = [
         Announcement(
-          id: insertedId.toHexString(),
+          id: insertedId,
           courseId: courseId,
           title: title,
           content: content,
@@ -81,23 +83,27 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
   Future<void> addComment(String announcementId, String userId, String userName, String content) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('announcements');
-      final oid = ObjectId.fromHexString(announcementId);
+      final announcement = state.firstWhere((a) => a.id == announcementId);
       
       final comment = AnnouncementComment(
-        id: ObjectId().toHexString(),
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         userId: userId,
         userName: userName,
         content: content,
         createdAt: DateTime.now(),
       );
 
-      await col.updateOne(
-        where.id(oid),
-        modify.push('comments', comment.toMap()),
+      final updatedComments = [...announcement.comments, comment];
+
+      await DatabaseService.updateOne(
+        collection: 'announcements',
+        id: announcementId,
+        update: {
+          'comments': updatedComments.map((c) => c.toMap()).toList(),
+        },
       );
 
+      // Update local state
       state = state.map((a) {
         if (a.id == announcementId) {
           return Announcement(
@@ -110,7 +116,7 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
             groupIds: a.groupIds,
             instructorId: a.instructorId,
             instructorName: a.instructorName,
-            comments: [...a.comments, comment],
+            comments: updatedComments,
             viewedBy: a.viewedBy,
             downloadTracking: a.downloadTracking,
             createdAt: a.createdAt,
@@ -128,21 +134,22 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
   Future<void> markAsViewed(String announcementId, String userId) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('announcements');
-      final oid = ObjectId.fromHexString(announcementId);
-      final userOid = ObjectId.fromHexString(userId);
-
       final announcement = state.firstWhere((a) => a.id == announcementId);
       if (announcement.viewedBy.contains(userId)) {
         return; // Already viewed
       }
 
-      await col.updateOne(
-        where.id(oid),
-        modify.push('viewedBy', userOid),
+      final updatedViewedBy = [...announcement.viewedBy, userId];
+
+      await DatabaseService.updateOne(
+        collection: 'announcements',
+        id: announcementId,
+        update: {
+          'viewedBy': updatedViewedBy,
+        },
       );
 
+      // Update local state
       state = state.map((a) {
         if (a.id == announcementId) {
           return Announcement(
@@ -156,7 +163,7 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
             instructorId: a.instructorId,
             instructorName: a.instructorName,
             comments: a.comments,
-            viewedBy: [...a.viewedBy, userId],
+            viewedBy: updatedViewedBy,
             downloadTracking: a.downloadTracking,
             createdAt: a.createdAt,
             publishedAt: a.publishedAt,
@@ -173,21 +180,21 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
   Future<void> trackDownload(String announcementId, String userId, String fileName) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('announcements');
-      final oid = ObjectId.fromHexString(announcementId);
-
       final announcement = state.firstWhere((a) => a.id == announcementId);
       final updatedTracking = Map<String, DateTime>.from(announcement.downloadTracking);
       updatedTracking['$userId:$fileName'] = DateTime.now();
 
-      await col.updateOne(
-        where.id(oid),
-        modify.set('downloadTracking', updatedTracking.map(
-          (key, value) => MapEntry(key, value.toIso8601String()),
-        )),
+      await DatabaseService.updateOne(
+        collection: 'announcements',
+        id: announcementId,
+        update: {
+          'downloadTracking': updatedTracking.map(
+            (key, value) => MapEntry(key, value.toIso8601String()),
+          ),
+        },
       );
 
+      // Update local state
       state = state.map((a) {
         if (a.id == announcementId) {
           return Announcement(
@@ -217,18 +224,14 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
   }
 
   Future<void> deleteAnnouncement(String id) async {
-    final oid = _oid(id);
-    if (oid == null) return;
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('announcements');
-      await col.deleteOne(where.id(oid));
+      await DatabaseService.deleteOne(
+        collection: 'announcements',
+        id: id,
+      );
       state = state.where((a) => a.id != id).toList();
     } catch (e) {
       print('deleteAnnouncement error: $e');
     }
   }
-
-  ObjectId? _oid(String id) => id.length == 24 ? ObjectId.fromHexString(id) : null;
 }
-

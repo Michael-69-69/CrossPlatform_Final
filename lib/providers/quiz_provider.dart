@@ -1,9 +1,8 @@
 // providers/quiz_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import '../models/question.dart';
 import '../models/quiz.dart';
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 
 final questionProvider = StateNotifierProvider<QuestionNotifier, List<Question>>((ref) {
   return QuestionNotifier();
@@ -24,13 +23,11 @@ class QuestionNotifier extends StateNotifier<List<Question>> {
 
   Future<void> loadQuestions({String? courseId}) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('questions');
-      var query = where;
-      if (courseId != null) {
-        query = where.eq('courseId', ObjectId.fromHexString(courseId));
-      }
-      final data = await collection.find(query).toList();
+      final filter = courseId != null ? {'courseId': courseId} : null;
+      final data = await DatabaseService.find(
+        collection: 'questions',
+        filter: filter,
+      );
       state = data.map((e) => Question.fromMap(e)).toList();
     } catch (e) {
       print('Error loading questions: $e');
@@ -45,11 +42,9 @@ class QuestionNotifier extends StateNotifier<List<Question>> {
     required QuestionDifficulty difficulty,
   }) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('questions');
       final now = DateTime.now();
       final doc = {
-        'courseId': ObjectId.fromHexString(courseId),
+        'courseId': courseId,
         'questionText': questionText,
         'choices': choices,
         'correctAnswerIndex': correctAnswerIndex,
@@ -57,7 +52,12 @@ class QuestionNotifier extends StateNotifier<List<Question>> {
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       };
-      await collection.insertOne(doc);
+      
+      await DatabaseService.insertOne(
+        collection: 'questions',
+        document: doc,
+      );
+      
       await loadQuestions();
     } catch (e) {
       print('Error creating question: $e');
@@ -67,18 +67,20 @@ class QuestionNotifier extends StateNotifier<List<Question>> {
 
   Future<void> updateQuestion(Question question) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('questions');
       final now = DateTime.now();
-      await collection.updateOne(
-        where.id(ObjectId.fromHexString(question.id)),
-        ModifierBuilder()
-          ..set('questionText', question.questionText)
-          ..set('choices', question.choices)
-          ..set('correctAnswerIndex', question.correctAnswerIndex)
-          ..set('difficulty', question.difficulty.toString().split('.').last)
-          ..set('updatedAt', now.toIso8601String()),
+      
+      await DatabaseService.updateOne(
+        collection: 'questions',
+        id: question.id,
+        update: {
+          'questionText': question.questionText,
+          'choices': question.choices,
+          'correctAnswerIndex': question.correctAnswerIndex,
+          'difficulty': question.difficulty.toString().split('.').last,
+          'updatedAt': now.toIso8601String(),
+        },
       );
+      
       await loadQuestions();
     } catch (e) {
       print('Error updating question: $e');
@@ -88,9 +90,10 @@ class QuestionNotifier extends StateNotifier<List<Question>> {
 
   Future<void> deleteQuestion(String questionId) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('questions');
-      await collection.deleteOne(where.id(ObjectId.fromHexString(questionId)));
+      await DatabaseService.deleteOne(
+        collection: 'questions',
+        id: questionId,
+      );
       await loadQuestions();
     } catch (e) {
       print('Error deleting question: $e');
@@ -106,13 +109,11 @@ class QuizNotifier extends StateNotifier<List<Quiz>> {
 
   Future<void> loadQuizzes({String? courseId}) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('quizzes');
-      var query = where;
-      if (courseId != null) {
-        query = where.eq('courseId', ObjectId.fromHexString(courseId));
-      }
-      final data = await collection.find(query).toList();
+      final filter = courseId != null ? {'courseId': courseId} : null;
+      final data = await DatabaseService.find(
+        collection: 'quizzes',
+        filter: filter,
+      );
       state = data.map((e) => Quiz.fromMap(e)).toList();
     } catch (e) {
       print('Error loading quizzes: $e');
@@ -133,11 +134,9 @@ class QuizNotifier extends StateNotifier<List<Quiz>> {
     required List<String> questionIds,
   }) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('quizzes');
       final now = DateTime.now();
       final doc = {
-        'courseId': ObjectId.fromHexString(courseId),
+        'courseId': courseId,
         'title': title,
         if (description != null) 'description': description,
         'openTime': openTime.toIso8601String(),
@@ -147,11 +146,16 @@ class QuizNotifier extends StateNotifier<List<Quiz>> {
         if (easyCount != null) 'easyCount': easyCount,
         if (mediumCount != null) 'mediumCount': mediumCount,
         if (hardCount != null) 'hardCount': hardCount,
-        'questionIds': questionIds.map(ObjectId.fromHexString).toList(),
+        'questionIds': questionIds,
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       };
-      await collection.insertOne(doc);
+      
+      await DatabaseService.insertOne(
+        collection: 'quizzes',
+        document: doc,
+      );
+      
       await loadQuizzes();
     } catch (e) {
       print('Error creating quiz: $e');
@@ -161,24 +165,26 @@ class QuizNotifier extends StateNotifier<List<Quiz>> {
 
   Future<void> updateQuiz(Quiz quiz) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('quizzes');
       final now = DateTime.now();
-      await collection.updateOne(
-        where.id(ObjectId.fromHexString(quiz.id)),
-        ModifierBuilder()
-          ..set('title', quiz.title)
-          ..set('description', quiz.description)
-          ..set('openTime', quiz.openTime.toIso8601String())
-          ..set('closeTime', quiz.closeTime.toIso8601String())
-          ..set('maxAttempts', quiz.maxAttempts)
-          ..set('durationMinutes', quiz.durationMinutes)
-          ..set('easyCount', quiz.easyCount)
-          ..set('mediumCount', quiz.mediumCount)
-          ..set('hardCount', quiz.hardCount)
-          ..set('questionIds', quiz.questionIds.map(ObjectId.fromHexString).toList())
-          ..set('updatedAt', now.toIso8601String()),
+      
+      await DatabaseService.updateOne(
+        collection: 'quizzes',
+        id: quiz.id,
+        update: {
+          'title': quiz.title,
+          'description': quiz.description,
+          'openTime': quiz.openTime.toIso8601String(),
+          'closeTime': quiz.closeTime.toIso8601String(),
+          'maxAttempts': quiz.maxAttempts,
+          'durationMinutes': quiz.durationMinutes,
+          'easyCount': quiz.easyCount,
+          'mediumCount': quiz.mediumCount,
+          'hardCount': quiz.hardCount,
+          'questionIds': quiz.questionIds,
+          'updatedAt': now.toIso8601String(),
+        },
       );
+      
       await loadQuizzes();
     } catch (e) {
       print('Error updating quiz: $e');
@@ -188,9 +194,10 @@ class QuizNotifier extends StateNotifier<List<Quiz>> {
 
   Future<void> deleteQuiz(String quizId) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('quizzes');
-      await collection.deleteOne(where.id(ObjectId.fromHexString(quizId)));
+      await DatabaseService.deleteOne(
+        collection: 'quizzes',
+        id: quizId,
+      );
       await loadQuizzes();
     } catch (e) {
       print('Error deleting quiz: $e');
@@ -206,13 +213,11 @@ class QuizSubmissionNotifier extends StateNotifier<List<QuizSubmission>> {
 
   Future<void> loadSubmissions({String? quizId}) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('quiz_submissions');
-      var query = where;
-      if (quizId != null) {
-        query = where.eq('quizId', ObjectId.fromHexString(quizId));
-      }
-      final data = await collection.find(query).toList();
+      final filter = quizId != null ? {'quizId': quizId} : null;
+      final data = await DatabaseService.find(
+        collection: 'quiz_submissions',
+        filter: filter,
+      );
       state = data.map((e) => QuizSubmission.fromMap(e)).toList();
     } catch (e) {
       print('Error loading quiz submissions: $e');
@@ -228,19 +233,22 @@ class QuizSubmissionNotifier extends StateNotifier<List<QuizSubmission>> {
     required int attemptNumber,
   }) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('quiz_submissions');
       final now = DateTime.now();
       final doc = {
-        'quizId': ObjectId.fromHexString(quizId),
-        'studentId': ObjectId.fromHexString(studentId),
+        'quizId': quizId,
+        'studentId': studentId,
         'answers': answers,
         'score': score,
         'maxScore': maxScore,
         'submittedAt': now.toIso8601String(),
         'attemptNumber': attemptNumber,
       };
-      await collection.insertOne(doc);
+      
+      await DatabaseService.insertOne(
+        collection: 'quiz_submissions',
+        document: doc,
+      );
+      
       await loadSubmissions();
     } catch (e) {
       print('Error submitting quiz: $e');
@@ -250,11 +258,13 @@ class QuizSubmissionNotifier extends StateNotifier<List<QuizSubmission>> {
 
   Future<int> getAttemptCount(String quizId, String studentId) async {
     try {
-      await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('quiz_submissions');
-      final count = await collection.count(where
-          .eq('quizId', ObjectId.fromHexString(quizId))
-          .eq('studentId', ObjectId.fromHexString(studentId)));
+      final count = await DatabaseService.count(
+        collection: 'quiz_submissions',
+        filter: {
+          'quizId': quizId,
+          'studentId': studentId,
+        },
+      );
       return count;
     } catch (e) {
       print('Error getting attempt count: $e');
@@ -262,4 +272,3 @@ class QuizSubmissionNotifier extends StateNotifier<List<QuizSubmission>> {
     }
   }
 }
-

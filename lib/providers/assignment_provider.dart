@@ -1,8 +1,7 @@
 // providers/assignment_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import '../models/assignment.dart';
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 
 final assignmentProvider = StateNotifierProvider<AssignmentNotifier, List<Assignment>>((ref) => AssignmentNotifier());
 
@@ -11,10 +10,10 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
   Future<void> loadAssignments(String courseId) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('assignments');
-      final oid = ObjectId.fromHexString(courseId);
-      final data = await col.find(where.eq('courseId', oid)).toList();
+      final data = await DatabaseService.find(
+        collection: 'assignments',
+        filter: {'courseId': courseId},
+      );
       state = data.map(Assignment.fromMap).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     } catch (e) {
@@ -40,36 +39,37 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
     List<AssignmentAttachment> attachments = const [],
   }) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('assignments');
       final now = DateTime.now();
       
-      final assignment = Assignment(
-        id: '',
-        courseId: courseId,
-        title: title,
-        description: description,
-        attachments: attachments,
-        startDate: startDate,
-        deadline: deadline,
-        allowLateSubmission: allowLateSubmission,
-        lateDeadline: lateDeadline,
-        maxAttempts: maxAttempts,
-        allowedFileFormats: allowedFileFormats,
-        maxFileSize: maxFileSize,
-        groupIds: groupIds,
-        instructorId: instructorId,
-        instructorName: instructorName,
-        createdAt: now,
-        updatedAt: now,
+      final doc = {
+        'courseId': courseId,
+        'title': title,
+        'description': description,
+        'attachments': attachments.map((a) => a.toMap()).toList(),
+        'startDate': startDate.toIso8601String(),
+        'deadline': deadline.toIso8601String(),
+        'allowLateSubmission': allowLateSubmission,
+        if (lateDeadline != null) 'lateDeadline': lateDeadline.toIso8601String(),
+        'maxAttempts': maxAttempts,
+        'allowedFileFormats': allowedFileFormats,
+        'maxFileSize': maxFileSize,
+        'groupIds': groupIds,
+        'instructorId': instructorId,
+        'instructorName': instructorName,
+        'submissions': [],
+        'createdAt': now.toIso8601String(),
+        'updatedAt': now.toIso8601String(),
+      };
+
+      final insertedId = await DatabaseService.insertOne(
+        collection: 'assignments',
+        document: doc,
       );
 
-      final result = await col.insertOne(assignment.toMap());
-      final insertedId = result.id as ObjectId;
-
+      // Add to state
       state = [
         Assignment(
-          id: insertedId.toHexString(),
+          id: insertedId,
           courseId: courseId,
           title: title,
           description: description,
@@ -104,10 +104,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
     required List<AssignmentAttachment> files,
   }) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('assignments');
-      final oid = ObjectId.fromHexString(assignmentId);
-
       final assignment = state.firstWhere((a) => a.id == assignmentId);
       final attemptCount = assignment.getAttemptCountForStudent(studentId) + 1;
       
@@ -121,7 +117,7 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
            (assignment.lateDeadline != null && now.isAfter(assignment.lateDeadline!)));
 
       final submission = AssignmentSubmission(
-        id: ObjectId().toHexString(),
+        id: now.millisecondsSinceEpoch.toString(),
         studentId: studentId,
         studentName: studentName,
         groupId: groupId,
@@ -134,13 +130,16 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
       final updatedSubmissions = [...assignment.submissions, submission];
       
-      await col.updateOne(
-        where.id(oid),
-        modify
-          ..set('submissions', updatedSubmissions.map((s) => s.toMap()).toList())
-          ..set('updatedAt', now.toIso8601String()),
+      await DatabaseService.updateOne(
+        collection: 'assignments',
+        id: assignmentId,
+        update: {
+          'submissions': updatedSubmissions.map((s) => s.toMap()).toList(),
+          'updatedAt': now.toIso8601String(),
+        },
       );
 
+      // Update local state
       state = state.map((a) {
         if (a.id == assignmentId) {
           return Assignment(
@@ -179,10 +178,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
     String? feedback,
   }) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('assignments');
-      final oid = ObjectId.fromHexString(assignmentId);
-
       final assignment = state.firstWhere((a) => a.id == assignmentId);
       final updatedSubmissions = assignment.submissions.map((s) {
         if (s.id == submissionId) {
@@ -205,13 +200,16 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
       final now = DateTime.now();
       
-      await col.updateOne(
-        where.id(oid),
-        modify
-          ..set('submissions', updatedSubmissions.map((s) => s.toMap()).toList())
-          ..set('updatedAt', now.toIso8601String()),
+      await DatabaseService.updateOne(
+        collection: 'assignments',
+        id: assignmentId,
+        update: {
+          'submissions': updatedSubmissions.map((s) => s.toMap()).toList(),
+          'updatedAt': now.toIso8601String(),
+        },
       );
 
+      // Update local state
       state = state.map((a) {
         if (a.id == assignmentId) {
           return Assignment(
@@ -244,18 +242,14 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
   }
 
   Future<void> deleteAssignment(String id) async {
-    final oid = _oid(id);
-    if (oid == null) return;
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('assignments');
-      await col.deleteOne(where.id(oid));
+      await DatabaseService.deleteOne(
+        collection: 'assignments',
+        id: id,
+      );
       state = state.where((a) => a.id != id).toList();
     } catch (e) {
       print('deleteAssignment error: $e');
     }
   }
-
-  ObjectId? _oid(String id) => id.length == 24 ? ObjectId.fromHexString(id) : null;
 }
-

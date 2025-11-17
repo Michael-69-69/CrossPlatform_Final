@@ -1,8 +1,7 @@
 // providers/group_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 import '../models/group.dart' as app;
-import '../services/mongodb_service.dart';
+import '../services/database_service.dart';
 
 final groupProvider = StateNotifierProvider<GroupNotifier, List<app.Group>>((ref) => GroupNotifier());
 
@@ -11,9 +10,7 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
 
   Future<void> loadGroups() async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('groups');
-      final data = await col.find().toList();
+      final data = await DatabaseService.find(collection: 'groups');
       state = data.map(app.Group.fromMap).toList();
     } catch (e) {
       print('loadGroups error: $e');
@@ -26,21 +23,22 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
     required String courseId,
   }) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('groups');
+      // ✅ FIXED: Send data in the format that works for BOTH web API and mobile
       final doc = {
         'name': name,
-        'courseId': ObjectId.fromHexString(courseId),
-        'studentIds': <ObjectId>[],
+        'courseId': courseId,  // Keep as string - backend will handle it
+        'studentIds': <String>[],  // Keep as array of strings
       };
 
-      final result = await col.insertOne(doc);
-      final insertedId = result.id as ObjectId;
+      final insertedId = await DatabaseService.insertOne(
+        collection: 'groups',
+        document: doc,
+      );
 
       state = [
         ...state,
         app.Group(
-          id: insertedId.toHexString(),
+          id: insertedId,
           name: name,
           courseId: courseId,
           studentIds: [],
@@ -52,85 +50,14 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
     }
   }
 
-  Future<void> addStudents(String groupId, List<String> studentIds) async {
-    final groupOid = _oid(groupId);
-    if (groupOid == null) return;
-
-    try {
-      await MongoDBService.connect();
-      final groupCol = MongoDBService.getCollection('groups');
-      final groupDoc = await groupCol.findOne(where.id(groupOid));
-      if (groupDoc == null) return;
-
-      final courseId = groupDoc['courseId'] is ObjectId
-          ? groupDoc['courseId'].toHexString()
-          : groupDoc['courseId'].toString();
-
-      final courseOid = ObjectId.fromHexString(courseId);
-      final existingGroups = await groupCol
-          .find(where.eq('courseId', courseOid))
-          .toList();
-
-      for (final studentId in studentIds) {
-        final sid = ObjectId.fromHexString(studentId);
-        
-        // Remove student from all other groups in the same course (one student per course rule)
-        for (final otherGroup in existingGroups) {
-          if (otherGroup['_id'] == groupOid) continue; // Skip current group
-          
-          final otherGroupIds = (otherGroup['studentIds'] as List).cast<ObjectId>();
-          if (otherGroupIds.contains(sid)) {
-            // Remove from other group
-            await groupCol.updateOne(
-              where.id(otherGroup['_id'] as ObjectId),
-              ModifierBuilder().pull('studentIds', sid),
-            );
-          }
-        }
-
-        // Add to current group if not already there
-        final currentGroupIds = (groupDoc['studentIds'] as List).cast<ObjectId>();
-        if (!currentGroupIds.contains(sid)) {
-          await groupCol.updateOne(
-            where.id(groupOid),
-            ModifierBuilder().push('studentIds', sid),
-          );
-        }
-      }
-      await loadGroups();
-    } catch (e) {
-      print('addStudents error: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> removeStudent(String groupId, String studentId) async {
-    final oid = _oid(groupId);
-    if (oid == null) return;
-    try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('groups');
-      await col.updateOne(
-        where.id(oid),
-        ModifierBuilder().pull('studentIds', ObjectId.fromHexString(studentId)),
-      );
-      await loadGroups();
-    } catch (e) {
-      print('removeStudent error: $e');
-      rethrow;
-    }
-  }
-
   Future<void> updateGroup(String groupId, String newName) async {
-    final oid = _oid(groupId);
-    if (oid == null) return;
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('groups');
-      await col.updateOne(
-        where.id(oid),
-        ModifierBuilder().set('name', newName),
+      await DatabaseService.updateOne(
+        collection: 'groups',
+        id: groupId,
+        update: {'name': newName},
       );
+
       state = state.map((g) {
         if (g.id == groupId) {
           return app.Group(
@@ -148,19 +75,98 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
     }
   }
 
-  Future<void> deleteGroup(String id) async {
-    final oid = _oid(id);
-    if (oid == null) return;
+  Future<void> addStudents(String groupId, List<String> studentIds) async {
     try {
-      await MongoDBService.connect();
-      final col = MongoDBService.getCollection('groups');
-      await col.deleteOne(where.id(oid));
-      state = state.where((g) => g.id != id).toList();
+      final groupDoc = await DatabaseService.findOne(
+        collection: 'groups',
+        filter: {'_id': groupId},
+      );
+      if (groupDoc == null) return;
+
+      final courseId = groupDoc['courseId'].toString();
+      final existingGroups = await DatabaseService.find(
+        collection: 'groups',
+        filter: {'courseId': courseId},
+      );
+
+      // Get current student IDs as strings
+      final currentStudentIds = List<String>.from(
+        (groupDoc['studentIds'] as List? ?? []).map((e) => e.toString())
+      );
+
+      for (final studentId in studentIds) {
+        // Remove from other groups in same course
+        for (final otherGroup in existingGroups) {
+          final otherGroupId = otherGroup['_id'].toString();
+          if (otherGroupId == groupId) continue;
+
+          final otherStudentIds = List<String>.from(
+            (otherGroup['studentIds'] as List? ?? []).map((e) => e.toString())
+          );
+
+          if (otherStudentIds.contains(studentId)) {
+            otherStudentIds.remove(studentId);
+            await DatabaseService.updateOne(
+              collection: 'groups',
+              id: otherGroupId,
+              update: {'studentIds': otherStudentIds},
+            );
+          }
+        }
+
+        // Add to current group if not there
+        if (!currentStudentIds.contains(studentId)) {
+          currentStudentIds.add(studentId);
+        }
+      }
+
+      await DatabaseService.updateOne(
+        collection: 'groups',
+        id: groupId,
+        update: {'studentIds': currentStudentIds},
+      );
+
+      await loadGroups();
     } catch (e) {
-      print('deleteGroup error: $e');
+      print('addStudents error: $e');
       rethrow;
     }
   }
 
-  ObjectId? _oid(String id) => id.length == 24 ? ObjectId.fromHexString(id) : null;
+  Future<void> removeStudent(String groupId, String studentId) async {
+    try {
+      final groupDoc = await DatabaseService.findOne(
+        collection: 'groups',
+        filter: {'_id': groupId},
+      );
+      if (groupDoc == null) return;
+
+      final currentStudentIds = List<String>.from(
+        (groupDoc['studentIds'] as List? ?? []).map((e) => e.toString())
+      );
+      currentStudentIds.remove(studentId);
+
+      await DatabaseService.updateOne(
+        collection: 'groups',
+        id: groupId,
+        update: {'studentIds': currentStudentIds},
+      );
+
+      await loadGroups();
+    } catch (e) {
+      print('removeStudent error: $e');
+    }
+  }
+
+  Future<void> deleteGroup(String id) async {
+    try {
+      await DatabaseService.deleteOne(
+        collection: 'groups',
+        id: id,
+      );
+      state = state.where((g) => g.id != id).toList();
+    } catch (e) {
+      print('deleteGroup error: $e');
+    }
+  }
 }
