@@ -30,7 +30,13 @@ class DatabaseService {
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
       
-      var results = await col.find(filter ?? {}).toList();
+      // ✅ FIX: Convert filter to use ObjectId
+      final convertedFilter = _convertFilterForMongo(filter);
+      
+      var results = await col.find(convertedFilter).toList();
+      
+      // ✅ FIX: Convert results to proper Map<String, dynamic>
+      results = results.map((doc) => Map<String, dynamic>.from(doc)).toList();
       
       // Apply sorting
       if (sort != null && sort.isNotEmpty) {
@@ -76,7 +82,15 @@ class DatabaseService {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
-      return await col.findOne(filter ?? {});
+      
+      // ✅ FIX: Convert filter to use ObjectId
+      final convertedFilter = _convertFilterForMongo(filter);
+      
+      final result = await col.findOne(convertedFilter);
+      
+      // ✅ FIX: Convert result to proper Map<String, dynamic>
+      if (result == null) return null;
+      return Map<String, dynamic>.from(result);
     }
   }
 
@@ -101,33 +115,33 @@ class DatabaseService {
     }
   }
 
-/// Insert many documents
-static Future<List<String>> insertMany({
-  required String collection,
-  required List<Map<String, dynamic>> documents,
-}) async {
-  if (isWeb) {
-    // ✅ WEB: Use Render FastAPI backend
-    return await ApiService.insertMany(
-      collection: collection,
-      documents: documents,
-    );
-  } else {
-    // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
-    await MongoDBService.connect();
-    final col = MongoDBService.getCollection(collection);
-    final preparedDocs = documents.map(_prepareDocument).toList();
-    
-    // Insert documents one by one and collect IDs
-    final insertedIds = <String>[];
-    for (final doc in preparedDocs) {
-      final result = await col.insertOne(doc);
-      insertedIds.add(result.id.toHexString());
+  /// Insert many documents
+  static Future<List<String>> insertMany({
+    required String collection,
+    required List<Map<String, dynamic>> documents,
+  }) async {
+    if (isWeb) {
+      // ✅ WEB: Use Render FastAPI backend
+      return await ApiService.insertMany(
+        collection: collection,
+        documents: documents,
+      );
+    } else {
+      // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
+      await MongoDBService.connect();
+      final col = MongoDBService.getCollection(collection);
+      final preparedDocs = documents.map(_prepareDocument).toList();
+      
+      // Insert documents one by one and collect IDs
+      final insertedIds = <String>[];
+      for (final doc in preparedDocs) {
+        final result = await col.insertOne(doc);
+        insertedIds.add(result.id.toHexString());
+      }
+      
+      return insertedIds;
     }
-    
-    return insertedIds;
   }
-}
 
   /// Update one document
   static Future<void> updateOne({
@@ -188,48 +202,113 @@ static Future<List<String>> insertMany({
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
       final col = MongoDBService.getCollection(collection);
-      return await col.count(filter ?? {});
+      
+      // ✅ FIX: Convert filter to use ObjectId
+      final convertedFilter = _convertFilterForMongo(filter);
+      
+      return await col.count(convertedFilter);
     }
+  }
+
+  /// ✅ NEW: Convert filter to use ObjectId for mobile MongoDB
+  static Map<String, dynamic> _convertFilterForMongo(Map<String, dynamic>? filter) {
+    if (filter == null) return {};
+    
+    final converted = <String, dynamic>{};
+    
+    // List of fields that should be ObjectId
+    const idFields = [
+      'courseId',
+      'semesterId',
+      'instructorId',
+      'studentId',
+      'quizId',
+      'assignmentId',
+      'materialId',
+      'announcementId',
+      'groupId',
+      '_id',
+    ];
+    
+    for (final entry in filter.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      // Convert ID fields to ObjectId
+      if (idFields.contains(key) && value is String) {
+        try {
+          converted[key] = ObjectId.fromHexString(value);
+        } catch (e) {
+          print('⚠️ Failed to convert $key to ObjectId: $e');
+          converted[key] = value;
+        }
+      } 
+      // Handle nested maps
+      else if (value is Map<String, dynamic>) {
+        converted[key] = _convertFilterForMongo(value);
+      }
+      // Keep other values as-is
+      else {
+        converted[key] = value;
+      }
+    }
+    
+    return converted;
   }
 
   /// Prepare document for MongoDB (convert ObjectId strings to ObjectId)
   static Map<String, dynamic> _prepareDocument(Map<String, dynamic> doc) {
     final result = <String, dynamic>{};
+    
     for (final entry in doc.entries) {
-      if (entry.key == '_id' && entry.value is String) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      // Handle _id field
+      if (key == '_id' && value is String) {
         try {
-          result[entry.key] = ObjectId.fromHexString(entry.value as String);
+          result[key] = ObjectId.fromHexString(value);
         } catch (e) {
-          result[entry.key] = entry.value;
+          result[key] = value;
         }
-      } else if (entry.value is Map) {
-        result[entry.key] = _prepareDocument(entry.value as Map<String, dynamic>);
-      } else if (entry.value is List) {
-        result[entry.key] = (entry.value as List).map((e) {
+      } 
+      // Handle nested maps
+      else if (value is Map) {
+        result[key] = _prepareDocument(value as Map<String, dynamic>);
+      } 
+      // Handle arrays
+      else if (value is List) {
+        result[key] = value.map((e) {
           if (e is Map) {
             return _prepareDocument(e as Map<String, dynamic>);
-          } else if (e is String && entry.key.contains('Id')) {
+          } else if (e is String && key.endsWith('Ids')) {
+            // Convert array of IDs (like groupIds, studentIds)
             try {
               return ObjectId.fromHexString(e);
-            } catch (e) {
+            } catch (_) {
               return e;
             }
           }
           return e;
         }).toList();
-      } else if (entry.value is String && 
-                 (entry.key.contains('Id') || entry.key.contains('id')) &&
-                 entry.key != 'id' &&
-                 entry.key != '_id') {
+      } 
+      // Handle ID fields (courseId, studentId, etc.)
+      else if (value is String && 
+               (key.endsWith('Id') || key.endsWith('id')) &&
+               key != 'id' &&
+               key != '_id') {
         try {
-          result[entry.key] = ObjectId.fromHexString(entry.value as String);
+          result[key] = ObjectId.fromHexString(value);
         } catch (e) {
-          result[entry.key] = entry.value;
+          result[key] = value;
         }
-      } else {
-        result[entry.key] = entry.value;
+      } 
+      // Keep other values as-is
+      else {
+        result[key] = value;
       }
     }
+    
     return result;
   }
 
@@ -240,7 +319,15 @@ static Future<List<String>> insertMany({
       if (entry.value is Map) {
         modifier.set(entry.key, _prepareDocument(entry.value as Map<String, dynamic>));
       } else if (entry.value is List) {
-        modifier.set(entry.key, entry.value);
+        // ✅ FIX: Handle arrays properly
+        final list = entry.value as List;
+        final processedList = list.map((item) {
+          if (item is Map) {
+            return _prepareDocument(item as Map<String, dynamic>);
+          }
+          return item;
+        }).toList();
+        modifier.set(entry.key, processedList);
       } else {
         modifier.set(entry.key, entry.value);
       }

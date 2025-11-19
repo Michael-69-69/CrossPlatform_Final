@@ -12,20 +12,40 @@ final materialViewProvider = StateNotifierProvider<MaterialViewNotifier, List<ap
 });
 
 class MaterialNotifier extends StateNotifier<List<app.Material>> {
-  MaterialNotifier() : super([]) {
-    loadMaterials();
-  }
+  MaterialNotifier() : super([]);
+  
+  bool _isLoading = false;
+  String? _lastLoadedCourseId;
 
   Future<void> loadMaterials({String? courseId}) async {
+    // ✅ FIX: Don't reload if same course and not empty (unless forced)
+    if (_isLoading || (_lastLoadedCourseId == courseId && state.isNotEmpty)) {
+      print('⏭️ Skipping duplicate load for courseId: $courseId');
+      return;
+    }
+    
     try {
+      _isLoading = true;
+      _lastLoadedCourseId = courseId;
+      
       final filter = courseId != null ? {'courseId': courseId} : null;
       final data = await DatabaseService.find(
         collection: 'materials',
         filter: filter,
       );
-      state = data.map((e) => app.Material.fromMap(e)).toList();
+      
+      // ✅ FIX: Explicit type casting for mobile
+      state = data.map((e) {
+        final map = Map<String, dynamic>.from(e);
+        return app.Material.fromMap(map);
+      }).toList();
+      
+      print('✅ Loaded ${state.length} materials for course: $courseId');
     } catch (e) {
       print('Error loading materials: $e');
+      state = [];
+    } finally {
+      _isLoading = false;
     }
   }
 
@@ -37,23 +57,50 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
   }) async {
     try {
       final now = DateTime.now();
-      final doc = {
+      
+      // ✅ FIX: Explicit type casting for nested objects
+      final doc = <String, dynamic>{
         'courseId': courseId,
         'title': title,
         if (description != null) 'description': description,
-        'attachments': attachments.map((a) => a.toMap()).toList(),
+        'attachments': attachments.map((a) {
+          final map = a.toMap();
+          return <String, dynamic>{
+            'fileName': map['fileName'],
+            if (map['fileUrl'] != null) 'fileUrl': map['fileUrl'],
+            if (map['fileData'] != null) 'fileData': map['fileData'],
+            if (map['fileSize'] != null) 'fileSize': map['fileSize'],
+            if (map['mimeType'] != null) 'mimeType': map['mimeType'],
+            'isLink': map['isLink'] ?? false,
+          };
+        }).toList(),
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       };
       
-      await DatabaseService.insertOne(
+      final insertedId = await DatabaseService.insertOne(
         collection: 'materials',
         document: doc,
       );
       
-      await loadMaterials();
-    } catch (e) {
+      // Add to state immediately
+      state = [
+        app.Material(
+          id: insertedId,
+          courseId: courseId,
+          title: title,
+          description: description,
+          attachments: attachments,
+          createdAt: now,
+          updatedAt: now,
+        ),
+        ...state,
+      ];
+      
+      print('✅ Created material: $insertedId');
+    } catch (e, stackTrace) {
       print('Error creating material: $e');
+      print('StackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -62,18 +109,37 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
     try {
       final now = DateTime.now();
       
+      // ✅ FIX: Explicit type casting
       await DatabaseService.updateOne(
         collection: 'materials',
         id: material.id,
         update: {
           'title': material.title,
           if (material.description != null) 'description': material.description,
-          'attachments': material.attachments.map((a) => a.toMap()).toList(),
+          'attachments': material.attachments.map((a) {
+            final map = a.toMap();
+            return <String, dynamic>{
+              'fileName': map['fileName'],
+              if (map['fileUrl'] != null) 'fileUrl': map['fileUrl'],
+              if (map['fileData'] != null) 'fileData': map['fileData'],
+              if (map['fileSize'] != null) 'fileSize': map['fileSize'],
+              if (map['mimeType'] != null) 'mimeType': map['mimeType'],
+              'isLink': map['isLink'] ?? false,
+            };
+          }).toList(),
           'updatedAt': now.toIso8601String(),
         },
       );
       
-      await loadMaterials();
+      // Update state
+      state = state.map((m) {
+        if (m.id == material.id) {
+          return material.copyWith(updatedAt: now);
+        }
+        return m;
+      }).toList();
+      
+      print('✅ Updated material: ${material.id}');
     } catch (e) {
       print('Error updating material: $e');
       rethrow;
@@ -86,11 +152,22 @@ class MaterialNotifier extends StateNotifier<List<app.Material>> {
         collection: 'materials',
         id: materialId,
       );
-      await loadMaterials();
+      
+      // Remove from state immediately
+      state = state.where((m) => m.id != materialId).toList();
+      
+      print('✅ Deleted material: $materialId');
     } catch (e) {
       print('Error deleting material: $e');
       rethrow;
     }
+  }
+  
+  // ✅ FIX: Force reload
+  Future<void> forceReload({String? courseId}) async {
+    _lastLoadedCourseId = null;
+    _isLoading = false;
+    await loadMaterials(courseId: courseId);
   }
 }
 
@@ -104,7 +181,12 @@ class MaterialViewNotifier extends StateNotifier<List<app.MaterialView>> {
         collection: 'material_views',
         filter: filter,
       );
-      state = data.map((e) => app.MaterialView.fromMap(e)).toList();
+      
+      // ✅ FIX: Explicit type casting
+      state = data.map((e) {
+        final map = Map<String, dynamic>.from(e);
+        return app.MaterialView.fromMap(map);
+      }).toList();
     } catch (e) {
       print('Error loading material views: $e');
     }
@@ -116,7 +198,6 @@ class MaterialViewNotifier extends StateNotifier<List<app.MaterialView>> {
     bool downloaded = false,
   }) async {
     try {
-      // Check if view already exists
       final existing = await DatabaseService.findOne(
         collection: 'material_views',
         filter: {
@@ -126,7 +207,6 @@ class MaterialViewNotifier extends StateNotifier<List<app.MaterialView>> {
       );
       
       if (existing != null) {
-        // Update existing view
         await DatabaseService.updateOne(
           collection: 'material_views',
           id: existing['_id'].toString(),
@@ -136,9 +216,8 @@ class MaterialViewNotifier extends StateNotifier<List<app.MaterialView>> {
           },
         );
       } else {
-        // Create new view
         final now = DateTime.now();
-        final doc = {
+        final doc = <String, dynamic>{
           'materialId': materialId,
           'studentId': studentId,
           'viewedAt': now.toIso8601String(),
@@ -151,7 +230,7 @@ class MaterialViewNotifier extends StateNotifier<List<app.MaterialView>> {
         );
       }
       
-      await loadViews();
+      await loadViews(materialId: materialId);
     } catch (e) {
       print('Error recording material view: $e');
       rethrow;

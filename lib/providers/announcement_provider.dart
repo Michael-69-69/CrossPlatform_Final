@@ -7,18 +7,32 @@ final announcementProvider = StateNotifierProvider<AnnouncementNotifier, List<An
 
 class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
   AnnouncementNotifier() : super([]);
+  
+  bool _isLoading = false;
 
   Future<void> loadAnnouncements(String courseId) async {
+    if (_isLoading) return; // Prevent duplicate loads
+    
     try {
+      _isLoading = true;
       final data = await DatabaseService.find(
         collection: 'announcements',
         filter: {'courseId': courseId},
       );
-      state = data.map(Announcement.fromMap).toList()
+      
+      // ✅ FIX: Ensure proper type casting for mobile
+      state = data.map((e) {
+        final map = Map<String, dynamic>.from(e);
+        return Announcement.fromMap(map);
+      }).toList()
         ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+      
+      print('✅ Loaded ${state.length} announcements');
     } catch (e) {
       print('loadAnnouncements error: $e');
       state = [];
+    } finally {
+      _isLoading = false;
     }
   }
 
@@ -35,18 +49,29 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
     try {
       final now = DateTime.now();
       
-      final doc = {
+      // ✅ FIX: Explicit type casting for nested objects
+      final doc = <String, dynamic>{
         'courseId': courseId,
         'title': title,
         'content': content,
-        'attachments': attachments.map((a) => a.toMap()).toList(),
+        'attachments': attachments.map((a) {
+          final map = a.toMap();
+          return <String, dynamic>{
+            'fileName': map['fileName'],
+            'fileUrl': map['fileUrl'],
+            if (map['fileData'] != null) 'fileData': map['fileData'],
+            if (map['fileSize'] != null) 'fileSize': map['fileSize'],
+            if (map['mimeType'] != null) 'mimeType': map['mimeType'],
+            'isLink': map['isLink'] ?? false,
+          };
+        }).toList(),
         'scope': scope.name,
         'groupIds': groupIds,
         'instructorId': instructorId,
         'instructorName': instructorName,
-        'comments': [],
-        'viewedBy': [],
-        'downloadTracking': {},
+        'comments': <Map<String, dynamic>>[],
+        'viewedBy': <String>[],
+        'downloadTracking': <String, String>{},
         'createdAt': now.toIso8601String(),
         'publishedAt': now.toIso8601String(),
         'isPublished': true,
@@ -57,7 +82,7 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
         document: doc,
       );
 
-      // Add to state
+      // Add to state immediately
       state = [
         Announcement(
           id: insertedId,
@@ -75,8 +100,11 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
         ),
         ...state,
       ];
-    } catch (e) {
+      
+      print('✅ Created announcement: $insertedId');
+    } catch (e, stackTrace) {
       print('createAnnouncement error: $e');
+      print('StackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -95,11 +123,21 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
       final updatedComments = [...announcement.comments, comment];
 
+      // ✅ FIX: Explicit type casting
       await DatabaseService.updateOne(
         collection: 'announcements',
         id: announcementId,
         update: {
-          'comments': updatedComments.map((c) => c.toMap()).toList(),
+          'comments': updatedComments.map((c) {
+            final map = c.toMap();
+            return <String, dynamic>{
+              'id': map['id'],
+              'userId': map['userId'],
+              'userName': map['userName'],
+              'content': map['content'],
+              'createdAt': map['createdAt'],
+            };
+          }).toList(),
         },
       );
 
@@ -136,7 +174,7 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
     try {
       final announcement = state.firstWhere((a) => a.id == announcementId);
       if (announcement.viewedBy.contains(userId)) {
-        return; // Already viewed
+        return;
       }
 
       final updatedViewedBy = [...announcement.viewedBy, userId];
@@ -149,7 +187,6 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
         },
       );
 
-      // Update local state
       state = state.map((a) {
         if (a.id == announcementId) {
           return Announcement(
@@ -194,7 +231,6 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
         },
       );
 
-      // Update local state
       state = state.map((a) {
         if (a.id == announcementId) {
           return Announcement(

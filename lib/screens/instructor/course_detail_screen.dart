@@ -152,10 +152,10 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   Widget _buildQuizTab() {
+    // ✅ FIXED: Removed students parameter
     return QuizTab(
       courseId: widget.course.id,
       courseName: widget.course.name,
-      students: widget.students,
     );
   }
 

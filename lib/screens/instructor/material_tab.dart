@@ -1,13 +1,12 @@
 // screens/instructor/material_tab.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 import '../../models/material.dart' as app;
 import '../../models/user.dart';
 import '../../providers/material_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/file_upload_helper.dart';   // ✅ NEW
+import '../../utils/file_download_helper.dart'; // ✅ UPDATED
 
 class MaterialTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -157,22 +156,27 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
                           icon: const Icon(Icons.attach_file),
                           label: const Text('Chọn tệp'),
                           onPressed: () async {
-                            final result = await FilePicker.platform.pickFiles(
-                              allowMultiple: true,
-                              type: FileType.any,
-                            );
-                            if (result != null) {
-                              setDialogState(() {
-                                for (final file in result.files) {
-                                  attachments.add(app.MaterialAttachment(
-                                    fileName: file.name,
-                                    fileUrl: file.path ?? '',
-                                    fileSize: file.size,
-                                    mimeType: file.extension ?? 'application/octet-stream',
-                                    isLink: false,
-                                  ));
-                                }
-                              });
+                            try {
+                              // ✅ NEW: Use file upload helper to encode files
+                              final encodedFiles = await FileUploadHelper.pickAndEncodeMultipleFiles();
+                              
+                              if (encodedFiles.isNotEmpty) {
+                                setDialogState(() {
+                                  for (final fileData in encodedFiles) {
+                                    attachments.add(app.MaterialAttachment(
+                                      fileName: fileData['fileName'],
+                                      fileData: fileData['fileData'],  // ✅ Store Base64
+                                      fileSize: fileData['fileSize'],
+                                      mimeType: fileData['mimeType'],
+                                      isLink: false,
+                                    ));
+                                  }
+                                });
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Lỗi tải file: $e')),
+                              );
                             }
                           },
                         ),
@@ -296,51 +300,85 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
       isScrollControlled: true,
       builder: (ctx) => _MaterialDetailSheet(
         material: material,
+        materialId: material.id, // ✅ Pass materialId
         students: widget.students,
         views: views,
         notViewed: notViewed,
-        onDownload: (attachment) => _downloadFile(context, attachment),
+        onDownload: (attachment) => _downloadFile(context, material.id, attachment),
       ),
     );
   }
 
-  Future<void> _downloadFile(BuildContext context, app.MaterialAttachment attachment) async {
+  // ✅ UPDATED: Handle Base64, URL, and local paths
+  Future<void> _downloadFile(BuildContext context, String materialId, app.MaterialAttachment attachment) async {
     try {
-      if (attachment.isLink) {
-        // Open URL in browser
-        // You can use url_launcher package for this
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Mở liên kết: ${attachment.fileUrl}')),
+      // Record the download in database
+      final user = ref.read(authProvider);
+      if (user != null) {
+        ref.read(materialViewProvider.notifier).trackDownload(
+          materialId: materialId,
+          studentId: user.id,
         );
-      } else {
-        // Download file
-        if (attachment.fileUrl.startsWith('/') || attachment.fileUrl.contains('\\')) {
-          final sourceFile = File(attachment.fileUrl);
-          if (await sourceFile.exists()) {
-            final directory = await getApplicationDocumentsDirectory();
-            final destinationFile = File('${directory.path}/${attachment.fileName}');
-            await sourceFile.copy(destinationFile.path);
+      }
 
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Đã tải: ${destinationFile.path}')),
-              );
-            }
-          }
-        } else {
-          final response = await http.get(Uri.parse(attachment.fileUrl));
-          if (response.statusCode == 200) {
-            final directory = await getApplicationDocumentsDirectory();
-            final file = File('${directory.path}/${attachment.fileName}');
-            await file.writeAsBytes(response.bodyBytes);
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Đã tải: ${file.path}')),
-              );
-            }
-          }
+      if (attachment.isLink) {
+        // For links, show message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Link: ${attachment.fileUrl ?? ""}')),
+          );
         }
+        return;
+      }
+
+      // Show loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đang tải xuống...')),
+        );
+      }
+
+      String result;
+
+      // Check if it's Base64 data, URL, or local path
+      if (attachment.fileData != null && attachment.fileData!.isNotEmpty) {
+        // ✅ Base64 data - download from encoded data
+        final path = await FileDownloadHelper.downloadFromBase64(
+          base64Data: attachment.fileData!,
+          fileName: attachment.fileName,
+        );
+        result = 'Đã tải: $path';
+      } else if (attachment.fileUrl != null && 
+                 (attachment.fileUrl!.startsWith('http://') || 
+                  attachment.fileUrl!.startsWith('https://'))) {
+        // URL - download from internet
+        final path = await FileDownloadHelper.downloadFile(
+          url: attachment.fileUrl!,
+          fileName: attachment.fileName,
+        );
+        result = 'Đã tải: $path';
+      } else if (attachment.fileUrl != null &&
+                 (attachment.fileUrl!.startsWith('/') || 
+                  attachment.fileUrl!.contains('\\'))) {
+        // Local file path (mobile only)
+        final downloaded = await FileDownloadHelper.downloadFromLocalPath(
+          localPath: attachment.fileUrl!,
+          fileName: attachment.fileName,
+        );
+        
+        if (downloaded != null) {
+          result = 'Đã tải: $downloaded';
+        } else {
+          result = 'Không thể tải file local trên web';
+        }
+      } else {
+        throw Exception('No valid file source available');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result)),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -449,6 +487,7 @@ class _MaterialCard extends StatelessWidget {
 
 class _MaterialDetailSheet extends ConsumerWidget {
   final app.Material material;
+  final String materialId; // ✅ NEW
   final List<AppUser> students;
   final List<app.MaterialView> views;
   final List<AppUser> notViewed;
@@ -456,6 +495,7 @@ class _MaterialDetailSheet extends ConsumerWidget {
 
   const _MaterialDetailSheet({
     required this.material,
+    required this.materialId, // ✅ NEW
     required this.students,
     required this.views,
     required this.notViewed,
@@ -518,6 +558,7 @@ class _MaterialDetailSheet extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: ListView.builder(
                   shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: material.attachments.length,
                   itemBuilder: (context, index) {
                     final attachment = material.attachments[index];
@@ -612,4 +653,3 @@ class _MaterialDetailSheet extends ConsumerWidget {
     );
   }
 }
-

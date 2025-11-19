@@ -7,18 +7,33 @@ final assignmentProvider = StateNotifierProvider<AssignmentNotifier, List<Assign
 
 class AssignmentNotifier extends StateNotifier<List<Assignment>> {
   AssignmentNotifier() : super([]);
+  
+  bool _isLoading = false;
 
   Future<void> loadAssignments(String courseId) async {
+    if (_isLoading) return;
+    
     try {
+      _isLoading = true;
       final data = await DatabaseService.find(
         collection: 'assignments',
         filter: {'courseId': courseId},
       );
-      state = data.map(Assignment.fromMap).toList()
+      
+      // ✅ FIX: Explicit type casting for mobile
+      state = data.map((e) {
+        final map = Map<String, dynamic>.from(e);
+        return Assignment.fromMap(map);
+      }).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    } catch (e) {
+      
+      print('✅ Loaded ${state.length} assignments');
+    } catch (e, stackTrace) {
       print('loadAssignments error: $e');
+      print('StackTrace: $stackTrace');
       state = [];
+    } finally {
+      _isLoading = false;
     }
   }
 
@@ -41,22 +56,31 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
     try {
       final now = DateTime.now();
       
-      final doc = {
+      // ✅ FIX: Explicit type casting for nested objects
+      final doc = <String, dynamic>{
         'courseId': courseId,
         'title': title,
         'description': description,
-        'attachments': attachments.map((a) => a.toMap()).toList(),
+        'attachments': attachments.map((a) {
+          final map = a.toMap();
+          return <String, dynamic>{
+            'fileName': map['fileName'],
+            'fileUrl': map['fileUrl'],
+            'fileSize': map['fileSize'],
+            'mimeType': map['mimeType'],
+          };
+        }).toList(),
         'startDate': startDate.toIso8601String(),
         'deadline': deadline.toIso8601String(),
         'allowLateSubmission': allowLateSubmission,
         if (lateDeadline != null) 'lateDeadline': lateDeadline.toIso8601String(),
         'maxAttempts': maxAttempts,
-        'allowedFileFormats': allowedFileFormats,
+        'allowedFileFormats': List<String>.from(allowedFileFormats),
         'maxFileSize': maxFileSize,
-        'groupIds': groupIds,
+        'groupIds': List<String>.from(groupIds),
         'instructorId': instructorId,
         'instructorName': instructorName,
-        'submissions': [],
+        'submissions': <Map<String, dynamic>>[],
         'createdAt': now.toIso8601String(),
         'updatedAt': now.toIso8601String(),
       };
@@ -66,7 +90,7 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         document: doc,
       );
 
-      // Add to state
+      // Add to state immediately
       state = [
         Assignment(
           id: insertedId,
@@ -89,8 +113,11 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         ),
         ...state,
       ];
-    } catch (e) {
+      
+      print('✅ Created assignment: $insertedId');
+    } catch (e, stackTrace) {
       print('createAssignment error: $e');
+      print('StackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -130,11 +157,34 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
       final updatedSubmissions = [...assignment.submissions, submission];
       
+      // ✅ FIX: Explicit type casting for submissions
       await DatabaseService.updateOne(
         collection: 'assignments',
         id: assignmentId,
         update: {
-          'submissions': updatedSubmissions.map((s) => s.toMap()).toList(),
+          'submissions': updatedSubmissions.map((s) {
+            final map = s.toMap();
+            return <String, dynamic>{
+              'id': map['id'],
+              'studentId': map['studentId'],
+              'studentName': map['studentName'],
+              'groupId': map['groupId'],
+              'groupName': map['groupName'],
+              'files': (map['files'] as List).map((f) {
+                return <String, dynamic>{
+                  'fileName': f['fileName'],
+                  'fileUrl': f['fileUrl'],
+                  'fileSize': f['fileSize'],
+                  'mimeType': f['mimeType'],
+                };
+              }).toList(),
+              'submittedAt': map['submittedAt'],
+              'attemptNumber': map['attemptNumber'],
+              if (map['grade'] != null) 'grade': map['grade'],
+              if (map['feedback'] != null) 'feedback': map['feedback'],
+              'isLate': map['isLate'],
+            };
+          }).toList(),
           'updatedAt': now.toIso8601String(),
         },
       );
@@ -165,8 +215,9 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         }
         return a;
       }).toList();
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('submitAssignment error: $e');
+      print('StackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -200,11 +251,34 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
       final now = DateTime.now();
       
+      // ✅ FIX: Explicit type casting
       await DatabaseService.updateOne(
         collection: 'assignments',
         id: assignmentId,
         update: {
-          'submissions': updatedSubmissions.map((s) => s.toMap()).toList(),
+          'submissions': updatedSubmissions.map((s) {
+            final map = s.toMap();
+            return <String, dynamic>{
+              'id': map['id'],
+              'studentId': map['studentId'],
+              'studentName': map['studentName'],
+              'groupId': map['groupId'],
+              'groupName': map['groupName'],
+              'files': (map['files'] as List).map((f) {
+                return <String, dynamic>{
+                  'fileName': f['fileName'],
+                  'fileUrl': f['fileUrl'],
+                  'fileSize': f['fileSize'],
+                  'mimeType': f['mimeType'],
+                };
+              }).toList(),
+              'submittedAt': map['submittedAt'],
+              'attemptNumber': map['attemptNumber'],
+              if (map['grade'] != null) 'grade': map['grade'],
+              if (map['feedback'] != null) 'feedback': map['feedback'],
+              'isLate': map['isLate'],
+            };
+          }).toList(),
           'updatedAt': now.toIso8601String(),
         },
       );
@@ -235,8 +309,9 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         }
         return a;
       }).toList();
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('gradeSubmission error: $e');
+      print('StackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -248,6 +323,7 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         id: id,
       );
       state = state.where((a) => a.id != id).toList();
+      print('✅ Deleted assignment: $id');
     } catch (e) {
       print('deleteAssignment error: $e');
     }

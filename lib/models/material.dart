@@ -79,14 +79,16 @@ class Material {
 
 class MaterialAttachment {
   final String fileName;
-  final String fileUrl;
+  final String? fileUrl;        // For external URLs
+  final String? fileData;       // ✅ NEW: For Base64 encoded files
   final int? fileSize;
   final String? mimeType;
-  final bool isLink; // true if it's a URL link, false if it's a file
+  final bool isLink;
 
   MaterialAttachment({
     required this.fileName,
-    required this.fileUrl,
+    this.fileUrl,
+    this.fileData,               // ✅ NEW
     this.fileSize,
     this.mimeType,
     this.isLink = false,
@@ -95,7 +97,8 @@ class MaterialAttachment {
   factory MaterialAttachment.fromMap(Map<String, dynamic> map) {
     return MaterialAttachment(
       fileName: map['fileName'] ?? '',
-      fileUrl: map['fileUrl'] ?? '',
+      fileUrl: map['fileUrl'],
+      fileData: map['fileData'],  // ✅ NEW
       fileSize: map['fileSize'],
       mimeType: map['mimeType'],
       isLink: map['isLink'] ?? false,
@@ -104,7 +107,8 @@ class MaterialAttachment {
 
   Map<String, dynamic> toMap() => {
         'fileName': fileName,
-        'fileUrl': fileUrl,
+        if (fileUrl != null) 'fileUrl': fileUrl,
+        if (fileData != null) 'fileData': fileData,  // ✅ NEW
         if (fileSize != null) 'fileSize': fileSize,
         if (mimeType != null) 'mimeType': mimeType,
         'isLink': isLink,
@@ -154,4 +158,3 @@ class MaterialView {
         'downloaded': downloaded,
       };
 }
-
