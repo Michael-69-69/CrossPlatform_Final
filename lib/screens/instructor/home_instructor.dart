@@ -36,23 +36,30 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     super.dispose();
   }
 
-  Future<void> _refreshData() async {
-    setState(() {
-      _isLoading = true;
-    });
+Future<void> _refreshData() async {
+  setState(() {
+    _isLoading = true;
+  });
 
-    try {
-      await Future.wait([
-        ref.read(semesterProvider.notifier).loadSemesters(),
-        ref.read(courseProvider.notifier).loadCourses(),
-        ref.read(studentProvider.notifier).loadStudents(),
-      ]);
-    } catch (e, stack) {
-      print('Refresh error: $e\n$stack');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+  try {
+    await Future.wait([
+      ref.read(semesterProvider.notifier).loadSemesters(),
+      ref.read(courseProvider.notifier).loadCourses(),
+      ref.read(studentProvider.notifier).loadStudents(),
+      ref.read(groupProvider.notifier).loadGroups(), // ✅ ADD THIS LINE
+    ]);
+    
+    print('✅ All data refreshed');
+    print('  - Semesters: ${ref.read(semesterProvider).length}');
+    print('  - Courses: ${ref.read(courseProvider).length}');
+    print('  - Students: ${ref.read(studentProvider).length}');
+    print('  - Groups: ${ref.read(groupProvider).length}'); // ✅ ADD THIS
+  } catch (e, stack) {
+    print('Refresh error: $e\n$stack');
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -165,82 +172,75 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
-  Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser user) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (courses.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.menu_book, size: 64, color: Colors.grey),
-            const Text('Chưa có môn học'),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Tải lại'),
-              onPressed: _refreshData,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        // Add Course Button
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.add_circle),
-            label: const Text('Thêm Môn Học'),
-            onPressed: () => _showCreateCourseDialog(context, semesters, user),
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
-        // Courses List
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+// In home_instructor.dart - Find this in _buildCoursesTab
+Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser user) {
+  return RefreshIndicator(
+    onRefresh: _refreshData,
+    child: courses.isEmpty
+        ? const Center(child: Text('Chưa có môn học nào'))
+        : ListView.builder(
+            padding: const EdgeInsets.all(16),
             itemCount: courses.length,
             itemBuilder: (context, i) {
-        final course = courses[i];
-        final semester = semesters.firstWhere((s) => s.id == course.semesterId,
-            orElse: () => Semester(id: '', code: 'N/A', name: 'Không xác định'));
-        return Card(
-          child: ListTile(
-            leading: const Icon(Icons.book, color: Colors.green),
-            title: Text('${course.code}: ${course.name}'),
-            subtitle: Text('${semester.name} • ${course.sessions} buổi'),
-            trailing: const Icon(Icons.arrow_forward_ios),
-            onTap: () async {
-              final groups = ref.read(groupProvider).where((g) => g.courseId == course.id).toList();
-              final allStudents = ref.read(studentProvider);
-              final courseStudents = allStudents.where((s) => groups.any((g) => g.studentIds.contains(s.id))).toList();
+              final course = courses[i];
+              final semester = semesters.firstWhere(
+                (s) => s.id == course.semesterId,
+                orElse: () => Semester(id: '', code: 'N/A', name: 'Không xác định'),
+              );
+              
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.book, color: Colors.green),
+                  title: Text('${course.code}: ${course.name}'),
+                  subtitle: Text('${semester.name} • ${course.sessions} buổi'),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () async {
+                    // ✅ FIX: Ensure groups are loaded FIRST
+                    print('🔄 Loading groups for course: ${course.name}');
+                    
+                    // Force reload groups if empty
+                    final currentGroups = ref.read(groupProvider);
+                    if (currentGroups.isEmpty) {
+                      print('⚠️ Group provider empty, loading...');
+                      await ref.read(groupProvider.notifier).loadGroups();
+                    }
+                    
+                    // Get groups for this course
+                    final allGroups = ref.read(groupProvider);
+                    final groups = allGroups.where((g) => g.courseId == course.id).toList();
+                    
+                    print('✅ Found ${groups.length} groups for course ${course.id}');
+                    for (var group in groups) {
+                      print('  - ${group.name} (Students: ${group.studentIds.length})');
+                    }
+                    
+                    // Get students
+                    final allStudents = ref.read(studentProvider);
+                    final courseStudents = allStudents.where((s) {
+                      return groups.any((g) => g.studentIds.contains(s.id));
+                    }).toList();
+                    
+                    print('✅ Found ${courseStudents.length} students in these groups');
 
-              context.go(
-                '/instructor/course/${course.id}',
-                extra: {
-                  'course': course,
-                  'semester': semester,
-                  'groups': groups,
-                  'students': courseStudents,
-                },
+                    // Navigate with context.push (not context.go!)
+                    if (mounted) {
+                      context.push(
+                        '/instructor/course/${course.id}',
+                        extra: {
+                          'course': course,
+                          'semester': semester,
+                          'groups': groups,
+                          'students': courseStudents,
+                        },
+                      );
+                    }
+                  },
+                ),
               );
             },
           ),
-        );
-      },
-          ),
-        ),
-      ],
-    );
-  }
+  );
+}
 
   // ────── CREATE COURSE DIALOG ──────
   void _showCreateCourseDialog(BuildContext context, List<Semester> semesters, AppUser user) {

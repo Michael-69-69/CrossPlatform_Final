@@ -11,6 +11,7 @@ import 'assignments_tab.dart';
 import 'groups_tab.dart';
 import 'quiz_tab.dart';
 import 'material_tab.dart';
+import 'analytics_tab.dart'; // ✅ ADD THIS
 
 class CourseDetailScreen extends ConsumerStatefulWidget {
   final Course course;
@@ -38,7 +39,14 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   void initState() {
     super.initState();
     currentStudents = List.from(widget.students);
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this); // ✅ CHANGE TO 6
+    
+    print('🏫 CourseDetailScreen initialized');
+    print('📚 Course: ${widget.course.name}');
+    print('👥 Groups count: ${widget.groups.length}');
+    for (var group in widget.groups) {
+      print('  - ${group.name} (ID: ${group.id}, Students: ${group.studentIds.length})');
+    }
   }
 
   @override
@@ -56,7 +64,9 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
         title: Text(widget.course.name),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
         ),
         bottom: TabBar(
           controller: _tabController,
@@ -69,6 +79,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
             Tab(icon: Icon(Icons.quiz), text: 'Quiz'),
             Tab(icon: Icon(Icons.folder), text: 'Tài liệu'),
             Tab(icon: Icon(Icons.group), text: 'Nhóm'),
+            Tab(icon: Icon(Icons.analytics), text: 'Thống kê'), // ✅ ADD THIS
           ],
         ),
       ),
@@ -117,6 +128,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
                 _buildQuizTab(),
                 _buildMaterialTab(),
                 _buildGroupsTab(),
+                _buildAnalyticsTab(), // ✅ ADD THIS
               ],
             ),
           ),
@@ -126,6 +138,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   Widget _buildAnnouncementsTab() {
+    print('📢 Building AnnouncementsTab with ${widget.groups.length} groups');
     return AnnouncementsTab(
       courseId: widget.course.id,
       groups: widget.groups,
@@ -134,6 +147,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   Widget _buildAssignmentsTab() {
+    print('📝 Building AssignmentsTab with ${widget.groups.length} groups');
     return AssignmentsTab(
       courseId: widget.course.id,
       courseName: widget.course.name,
@@ -145,6 +159,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   Widget _buildGroupsTab() {
+    print('👥 Building GroupsTab with ${widget.groups.length} groups');
     return GroupsTab(
       courseId: widget.course.id,
       groups: widget.groups,
@@ -152,7 +167,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   Widget _buildQuizTab() {
-    // ✅ FIXED: Removed students parameter
+    print('❓ Building QuizTab');
     return QuizTab(
       courseId: widget.course.id,
       courseName: widget.course.name,
@@ -160,7 +175,18 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   Widget _buildMaterialTab() {
+    print('📁 Building MaterialTab');
     return MaterialTab(
+      courseId: widget.course.id,
+      courseName: widget.course.name,
+      students: widget.students,
+    );
+  }
+
+  // ✅ ADD THIS METHOD
+  Widget _buildAnalyticsTab() {
+    print('📊 Building AnalyticsTab');
+    return AnalyticsTab(
       courseId: widget.course.id,
       courseName: widget.course.name,
       students: widget.students,

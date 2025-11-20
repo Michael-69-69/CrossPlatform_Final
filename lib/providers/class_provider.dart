@@ -17,7 +17,7 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
   Future<void> loadClasses() async {
     try {
       await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('classes');
+      final collection = await MongoDBService.getCollection('classes'); // ✅ ADD await
       final data = await collection.find().toList();
       state = data.map((e) => ClassModel.fromMap(e)).toList();
     } catch (e) {
@@ -33,10 +33,10 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
   }) async {
     try {
       await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('classes');
+      final collection = await MongoDBService.getCollection('classes'); // ✅ ADD await
       final doc = {
         'name': name,
-        'instructorId': ObjectId.fromHexString(instructorId), // CONVERT
+        'instructorId': ObjectId.fromHexString(instructorId),
         'instructorName': instructorName,
         'studentIds': <ObjectId>[],
         'schedule': <Map<String, dynamic>>[],
@@ -65,11 +65,11 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
   }
 
   Future<void> enrollStudent(String classId, String studentId) async {
-    await _pushToArray(classId, 'studentIds', ObjectId.fromHexString(studentId)); // CONVERT
+    await _pushToArray(classId, 'studentIds', ObjectId.fromHexString(studentId));
   }
 
   Future<void> kickStudent(String classId, String studentId) async {
-    await _removeFromArray(classId, 'studentIds', ObjectId.fromHexString(studentId)); // CONVERT
+    await _removeFromArray(classId, 'studentIds', ObjectId.fromHexString(studentId));
   }
 
   // === EDIT & DELETE ARRAY ITEMS ===
@@ -99,7 +99,7 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
 
     try {
       await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('classes');
+      final collection = await MongoDBService.getCollection('classes'); // ✅ ADD await
       final classDoc = await collection.findOne(where.id(objectId));
       if (classDoc == null) return;
 
@@ -137,7 +137,7 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
 
     try {
       await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('classes');
+      final collection = await MongoDBService.getCollection('classes'); // ✅ ADD await
       await collection.updateOne(
         where.id(objectId),
         ModifierBuilder().push(field, value),
@@ -158,7 +158,7 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
 
     try {
       await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('classes');
+      final collection = await MongoDBService.getCollection('classes'); // ✅ ADD await
       await collection.updateOne(
         where.id(objectId),
         ModifierBuilder().pull(field, value),
@@ -179,7 +179,7 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
 
     try {
       await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('classes');
+      final collection = await MongoDBService.getCollection('classes'); // ✅ ADD await
       final classDoc = await collection.findOne(where.id(objectId));
       if (classDoc == null) return;
 
@@ -208,7 +208,7 @@ class ClassNotifier extends StateNotifier<List<ClassModel>> {
 
     try {
       await MongoDBService.connect();
-      final collection = MongoDBService.getCollection('classes');
+      final collection = await MongoDBService.getCollection('classes'); // ✅ ADD await
       final classDoc = await collection.findOne(where.id(objectId));
       if (classDoc == null) return;
 

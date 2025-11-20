@@ -28,7 +28,7 @@ class DatabaseService {
     } else {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
-      final col = MongoDBService.getCollection(collection);
+      final col = await MongoDBService.getCollection(collection); // ✅ FIX: await
       
       // ✅ FIX: Convert filter to use ObjectId
       final convertedFilter = _convertFilterForMongo(filter);
@@ -81,7 +81,7 @@ class DatabaseService {
     } else {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
-      final col = MongoDBService.getCollection(collection);
+      final col = await MongoDBService.getCollection(collection); // ✅ FIX: await
       
       // ✅ FIX: Convert filter to use ObjectId
       final convertedFilter = _convertFilterForMongo(filter);
@@ -108,7 +108,7 @@ class DatabaseService {
     } else {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
-      final col = MongoDBService.getCollection(collection);
+      final col = await MongoDBService.getCollection(collection); // ✅ FIX: await
       final doc = _prepareDocument(document);
       final result = await col.insertOne(doc);
       return result.id.toHexString();
@@ -129,7 +129,7 @@ class DatabaseService {
     } else {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
-      final col = MongoDBService.getCollection(collection);
+      final col = await MongoDBService.getCollection(collection); // ✅ FIX: await
       final preparedDocs = documents.map(_prepareDocument).toList();
       
       // Insert documents one by one and collect IDs
@@ -159,7 +159,7 @@ class DatabaseService {
     } else {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
-      final col = MongoDBService.getCollection(collection);
+      final col = await MongoDBService.getCollection(collection); // ✅ FIX: await
       final updateDoc = _prepareUpdate(update);
       await col.updateOne(
         where.id(ObjectId.fromHexString(id)),
@@ -182,7 +182,7 @@ class DatabaseService {
     } else {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
-      final col = MongoDBService.getCollection(collection);
+      final col = await MongoDBService.getCollection(collection); // ✅ FIX: await
       await col.deleteOne(where.id(ObjectId.fromHexString(id)));
     }
   }
@@ -201,7 +201,7 @@ class DatabaseService {
     } else {
       // ✅ MOBILE/DESKTOP: Use direct MongoDB connection
       await MongoDBService.connect();
-      final col = MongoDBService.getCollection(collection);
+      final col = await MongoDBService.getCollection(collection); // ✅ FIX: await
       
       // ✅ FIX: Convert filter to use ObjectId
       final convertedFilter = _convertFilterForMongo(filter);

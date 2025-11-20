@@ -5,52 +5,69 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../screens/login_screen.dart';
 import '../screens/instructor/home_instructor.dart';
-import '../screens/student/home_student.dart';
-import '../screens/instructor/instructor_class_detail.dart';
-import '../screens/instructor/exam_create.dart';
-import '../screens/student/student_exam.dart';
-import '../screens/student/assignment_detail_screen.dart';
-import '../screens/student/classwork_screen.dart' as classwork;
+import '../screens/student/student_home_screen.dart';
+import '../screens/student/student_profile_screen.dart';
 import '../screens/instructor/group_detail_screen.dart'; 
 import '../screens/instructor/course_detail_screen.dart'; 
 import '../screens/instructor/semester_create_screen.dart'; 
+import '../screens/instructor/csv_preview_screen.dart';
 import '../providers/auth_provider.dart';
 import '../models/user.dart';
-import '../models/class.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authProvider);
+
   return GoRouter(
     initialLocation: '/',
     redirect: (context, state) {
-      final auth = ref.read(authProvider);
-      final isLoggedIn = auth != null;
+      final isLoggedIn = authState != null;
       final isLoginPage = state.uri.path == '/';
 
-      if (!isLoggedIn && !isLoginPage) return '/';
-      if (isLoggedIn && isLoginPage) return '/home';
+      // Not logged in and not on login page -> redirect to login
+      if (!isLoggedIn && !isLoginPage) {
+        return '/';
+      }
+
+      // Logged in and on login page -> redirect based on role
+      if (isLoggedIn && isLoginPage) {
+        if (authState.role == UserRole.instructor) {
+          return '/instructor/home';
+        } else {
+          return '/student/home';
+        }
+      }
+
       return null;
     },
     routes: [
-      // ────── LOGIN ──────
+      // ══════ LOGIN ══════
       GoRoute(
         path: '/',
         builder: (context, state) => const LoginScreen(),
       ),
 
-      // ────── HOME (INSTRUCTOR / STUDENT) ──────
+      // ══════ INSTRUCTOR ROUTES ══════
       GoRoute(
-        path: '/home',
+        path: '/instructor/home',
+        builder: (context, state) => const HomeInstructor(),
+      ),
+      
+      GoRoute(
+        path: '/instructor/course/:courseId',
         builder: (context, state) {
-          final user = ref.read(authProvider)!;
-          return user.role == UserRole.instructor ? const HomeInstructor() : HomeStudent();
+          final extra = state.extra as Map<String, dynamic>;
+          return CourseDetailScreen(
+            course: extra['course'],
+            semester: extra['semester'],
+            groups: extra['groups'],
+            students: extra['students'],
+          );
         },
       ),
 
-      // ────── INSTRUCTOR: GROUP DETAIL ──────
       GoRoute(
         path: '/instructor/group/:groupId',
         builder: (context, state) {
-          final groupId = state.pathParameters['groupId']!;
           final extra = state.extra as Map<String, dynamic>?;
 
           if (extra == null) {
@@ -68,102 +85,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ────── ASSIGNMENT DETAIL ──────
       GoRoute(
-        path: '/assignment/:id',
-        builder: (context, state) {
-          final extra = state.extra;
-          Map<String, dynamic> assignment = {
-            'id': state.pathParameters['id'] ?? 'unknown',
-            'title': 'Bài tập không xác định',
-            'due': '-',
-            'score': '-',
-            'desc': '',
-            'comment': null,
-            'link': null,
-            'status': '',
-            'courseTitle': ''
-          };
-          if (extra is Map<String, dynamic>) assignment = extra;
-          return AssignmentDetailScreen(assignment: assignment);
-        },
+        path: '/instructor/semester/create',
+        builder: (context, state) => const SemesterCreateScreen(),
       ),
 
-      // ────── CLASSWORK ──────
       GoRoute(
-        path: '/classwork',
-        builder: (context, state) {
-          final courses = state.extra as List<Map<String, dynamic>>?;
-          return classwork.ClassworkScreen(courses: courses ?? []);
-        },
+        path: '/instructor/csv-preview',
+        builder: (context, state) => const CsvPreviewScreen(),
       ),
 
-      // ────── INSTRUCTOR: CLASS DETAIL ──────
+      // ══════ STUDENT ROUTES ══════
       GoRoute(
-        path: '/instructor/class/:id',
-        builder: (context, state) {
-          final cls = state.extra as ClassModel;
-          return InstructorClassDetail(cls: cls);
-        },
+        path: '/student/home',
+        builder: (context, state) => const StudentHomeScreen(),
       ),
 
-      // ────── INSTRUCTOR: CREATE EXAM ──────
       GoRoute(
-        path: '/instructor/exam/create',
-        builder: (context, state) {
-          final classId = state.extra as String;
-          return ExamCreateScreen(classId: classId);
-        },
+        path: '/student/profile',
+        builder: (context, state) => const StudentProfileScreen(),
       ),
-
-      // ────── INSTRUCTOR: EDIT EXAM ──────
-      GoRoute(
-        path: '/instructor/exam/edit',
-        builder: (context, state) {
-          final extra = state.extra;
-          if (extra is! Map<String, dynamic>) {
-            return const Scaffold(body: Center(child: Text('Dữ liệu không hợp lệ')));
-          }
-          return ExamCreateScreen(
-            classId: extra['classId'] as String,
-            initialExam: extra['examData'] as Map<String, dynamic>,
-            examIndex: extra['examIndex'] as int,
-          );
-        },
-      ),
-
-      // ────── STUDENT: TAKE EXAM ──────
-      GoRoute(
-        path: '/student/exam/:classId/:examId',
-        builder: (context, state) {
-          final classId = state.pathParameters['classId']!;
-          final examId = state.pathParameters['examId']!;
-          final extra = state.extra as Map<String, dynamic>?;
-
-          if (extra == null) {
-            return const Scaffold(body: Center(child: Text('Không tìm thấy bài kiểm tra')));
-          }
-          return StudentExamScreen(exam: extra, classId: classId);
-        },
-      ),
-
-GoRoute(
-  path: '/instructor/course/:courseId',
-  builder: (context, state) {
-    final extra = state.extra as Map<String, dynamic>;
-    return CourseDetailScreen(
-      course: extra['course'],
-      semester: extra['semester'],
-      groups: extra['groups'],
-      students: extra['students'],
-    );
-  },
-),
-GoRoute(
-  path: '/instructor/semester/create',
-  builder: (context, state) => const SemesterCreateScreen(),
-),
-      
     ],
   );
 });

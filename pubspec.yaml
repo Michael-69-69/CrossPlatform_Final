@@ -23,6 +23,7 @@ dependencies:
   crypto: ^3.0.5
   file_picker: ^8.1.2
   http: ^1.2.0
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
