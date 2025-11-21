@@ -11,7 +11,8 @@ import 'assignments_tab.dart';
 import 'groups_tab.dart';
 import 'quiz_tab.dart';
 import 'material_tab.dart';
-import 'analytics_tab.dart'; // ✅ ADD THIS
+import 'analytics_tab.dart';
+import '../shared/forum_list_widget.dart'; // ✅ ADD THIS
 
 class CourseDetailScreen extends ConsumerStatefulWidget {
   final Course course;
@@ -39,7 +40,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   void initState() {
     super.initState();
     currentStudents = List.from(widget.students);
-    _tabController = TabController(length: 6, vsync: this); // ✅ CHANGE TO 6
+    _tabController = TabController(length: 7, vsync: this); // ✅ CHANGE TO 7
     
     print('🏫 CourseDetailScreen initialized');
     print('📚 Course: ${widget.course.name}');
@@ -79,7 +80,8 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
             Tab(icon: Icon(Icons.quiz), text: 'Quiz'),
             Tab(icon: Icon(Icons.folder), text: 'Tài liệu'),
             Tab(icon: Icon(Icons.group), text: 'Nhóm'),
-            Tab(icon: Icon(Icons.analytics), text: 'Thống kê'), // ✅ ADD THIS
+            Tab(icon: Icon(Icons.forum), text: 'Diễn đàn'), // ✅ ADD THIS
+            Tab(icon: Icon(Icons.analytics), text: 'Thống kê'),
           ],
         ),
       ),
@@ -128,7 +130,8 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
                 _buildQuizTab(),
                 _buildMaterialTab(),
                 _buildGroupsTab(),
-                _buildAnalyticsTab(), // ✅ ADD THIS
+                _buildForumTab(), // ✅ ADD THIS
+                _buildAnalyticsTab(),
               ],
             ),
           ),
@@ -184,6 +187,15 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   }
 
   // ✅ ADD THIS METHOD
+  Widget _buildForumTab() {
+    print('💬 Building ForumTab');
+    return ForumListWidget(
+      courseId: widget.course.id,
+      courseName: widget.course.name,
+      isInstructor: true,
+    );
+  }
+
   Widget _buildAnalyticsTab() {
     print('📊 Building AnalyticsTab');
     return AnalyticsTab(

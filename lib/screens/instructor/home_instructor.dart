@@ -7,9 +7,11 @@ import '../../providers/semester_provider.dart';
 import '../../providers/course_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/group_provider.dart';
+import '../../providers/message_provider.dart'; // ✅ ADD
 import '../../models/semester.dart';
 import '../../models/course.dart';
 import '../../models/user.dart';
+import '../shared/inbox_screen.dart'; // ✅ ADD
 import 'csv_preview_screen.dart';
 
 class HomeInstructor extends ConsumerStatefulWidget {
@@ -22,6 +24,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   String? _selectedSemesterId;
   bool _isLoading = false;
   late TabController _tabController;
+  int _currentBottomNavIndex = 0; // ✅ ADD
 
   @override
   void initState() {
@@ -36,30 +39,42 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     super.dispose();
   }
 
-Future<void> _refreshData() async {
-  setState(() {
-    _isLoading = true;
-  });
+  Future<void> _refreshData() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  try {
-    await Future.wait([
-      ref.read(semesterProvider.notifier).loadSemesters(),
-      ref.read(courseProvider.notifier).loadCourses(),
-      ref.read(studentProvider.notifier).loadStudents(),
-      ref.read(groupProvider.notifier).loadGroups(), // ✅ ADD THIS LINE
-    ]);
-    
-    print('✅ All data refreshed');
-    print('  - Semesters: ${ref.read(semesterProvider).length}');
-    print('  - Courses: ${ref.read(courseProvider).length}');
-    print('  - Students: ${ref.read(studentProvider).length}');
-    print('  - Groups: ${ref.read(groupProvider).length}'); // ✅ ADD THIS
-  } catch (e, stack) {
-    print('Refresh error: $e\n$stack');
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
+    try {
+      await Future.wait([
+        ref.read(semesterProvider.notifier).loadSemesters(),
+        ref.read(courseProvider.notifier).loadCourses(),
+        ref.read(studentProvider.notifier).loadStudents(),
+        ref.read(groupProvider.notifier).loadGroups(),
+        _loadConversations(), // ✅ ADD
+      ]);
+      
+      print('✅ All data refreshed');
+      print('  - Semesters: ${ref.read(semesterProvider).length}');
+      print('  - Courses: ${ref.read(courseProvider).length}');
+      print('  - Students: ${ref.read(studentProvider).length}');
+      print('  - Groups: ${ref.read(groupProvider).length}');
+    } catch (e, stack) {
+      print('Refresh error: $e\n$stack');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
-}
+
+  // ✅ ADD THIS METHOD
+  Future<void> _loadConversations() async {
+    final user = ref.read(authProvider);
+    if (user != null) {
+      await ref.read(conversationProvider.notifier).loadConversations(
+            user.id,
+            true, // isInstructor
+          );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,182 +82,353 @@ Future<void> _refreshData() async {
     final semesters = ref.watch(semesterProvider);
     final courses = ref.watch(courseProvider);
     final students = ref.watch(studentProvider);
+    final conversations = ref.watch(conversationProvider); // ✅ ADD
 
     final filteredCourses = _selectedSemesterId == null
         ? courses.where((c) => c.instructorId == user.id).toList()
         : courses.where((c) => c.instructorId == user.id && c.semesterId == _selectedSemesterId).toList();
 
+    // ✅ ADD: Calculate unread count
+    final unreadCount = conversations.fold<int>(
+      0,
+      (sum, c) => sum + c.unreadCountInstructor,
+    );
+
+    // ✅ ADD: Bottom navigation pages
+    final pages = [
+      _buildHomeTab(user, semesters, filteredCourses, students),
+      const InboxScreen(),
+    ];
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('GV: ${user.fullName}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              ref.read(authProvider.notifier).logout();
-              context.go('/');
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // ────── SEMESTER FILTER + ADD ──────
-          Container(
-            color: Theme.of(context).colorScheme.surface,
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedSemesterId,
-                    decoration: InputDecoration(
-                      labelText: 'Chọn học kỳ',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.school),
-                      suffixIcon: _selectedSemesterId != null
-                          ? IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Xóa học kỳ'),
-                                    content: Text(
-                                        'Xóa "${semesters.firstWhere((s) => s.id == _selectedSemesterId).name}"?'),
-                                    actions: [
-                                      TextButton(
-                                          onPressed: () => Navigator.pop(ctx, false),
-                                          child: const Text('Hủy')),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                        onPressed: () => Navigator.pop(ctx, true),
-                                        child: const Text('Xóa'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  await ref.read(semesterProvider.notifier).deleteSemester(_selectedSemesterId!);
-                                  setState(() => _selectedSemesterId = null);
-                                }
-                              },
-                            )
-                          : null,
+      appBar: _currentBottomNavIndex == 0 // ✅ Only show AppBar on home tab
+          ? AppBar(
+              title: Text('GV: ${user.fullName}'),
+              actions: [
+                // ✅ ADD: Message icon with badge
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.message),
+                      onPressed: () {
+                        setState(() => _currentBottomNavIndex = 1);
+                      },
                     ),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
-                      ...semesters.map((s) => DropdownMenuItem(value: s.id, child: Text('${s.code}: ${s.name}'))),
-                    ],
-                    onChanged: (v) => setState(() => _selectedSemesterId = v),
-                  ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.add_circle, color: Colors.green),
-                  tooltip: 'Thêm học kỳ',
-                  onPressed: () => context.push('/instructor/semester/create'),
+                  icon: const Icon(Icons.logout),
+                  onPressed: () {
+                    ref.read(authProvider.notifier).logout();
+                    context.go('/');
+                  },
                 ),
               ],
-            ),
+            )
+          : null,
+      // ✅ ADD: Bottom navigation
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentBottomNavIndex,
+        onTap: (index) {
+          setState(() => _currentBottomNavIndex = index);
+        },
+        items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Trang chủ',
           ),
-
-          // ────── TABS ──────
-          TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(icon: Icon(Icons.book), text: 'Môn học'),
-              Tab(icon: Icon(Icons.people), text: 'Sinh viên'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
+          BottomNavigationBarItem(
+            icon: Stack(
               children: [
-                // ────── TAB 1: COURSES ──────
-                _buildCoursesTab(filteredCourses, semesters, user),
-
-                // ────── TAB 2: STUDENTS ──────
-                _buildStudentsTab(students),
+                const Icon(Icons.message),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 12,
+                        minHeight: 12,
+                      ),
+                      child: Text(
+                        unreadCount > 9 ? '9+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
               ],
             ),
+            label: 'Tin nhắn',
           ),
         ],
       ),
+      body: pages[_currentBottomNavIndex], // ✅ Show selected page
     );
   }
 
-// In home_instructor.dart - Find this in _buildCoursesTab
-Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser user) {
-  return RefreshIndicator(
-    onRefresh: _refreshData,
-    child: courses.isEmpty
-        ? const Center(child: Text('Chưa có môn học nào'))
-        : ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: courses.length,
-            itemBuilder: (context, i) {
-              final course = courses[i];
-              final semester = semesters.firstWhere(
-                (s) => s.id == course.semesterId,
-                orElse: () => Semester(id: '', code: 'N/A', name: 'Không xác định'),
-              );
-              
-              return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.book, color: Colors.green),
-                  title: Text('${course.code}: ${course.name}'),
-                  subtitle: Text('${semester.name} • ${course.sessions} buổi'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () async {
-                    // ✅ FIX: Ensure groups are loaded FIRST
-                    print('🔄 Loading groups for course: ${course.name}');
-                    
-                    // Force reload groups if empty
-                    final currentGroups = ref.read(groupProvider);
-                    if (currentGroups.isEmpty) {
-                      print('⚠️ Group provider empty, loading...');
-                      await ref.read(groupProvider.notifier).loadGroups();
-                    }
-                    
-                    // Get groups for this course
-                    final allGroups = ref.read(groupProvider);
-                    final groups = allGroups.where((g) => g.courseId == course.id).toList();
-                    
-                    print('✅ Found ${groups.length} groups for course ${course.id}');
-                    for (var group in groups) {
-                      print('  - ${group.name} (Students: ${group.studentIds.length})');
-                    }
-                    
-                    // Get students
-                    final allStudents = ref.read(studentProvider);
-                    final courseStudents = allStudents.where((s) {
-                      return groups.any((g) => g.studentIds.contains(s.id));
-                    }).toList();
-                    
-                    print('✅ Found ${courseStudents.length} students in these groups');
+  // ✅ EXTRACT HOME TAB INTO METHOD
+  Widget _buildHomeTab(
+    AppUser user,
+    List<Semester> semesters,
+    List<Course> filteredCourses,
+    List<AppUser> students,
+  ) {
+    return Column(
+      children: [
+        // ────── SEMESTER FILTER + ADD ──────
+        Container(
+          color: Theme.of(context).colorScheme.surface,
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedSemesterId,
+                  decoration: InputDecoration(
+                    labelText: 'Chọn học kỳ',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.school),
+                    suffixIcon: _selectedSemesterId != null
+                        ? IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Xóa học kỳ'),
+                                  content: Text(
+                                      'Xóa "${semesters.firstWhere((s) => s.id == _selectedSemesterId).name}"?'),
+                                  actions: [
+                                    TextButton(
+                                        onPressed: () => Navigator.pop(ctx, false),
+                                        child: const Text('Hủy')),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Xóa'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await ref.read(semesterProvider.notifier).deleteSemester(_selectedSemesterId!);
+                                setState(() => _selectedSemesterId = null);
+                              }
+                            },
+                          )
+                        : null,
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
+                    ...semesters.map((s) => DropdownMenuItem(value: s.id, child: Text('${s.code}: ${s.name}'))),
+                  ],
+                  onChanged: (v) => setState(() => _selectedSemesterId = v),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.add_circle, color: Colors.green),
+                tooltip: 'Thêm học kỳ',
+                onPressed: () => context.push('/instructor/semester/create'),
+              ),
+            ],
+          ),
+        ),
 
-                    // Navigate with context.push (not context.go!)
-                    if (mounted) {
-                      context.push(
-                        '/instructor/course/${course.id}',
-                        extra: {
-                          'course': course,
-                          'semester': semester,
-                          'groups': groups,
-                          'students': courseStudents,
-                        },
-                      );
-                    }
+        // ────── TABS ──────
+        TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.book), text: 'Môn học'),
+            Tab(icon: Icon(Icons.people), text: 'Sinh viên'),
+          ],
+        ),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCoursesTab(filteredCourses, semesters, user),
+                    _buildStudentsTab(students),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser user) {
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: courses.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.book, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text('Chưa có môn học nào'),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Thêm môn học'),
+                    onPressed: () => _showCreateCourseDialog(context, semesters, user),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: courses.length,
+              itemBuilder: (context, i) {
+                final course = courses[i];
+                final semester = semesters.firstWhere(
+                  (s) => s.id == course.semesterId,
+                  orElse: () => Semester(id: '', code: 'N/A', name: 'Không xác định'),
+                );
+                
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.book, color: Colors.green),
+                    title: Text('${course.code}: ${course.name}'),
+                    subtitle: Text('${semester.name} • ${course.sessions} buổi'),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () async {
+                      print('🔄 Loading groups for course: ${course.name}');
+                      
+                      final currentGroups = ref.read(groupProvider);
+                      if (currentGroups.isEmpty) {
+                        print('⚠️ Group provider empty, loading...');
+                        await ref.read(groupProvider.notifier).loadGroups();
+                      }
+                      
+                      final allGroups = ref.read(groupProvider);
+                      final groups = allGroups.where((g) => g.courseId == course.id).toList();
+                      
+                      print('✅ Found ${groups.length} groups for course ${course.id}');
+                      
+                      final allStudents = ref.read(studentProvider);
+                      final courseStudents = allStudents.where((s) {
+                        return groups.any((g) => g.studentIds.contains(s.id));
+                      }).toList();
+                      
+                      print('✅ Found ${courseStudents.length} students in these groups');
+
+                      if (mounted) {
+                        context.push(
+                          '/instructor/course/${course.id}',
+                          extra: {
+                            'course': course,
+                            'semester': semester,
+                            'groups': groups,
+                            'students': courseStudents,
+                          },
+                        );
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildStudentsTab(List<AppUser> students) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.person_add_alt_1),
+            label: const Text('Thêm Sinh viên'),
+            onPressed: _showAddStudentOptions,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
+        Expanded(
+          child: students.isEmpty
+              ? const Center(child: Text('Chưa có sinh viên'))
+              : ListView.builder(
+                  itemCount: students.length,
+                  itemBuilder: (context, i) {
+                    final s = students[i];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                            s.code != null && s.code!.isNotEmpty ? s.code![0] : '?',
+                          ),
+                        ),
+                        title: Text(s.fullName),
+                        subtitle: Text('${s.code} • ${s.email}'),
+                        // ✅ ADD: Message button
+                        trailing: IconButton(
+                          icon: const Icon(Icons.message),
+                          onPressed: () async {
+                            final user = ref.read(authProvider)!;
+                            await ref.read(conversationProvider.notifier).getOrCreateConversation(
+                                  instructorId: user.id,
+                                  instructorName: user.fullName,
+                                  studentId: s.id,
+                                  studentName: s.fullName,
+                                );
+
+                            if (mounted) {
+                              setState(() => _currentBottomNavIndex = 1);
+                            }
+                          },
+                        ),
+                      ),
+                    );
                   },
                 ),
-              );
-            },
-          ),
-  );
-}
+        ),
+      ],
+    );
+  }
 
-  // ────── CREATE COURSE DIALOG ──────
+  // Keep all existing methods below...
   void _showCreateCourseDialog(BuildContext context, List<Semester> semesters, AppUser user) {
     final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
@@ -366,49 +552,6 @@ Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser 
     );
   }
 
-  Widget _buildStudentsTab(List<AppUser> students) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.person_add_alt_1),
-            label: const Text('Thêm Sinh viên'),
-            onPressed: _showAddStudentOptions,
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 48),
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
-        Expanded(
-          child: students.isEmpty
-              ? const Center(child: Text('Chưa có sinh viên'))
-              : ListView.builder(
-                  itemCount: students.length,
-                  itemBuilder: (context, i) {
-                    final s = students[i];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Text(
-                            s.code != null && s.code!.isNotEmpty ? s.code![0] : '?',
-                          ),
-                        ),
-                        title: Text(s.fullName),
-                        subtitle: Text('${s.code} • ${s.email}'),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  // ────── SHOW ADD STUDENT OPTIONS (CSV or Manual/Quick) ──────
   void _showAddStudentOptions() {
     showModalBottomSheet(
       context: context,
@@ -449,7 +592,6 @@ Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser 
     );
   }
 
-  // ────── ADD SINGLE STUDENT DIALOG WITH TABS ──────
   void _showAddStudentDialog() {
     final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
@@ -474,127 +616,126 @@ Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser 
               return AlertDialog(
                 title: const Text('Thêm sinh viên'),
                 content: SizedBox(
-                      width: 400,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const TabBar(
-                            tabs: [
-                              Tab(text: 'Thủ công'),
-                              Tab(text: 'Tạo nhanh'),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 280,
-                            child: TabBarView(
-                              children: [
-                                Form(
-                                  key: formKey,
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        TextFormField(
-                                          controller: codeCtrl,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Mã SV *',
-                                            hintText: 'VD: 2023001',
-                                            prefixIcon: Icon(Icons.badge),
-                                            helperText: 'Mã sinh viên (bắt buộc)',
-                                          ),
-                                          validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        TextFormField(
-                                          controller: nameCtrl,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Họ và tên *',
-                                            hintText: 'VD: Nguyễn Văn An',
-                                            prefixIcon: Icon(Icons.person),
-                                            helperText: 'Tên đầy đủ (bắt buộc)',
-                                          ),
-                                          validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
-                                        ),
-                                        const SizedBox(height: 8),
-                                        TextFormField(
-                                          controller: emailCtrl,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Email',
-                                            hintText: 'VD: an@school.com',
-                                            prefixIcon: Icon(Icons.email),
-                                            helperText: 'Email (tùy chọn, mặc định: mãSV@school.com)',
-                                          ),
-                                          keyboardType: TextInputType.emailAddress,
-                                          validator: (v) {
-                                            if (v?.trim().isEmpty == true) return null;
-                                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!)) {
-                                              return 'Email không hợp lệ';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Divider(),
-                                        const Text(
-                                          'Thông tin tài khoản:',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        const Text(
-                                          '• Mật khẩu mặc định: Mã SV\n• Vai trò: Sinh viên\n• Tài khoản sẽ được tạo tự động',
-                                          style: TextStyle(fontSize: 11, color: Colors.grey),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Form(
-                                  key: quickFormKey,
-                                  child: Column(
-                                    children: [
-                                      TextFormField(
-                                        controller: quickBaseCodeCtrl,
-                                        decoration: const InputDecoration(labelText: 'Mã SV bắt đầu *'),
-                                        keyboardType: TextInputType.number,
-                                        validator: (v) {
-                                          if (v?.trim().isEmpty == true) return 'Bắt buộc';
-                                          if (int.tryParse(v!) == null) return 'Phải là số';
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 8),
-                                      TextFormField(
-                                        controller: quickCountCtrl,
-                                        decoration: const InputDecoration(labelText: 'Số lượng *'),
-                                        keyboardType: TextInputType.number,
-                                        validator: (v) {
-                                          if (v?.trim().isEmpty == true) return 'Bắt buộc';
-                                          final n = int.tryParse(v!);
-                                          if (n == null || n < 1 || n > 50) return '1-50';
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 12),
-                                      const Text(
-                                        'Tên & email sẽ được tạo tự động\nVD: Nguyễn An → an2023001@school.com',
-                                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                  width: 400,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const TabBar(
+                        tabs: [
+                          Tab(text: 'Thủ công'),
+                          Tab(text: 'Tạo nhanh'),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 280,
+                        child: TabBarView(
+                          children: [
+                            Form(
+                              key: formKey,
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    TextFormField(
+                                      controller: codeCtrl,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Mã SV *',
+                                        hintText: 'VD: 2023001',
+                                        prefixIcon: Icon(Icons.badge),
+                                        helperText: 'Mã sinh viên (bắt buộc)',
+                                      ),
+                                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextFormField(
+                                      controller: nameCtrl,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Họ và tên *',
+                                        hintText: 'VD: Nguyễn Văn An',
+                                        prefixIcon: Icon(Icons.person),
+                                        helperText: 'Tên đầy đủ (bắt buộc)',
+                                      ),
+                                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextFormField(
+                                      controller: emailCtrl,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Email',
+                                        hintText: 'VD: an@school.com',
+                                        prefixIcon: Icon(Icons.email),
+                                        helperText: 'Email (tùy chọn, mặc định: mãSV@school.com)',
+                                      ),
+                                      keyboardType: TextInputType.emailAddress,
+                                      validator: (v) {
+                                        if (v?.trim().isEmpty == true) return null;
+                                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!)) {
+                                          return 'Email không hợp lệ';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Divider(),
+                                    const Text(
+                                      'Thông tin tài khoản:',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      '• Mật khẩu mặc định: Mã SV\n• Vai trò: Sinh viên\n• Tài khoản sẽ được tạo tự động',
+                                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Form(
+                              key: quickFormKey,
+                              child: Column(
+                                children: [
+                                  TextFormField(
+                                    controller: quickBaseCodeCtrl,
+                                    decoration: const InputDecoration(labelText: 'Mã SV bắt đầu *'),
+                                    keyboardType: TextInputType.number,
+                                    validator: (v) {
+                                      if (v?.trim().isEmpty == true) return 'Bắt buộc';
+                                      if (int.tryParse(v!) == null) return 'Phải là số';
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: quickCountCtrl,
+                                    decoration: const InputDecoration(labelText: 'Số lượng *'),
+                                    keyboardType: TextInputType.number,
+                                    validator: (v) {
+                                      if (v?.trim().isEmpty == true) return 'Bắt buộc';
+                                      final n = int.tryParse(v!);
+                                      if (n == null || n < 1 || n > 50) return '1-50';
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Tên & email sẽ được tạo tự động\nVD: Nguyễn An → an2023001@school.com',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
                   ElevatedButton(
                     onPressed: () async {
-                      // Get current tab index from the controller
                       final tabIndex = tabController.index;
 
                       if (tabIndex == 0) {
@@ -687,14 +828,12 @@ Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser 
   }
 
   void _showCsvImportDialog(BuildContext context) {
-    // Navigate to CSV preview screen
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (ctx) => const CsvPreviewScreen(),
       ),
     ).then((_) {
-      // Refresh student list after import
       ref.read(studentProvider.notifier).loadStudents();
     });
   }

@@ -9,6 +9,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/course_provider.dart';
 import '../../providers/semester_provider.dart';
 import '../../providers/group_provider.dart';
+import '../../providers/message_provider.dart'; // ✅ ADD
+import '../shared/inbox_screen.dart'; // ✅ ADD
 import 'student_course_detail_screen.dart';
 import 'student_dashboard_screen.dart';
 
@@ -22,6 +24,7 @@ class StudentHomeScreen extends ConsumerStatefulWidget {
 class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
   String? _selectedSemesterId;
   bool _showDashboard = false;
+  int _currentBottomNavIndex = 0; // ✅ ADD
 
   @override
   void initState() {
@@ -30,7 +33,19 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
       ref.read(semesterProvider.notifier).loadSemesters();
       ref.read(courseProvider.notifier).loadCourses();
       ref.read(groupProvider.notifier).loadGroups();
+      _loadConversations(); // ✅ ADD
     });
+  }
+
+  // ✅ ADD THIS METHOD
+  Future<void> _loadConversations() async {
+    final user = ref.read(authProvider);
+    if (user != null) {
+      await ref.read(conversationProvider.notifier).loadConversations(
+            user.id,
+            false, // isInstructor = false
+          );
+    }
   }
 
   @override
@@ -39,6 +54,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     final semesters = ref.watch(semesterProvider);
     final allCourses = ref.watch(courseProvider);
     final allGroups = ref.watch(groupProvider);
+    final conversations = ref.watch(conversationProvider); // ✅ ADD
 
     // Auto-select latest semester
     if (_selectedSemesterId == null && semesters.isNotEmpty) {
@@ -68,112 +84,225 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     final isPastSemester = semesters.isNotEmpty && 
                           selectedSemester.id != semesters.first.id;
 
+    // ✅ ADD: Calculate unread count
+    final unreadCount = conversations.fold<int>(
+      0,
+      (sum, c) => sum + c.unreadCountStudent,
+    );
+
+    // ✅ ADD: Bottom navigation pages
+    final pages = [
+      _buildHomeTab(
+        semesters,
+        selectedSemester,
+        enrolledCourses,
+        studentGroups,
+        isPastSemester,
+      ),
+      const InboxScreen(),
+    ];
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Khóa học của tôi'),
-        actions: [
-          // Dashboard toggle
-          IconButton(
-            icon: Icon(_showDashboard ? Icons.grid_view : Icons.dashboard),
-            onPressed: () => setState(() => _showDashboard = !_showDashboard),
-            tooltip: _showDashboard ? 'Xem khóa học' : 'Xem dashboard',
+      appBar: _currentBottomNavIndex == 0 // ✅ Only show AppBar on home tab
+          ? AppBar(
+              title: const Text('Khóa học của tôi'),
+              actions: [
+                // Dashboard toggle
+                IconButton(
+                  icon: Icon(_showDashboard ? Icons.grid_view : Icons.dashboard),
+                  onPressed: () => setState(() => _showDashboard = !_showDashboard),
+                  tooltip: _showDashboard ? 'Xem khóa học' : 'Xem dashboard',
+                ),
+                // ✅ ADD: Message icon with badge
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.message),
+                      onPressed: () {
+                        setState(() => _currentBottomNavIndex = 1);
+                      },
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                // Profile
+                IconButton(
+                  icon: const Icon(Icons.account_circle),
+                  onPressed: () => context.push('/student/profile'),
+                ),
+                // Logout
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  onPressed: () {
+                    ref.read(authProvider.notifier).logout();
+                    context.go('/');
+                  },
+                ),
+              ],
+            )
+          : null,
+      // ✅ ADD: Bottom navigation
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentBottomNavIndex,
+        onTap: (index) {
+          setState(() => _currentBottomNavIndex = index);
+        },
+        items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.school),
+            label: 'Khóa học',
           ),
-          // Profile
-          IconButton(
-            icon: const Icon(Icons.account_circle),
-            onPressed: () => context.push('/student/profile'),
-          ),
-          // Logout
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              ref.read(authProvider.notifier).logout();
-              context.go('/');
-            },
+          BottomNavigationBarItem(
+            icon: Stack(
+              children: [
+                const Icon(Icons.message),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 12,
+                        minHeight: 12,
+                      ),
+                      child: Text(
+                        unreadCount > 9 ? '9+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            label: 'Tin nhắn',
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Semester Switcher
+      body: pages[_currentBottomNavIndex], // ✅ Show selected page
+    );
+  }
+
+  // ✅ EXTRACT HOME TAB INTO METHOD
+  Widget _buildHomeTab(
+    List<Semester> semesters,
+    Semester selectedSemester,
+    List<Course> enrolledCourses,
+    List<Group> studentGroups,
+    bool isPastSemester,
+  ) {
+    return Column(
+      children: [
+        // Semester Switcher
+        Container(
+          padding: const EdgeInsets.all(16),
+          color: Theme.of(context).colorScheme.surface,
+          child: Row(
+            children: [
+              const Icon(Icons.calendar_today, color: Colors.blue),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedSemesterId,
+                  decoration: const InputDecoration(
+                    labelText: 'Học kỳ',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: semesters.map((s) {
+                    final isCurrent = s.id == semesters.first.id;
+                    return DropdownMenuItem(
+                      value: s.id,
+                      child: Row(
+                        children: [
+                          Text('${s.code}: ${s.name}'),
+                          if (isCurrent) ...[
+                            const SizedBox(width: 8),
+                            const Chip(
+                              label: Text('Hiện tại', style: TextStyle(fontSize: 10)),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) => setState(() => _selectedSemesterId = value),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Warning for past semesters
+        if (isPastSemester)
           Container(
-            padding: const EdgeInsets.all(16),
-            color: Theme.of(context).colorScheme.surface,
+            padding: const EdgeInsets.all(12),
+            color: Colors.orange.withOpacity(0.1),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, color: Colors.blue),
-                const SizedBox(width: 12),
+                const Icon(Icons.info_outline, color: Colors.orange),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedSemesterId,
-                    decoration: const InputDecoration(
-                      labelText: 'Học kỳ',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: semesters.map((s) {
-                      final isCurrent = s.id == semesters.first.id;
-                      return DropdownMenuItem(
-                        value: s.id,
-                        child: Row(
-                          children: [
-                            Text('${s.code}: ${s.name}'),
-                            if (isCurrent) ...[
-                              const SizedBox(width: 8),
-                              const Chip(
-                                label: Text('Hiện tại', style: TextStyle(fontSize: 10)),
-                                padding: EdgeInsets.zero,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) => setState(() => _selectedSemesterId = value),
+                  child: Text(
+                    'Học kỳ cũ - Chỉ xem, không thể nộp bài hoặc làm quiz',
+                    style: TextStyle(color: Colors.orange[800]),
                   ),
                 ),
               ],
             ),
           ),
-          
-          // Warning for past semesters
-          if (isPastSemester)
-            Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.orange.withOpacity(0.1),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Học kỳ cũ - Chỉ xem, không thể nộp bài hoặc làm quiz',
-                      style: TextStyle(color: Colors.orange[800]),
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
-          // Content: Dashboard or Course Cards
-          Expanded(
-            child: _showDashboard
-                ? StudentDashboardScreen(
-                    semesterId: _selectedSemesterId ?? '',
-                    courses: enrolledCourses,
-                  )
-                : _buildCourseCards(enrolledCourses, selectedSemester, studentGroups, isPastSemester),
-          ),
-        ],
-      ),
+        // Content: Dashboard or Course Cards
+        Expanded(
+          child: _showDashboard
+              ? StudentDashboardScreen(
+                  semesterId: _selectedSemesterId ?? '',
+                  courses: enrolledCourses,
+                )
+              : _buildCourseCards(enrolledCourses, selectedSemester, studentGroups, isPastSemester),
+        ),
+      ],
     );
   }
 
   Widget _buildCourseCards(
     List<Course> courses,
     Semester semester,
-    List<Group> studentGroups, // ✅ FIX: Changed from List<dynamic> to List<Group>
+    List<Group> studentGroups,
     bool isPastSemester,
   ) {
     if (courses.isEmpty) {
@@ -204,7 +333,6 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
       itemBuilder: (context, index) {
         final course = courses[index];
         
-        // ✅ FIX: Proper orElse with Group type
         final courseGroup = studentGroups.firstWhere(
           (g) => g.courseId == course.id,
           orElse: () => Group(
