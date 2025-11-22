@@ -222,6 +222,7 @@ class DatabaseService {
       'semesterId',
       'instructorId',
       'studentId',
+      'userId',            // ✅ ADD THIS - for in_app_notifications
       'quizId',
       'assignmentId',
       'materialId',

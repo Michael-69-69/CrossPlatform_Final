@@ -9,8 +9,12 @@ import '../../providers/auth_provider.dart';
 import '../../providers/course_provider.dart';
 import '../../providers/semester_provider.dart';
 import '../../providers/group_provider.dart';
-import '../../providers/message_provider.dart'; // ✅ ADD
-import '../shared/inbox_screen.dart'; // ✅ ADD
+import '../../providers/message_provider.dart';
+import '../../providers/in_app_notification_provider.dart';
+import '../../providers/assignment_provider.dart';
+import '../../providers/quiz_provider.dart';
+import '../shared/inbox_screen.dart';
+import '../student/in_app_notification_screen.dart';
 import 'student_course_detail_screen.dart';
 import 'student_dashboard_screen.dart';
 
@@ -24,7 +28,7 @@ class StudentHomeScreen extends ConsumerStatefulWidget {
 class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
   String? _selectedSemesterId;
   bool _showDashboard = false;
-  int _currentBottomNavIndex = 0; // ✅ ADD
+  int _currentBottomNavIndex = 0;
 
   @override
   void initState() {
@@ -33,11 +37,11 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
       ref.read(semesterProvider.notifier).loadSemesters();
       ref.read(courseProvider.notifier).loadCourses();
       ref.read(groupProvider.notifier).loadGroups();
-      _loadConversations(); // ✅ ADD
+      _loadConversations();
+      _loadNotifications();
     });
   }
 
-  // ✅ ADD THIS METHOD
   Future<void> _loadConversations() async {
     final user = ref.read(authProvider);
     if (user != null) {
@@ -48,19 +52,60 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     }
   }
 
+  Future<void> _loadNotifications() async {
+    final user = ref.read(authProvider);
+    if (user != null) {
+      await ref.read(inAppNotificationProvider.notifier).loadNotifications(user.id);
+    }
+  }
+
+  Future<void> _loadDashboardData() async {
+    final user = ref.read(authProvider);
+    if (user == null) return;
+
+    // Get student's enrolled courses
+    final allGroups = ref.read(groupProvider);
+    
+    final studentGroups = allGroups.where((g) => 
+      g.studentIds.contains(user.id)
+    ).toList();
+
+    final enrolledCourseIds = studentGroups
+        .map((g) => g.courseId)
+        .toSet()
+        .toList();
+
+    // Load assignments and quizzes for all enrolled courses
+    for (final courseId in enrolledCourseIds) {
+      await ref.read(assignmentProvider.notifier).loadAssignments(courseId);
+      await ref.read(quizProvider.notifier).loadQuizzes(courseId: courseId);
+    }
+    
+    // Load ALL quiz submissions for the student (not filtered by course)
+    await ref.read(quizSubmissionProvider.notifier).loadSubmissions();
+    
+    print('✅ Loaded dashboard data for ${enrolledCourseIds.length} courses');
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
     final semesters = ref.watch(semesterProvider);
     final allCourses = ref.watch(courseProvider);
     final allGroups = ref.watch(groupProvider);
-    final conversations = ref.watch(conversationProvider); // ✅ ADD
+    final conversations = ref.watch(conversationProvider);
+    final notifications = ref.watch(inAppNotificationProvider);
 
-    // Auto-select latest semester
+    // ✅ UPDATED: Auto-select active semester (or first if none active)
     if (_selectedSemesterId == null && semesters.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setState(() {
-          _selectedSemesterId = semesters.first.id;
+          // Try to find active semester first
+          final activeSemester = semesters.firstWhere(
+            (s) => s.isActive,
+            orElse: () => semesters.first,
+          );
+          _selectedSemesterId = activeSemester.id;
         });
       });
     }
@@ -80,17 +125,22 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
              studentGroups.any((g) => g.courseId == course.id);
     }).toList();
 
-    // Check if selected semester is past (read-only)
-    final isPastSemester = semesters.isNotEmpty && 
-                          selectedSemester.id != semesters.first.id;
+    // ✅ UPDATED: Check if semester is active (students can only submit in active semester)
+    final activeSemester = semesters.firstWhere(
+      (s) => s.isActive,
+      orElse: () => semesters.isNotEmpty ? semesters.first : Semester(id: '', code: '', name: ''),
+    );
+    
+    final isPastSemester = selectedSemester.id != activeSemester.id;
 
-    // ✅ ADD: Calculate unread count
-    final unreadCount = conversations.fold<int>(
+    // Calculate unread counts
+    final unreadMessageCount = conversations.fold<int>(
       0,
       (sum, c) => sum + c.unreadCountStudent,
     );
+    final unreadNotificationCount = notifications.where((n) => !n.isRead).length;
 
-    // ✅ ADD: Bottom navigation pages
+    // Bottom navigation pages
     final pages = [
       _buildHomeTab(
         semesters,
@@ -103,7 +153,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     ];
 
     return Scaffold(
-      appBar: _currentBottomNavIndex == 0 // ✅ Only show AppBar on home tab
+      appBar: _currentBottomNavIndex == 0 // Only show AppBar on home tab
           ? AppBar(
               title: const Text('Khóa học của tôi'),
               actions: [
@@ -113,34 +163,41 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                   onPressed: () => setState(() => _showDashboard = !_showDashboard),
                   tooltip: _showDashboard ? 'Xem khóa học' : 'Xem dashboard',
                 ),
-                // ✅ ADD: Message icon with badge
+                // Notification bell
                 Stack(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.message),
+                      icon: const Icon(Icons.notifications_outlined),
                       onPressed: () {
-                        setState(() => _currentBottomNavIndex = 1);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const InAppNotificationScreen(),
+                          ),
+                        );
                       },
+                      tooltip: 'Thông báo',
                     ),
-                    if (unreadCount > 0)
+                    if (unreadNotificationCount > 0)
                       Positioned(
                         right: 8,
                         top: 8,
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: Colors.red,
                             shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
                           ),
                           constraints: const BoxConstraints(
                             minWidth: 16,
                             minHeight: 16,
                           ),
                           child: Text(
-                            unreadCount > 99 ? '99+' : '$unreadCount',
+                            unreadNotificationCount > 99 ? '99+' : '$unreadNotificationCount',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
+                              fontSize: 9,
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
@@ -165,7 +222,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               ],
             )
           : null,
-      // ✅ ADD: Bottom navigation
+      // Bottom navigation
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentBottomNavIndex,
         onTap: (index) {
@@ -180,7 +237,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             icon: Stack(
               children: [
                 const Icon(Icons.message),
-                if (unreadCount > 0)
+                if (unreadMessageCount > 0)
                   Positioned(
                     right: 0,
                     top: 0,
@@ -195,7 +252,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                         minHeight: 12,
                       ),
                       child: Text(
-                        unreadCount > 9 ? '9+' : '$unreadCount',
+                        unreadMessageCount > 9 ? '9+' : '$unreadMessageCount',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 8,
@@ -211,11 +268,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           ),
         ],
       ),
-      body: pages[_currentBottomNavIndex], // ✅ Show selected page
+      body: pages[_currentBottomNavIndex],
     );
   }
 
-  // ✅ EXTRACT HOME TAB INTO METHOD
   Widget _buildHomeTab(
     List<Semester> semesters,
     Semester selectedSemester,
@@ -242,18 +298,34 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                     isDense: true,
                   ),
                   items: semesters.map((s) {
-                    final isCurrent = s.id == semesters.first.id;
                     return DropdownMenuItem(
                       value: s.id,
                       child: Row(
+                        mainAxisSize: MainAxisSize.min, // ✅ FIX: Prevent overflow
                         children: [
-                          Text('${s.code}: ${s.name}'),
-                          if (isCurrent) ...[
-                            const SizedBox(width: 8),
-                            const Chip(
-                              label: Text('Hiện tại', style: TextStyle(fontSize: 10)),
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
+                          Flexible( // ✅ FIX: Wrap text in Flexible
+                            child: Text(
+                              '${s.code}: ${s.name}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          // ✅ UPDATED: Show green badge for active semester
+                          if (s.isActive) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Hiện tại',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ],
                         ],
@@ -267,7 +339,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           ),
         ),
         
-        // Warning for past semesters
+        // ✅ UPDATED: Warning for non-active semesters
         if (isPastSemester)
           Container(
             padding: const EdgeInsets.all(12),
@@ -278,7 +350,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Học kỳ cũ - Chỉ xem, không thể nộp bài hoặc làm quiz',
+                    'Học kỳ cũ - Chỉ xem và tải tài liệu, không thể nộp bài hoặc làm quiz',
                     style: TextStyle(color: Colors.orange[800]),
                   ),
                 ),
@@ -289,13 +361,22 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         // Content: Dashboard or Course Cards
         Expanded(
           child: _showDashboard
-              ? StudentDashboardScreen(
-                  semesterId: _selectedSemesterId ?? '',
-                  courses: enrolledCourses,
-                )
+              ? _buildDashboardView(enrolledCourses)
               : _buildCourseCards(enrolledCourses, selectedSemester, studentGroups, isPastSemester),
         ),
       ],
+    );
+  }
+
+  Widget _buildDashboardView(List<Course> enrolledCourses) {
+    // Load dashboard data when switching to dashboard view
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDashboardData();
+    });
+    
+    return StudentDashboardScreen(
+      semesterId: _selectedSemesterId ?? '',
+      courses: enrolledCourses,
     );
   }
 
@@ -422,6 +503,7 @@ class _CourseCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // ✅ UPDATED: Show "Cũ" badge for non-active semesters
                   if (isPastSemester)
                     Positioned(
                       top: 8,
@@ -481,9 +563,12 @@ class _CourseCard extends StatelessWidget {
                       children: [
                         const Icon(Icons.group, size: 14, color: Colors.grey),
                         const SizedBox(width: 4),
-                        Text(
-                          groupName,
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        Expanded( // ✅ FIX: Wrap in Expanded
+                          child: Text(
+                            groupName,
+                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),

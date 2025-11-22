@@ -1,17 +1,23 @@
 // providers/announcement_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/announcement.dart';
+import '../models/user.dart';
+import '../models/in_app_notification.dart';
 import '../services/database_service.dart';
+import 'notification_provider.dart';
+import 'in_app_notification_provider.dart';
 
-final announcementProvider = StateNotifierProvider<AnnouncementNotifier, List<Announcement>>((ref) => AnnouncementNotifier());
+final announcementProvider = StateNotifierProvider<AnnouncementNotifier, List<Announcement>>((ref) => AnnouncementNotifier(ref));
 
 class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
-  AnnouncementNotifier() : super([]);
+  final Ref ref;
+  
+  AnnouncementNotifier(this.ref) : super([]);
   
   bool _isLoading = false;
 
   Future<void> loadAnnouncements(String courseId) async {
-    if (_isLoading) return; // Prevent duplicate loads
+    if (_isLoading) return;
     
     try {
       _isLoading = true;
@@ -20,7 +26,6 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
         filter: {'courseId': courseId},
       );
       
-      // ✅ FIX: Ensure proper type casting for mobile
       state = data.map((e) {
         final map = Map<String, dynamic>.from(e);
         return Announcement.fromMap(map);
@@ -38,18 +43,19 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
   Future<void> createAnnouncement({
     required String courseId,
+    required String courseName,
     required String title,
     required String content,
     required AnnouncementScope scope,
     required List<String> groupIds,
     required String instructorId,
     required String instructorName,
+    required List<AppUser> students,
     List<AnnouncementAttachment> attachments = const [],
   }) async {
     try {
       final now = DateTime.now();
       
-      // ✅ FIX: Explicit type casting for nested objects
       final doc = <String, dynamic>{
         'courseId': courseId,
         'title': title,
@@ -82,7 +88,6 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
         document: doc,
       );
 
-      // Add to state immediately
       state = [
         Announcement(
           id: insertedId,
@@ -102,6 +107,41 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
       ];
       
       print('✅ Created announcement: $insertedId');
+      
+      // ✅ SEND EMAIL NOTIFICATIONS
+      final studentsToNotify = students.where((s) => s.email.isNotEmpty).toList();
+      
+      if (studentsToNotify.isNotEmpty) {
+        // Send in background
+        Future.microtask(() {
+          ref.read(notificationProvider.notifier).notifyAnnouncement(
+            recipients: studentsToNotify,
+            courseName: courseName,
+            announcementTitle: title,
+            announcementContent: content,
+          );
+        });
+      }
+
+      // ✅ CREATE IN-APP NOTIFICATIONS
+      final studentUserIds = students.map((s) => s.id).toList();
+      if (studentUserIds.isNotEmpty) {
+        // Truncate content for notification body
+        final notificationBody = content.length > 100 
+            ? '${content.substring(0, 100)}...' 
+            : content;
+
+        await ref.read(inAppNotificationProvider.notifier).createBatchNotifications(
+          userIds: studentUserIds,
+          title: 'Thông báo mới: $title',
+          body: notificationBody,
+          type: InAppNotificationType.announcement,
+          relatedId: insertedId,
+          courseId: courseId,
+          courseName: courseName,
+        );
+        print('✅ Created ${studentUserIds.length} in-app notifications for announcement');
+      }
     } catch (e, stackTrace) {
       print('createAnnouncement error: $e');
       print('StackTrace: $stackTrace');
@@ -123,7 +163,6 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
       final updatedComments = [...announcement.comments, comment];
 
-      // ✅ FIX: Explicit type casting
       await DatabaseService.updateOne(
         collection: 'announcements',
         id: announcementId,
@@ -141,7 +180,6 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
         },
       );
 
-      // Update local state
       state = state.map((a) {
         if (a.id == announcementId) {
           return Announcement(
@@ -173,18 +211,14 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
   Future<void> markAsViewed(String announcementId, String userId) async {
     try {
       final announcement = state.firstWhere((a) => a.id == announcementId);
-      if (announcement.viewedBy.contains(userId)) {
-        return;
-      }
+      if (announcement.viewedBy.contains(userId)) return;
 
       final updatedViewedBy = [...announcement.viewedBy, userId];
 
       await DatabaseService.updateOne(
         collection: 'announcements',
         id: announcementId,
-        update: {
-          'viewedBy': updatedViewedBy,
-        },
+        update: {'viewedBy': updatedViewedBy},
       );
 
       state = state.map((a) {
@@ -261,10 +295,7 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
   Future<void> deleteAnnouncement(String id) async {
     try {
-      await DatabaseService.deleteOne(
-        collection: 'announcements',
-        id: id,
-      );
+      await DatabaseService.deleteOne(collection: 'announcements', id: id);
       state = state.where((a) => a.id != id).toList();
     } catch (e) {
       print('deleteAnnouncement error: $e');

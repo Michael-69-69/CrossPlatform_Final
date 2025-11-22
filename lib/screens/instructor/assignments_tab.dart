@@ -10,6 +10,7 @@ import '../../models/assignment.dart';
 import '../../models/group.dart';
 import '../../models/user.dart';
 import '../../providers/assignment_provider.dart';
+import '../../providers/course_provider.dart'; // ✅ ADD
 import '../../utils/file_upload_helper.dart';
 import '../../utils/file_download_helper.dart';
 
@@ -237,547 +238,536 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
     );
   }
 
-void _showCreateAssignmentDialog(BuildContext context) {
-  final titleCtrl = TextEditingController();
-  final descriptionCtrl = TextEditingController();
-  final startDateCtrl = TextEditingController();
-  final deadlineCtrl = TextEditingController();
-  final lateDeadlineCtrl = TextEditingController();
-  final maxAttemptsCtrl = TextEditingController(text: '1');
-  final maxFileSizeCtrl = TextEditingController(text: '10485760');
-  final allowedFormatsCtrl = TextEditingController(text: 'pdf,doc,docx');
-  final formKey = GlobalKey<FormState>();
-  bool allowLateSubmission = false;
-  final selectedGroupIds = <String>[];
-  final List<Map<String, dynamic>> selectedFiles = [];
+  void _showCreateAssignmentDialog(BuildContext context) {
+    final titleCtrl = TextEditingController();
+    final descriptionCtrl = TextEditingController();
+    final startDateCtrl = TextEditingController();
+    final deadlineCtrl = TextEditingController();
+    final lateDeadlineCtrl = TextEditingController();
+    final maxAttemptsCtrl = TextEditingController(text: '1');
+    final maxFileSizeCtrl = TextEditingController(text: '10485760');
+    final allowedFormatsCtrl = TextEditingController(text: 'pdf,doc,docx');
+    final formKey = GlobalKey<FormState>();
+    bool allowLateSubmission = false;
+    final selectedGroupIds = <String>[];
+    final List<Map<String, dynamic>> selectedFiles = [];
 
-  showDialog(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (dialogContext, setDialogState) {
-        return AlertDialog(
-          title: const Text('Tạo bài tập'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: MediaQuery.of(context).size.height * 0.7,
-            child: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      controller: titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Tiêu đề *',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: descriptionCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Mô tả *',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // File upload section
-                    const Text('Tệp đính kèm:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.attach_file),
-                      label: const Text('Chọn tệp'),
-                      onPressed: () async {
-                        try {
-                          final encodedFiles = await FileUploadHelper.pickAndEncodeMultipleFiles();
-                          if (encodedFiles.isNotEmpty) {
-                            setDialogState(() {
-                              selectedFiles.addAll(encodedFiles);
-                            });
-                          }
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Lỗi chọn file: $e')),
-                          );
-                        }
-                      },
-                    ),
-                    if (selectedFiles.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      ...selectedFiles.map((fileData) {
-                        return Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.attachment),
-                            title: Text(fileData['fileName']),
-                            subtitle: Text('${(fileData['fileSize'] / 1024).toStringAsFixed(1)} KB'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () {
-                                setDialogState(() {
-                                  selectedFiles.remove(fileData);
-                                });
-                              },
-                            ),
-                            dense: true,
-                          ),
-                        );
-                      }),
-                    ],
-                    const SizedBox(height: 16),
-                    
-                    // Date fields
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: startDateCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Ngày bắt đầu *',
-                              border: OutlineInputBorder(),
-                              suffixIcon: Icon(Icons.calendar_today),
-                            ),
-                            readOnly: true,
-                            onTap: () async {
-                              final date = await showDatePicker(
-                                context: dialogContext,
-                                initialDate: DateTime.now(),
-                                firstDate: DateTime.now(),
-                                lastDate: DateTime.now().add(const Duration(days: 365)),
-                              );
-                              if (date != null) {
-                                startDateCtrl.text = '${date.day}/${date.month}/${date.year}';
-                              }
-                            },
-                            validator: (v) => v?.isEmpty == true ? 'Bắt buộc' : null,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextFormField(
-                            controller: deadlineCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Hạn nộp *',
-                              border: OutlineInputBorder(),
-                              suffixIcon: Icon(Icons.calendar_today),
-                            ),
-                            readOnly: true,
-                            onTap: () async {
-                              final date = await showDatePicker(
-                                context: dialogContext,
-                                initialDate: DateTime.now().add(const Duration(days: 7)),
-                                firstDate: DateTime.now(),
-                                lastDate: DateTime.now().add(const Duration(days: 365)),
-                              );
-                              if (date != null) {
-                                deadlineCtrl.text = '${date.day}/${date.month}/${date.year}';
-                              }
-                            },
-                            validator: (v) => v?.isEmpty == true ? 'Bắt buộc' : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    CheckboxListTile(
-                      title: const Text('Cho phép nộp muộn'),
-                      value: allowLateSubmission,
-                      onChanged: (v) => setDialogState(() => allowLateSubmission = v!),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    if (allowLateSubmission) ...[
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          return AlertDialog(
+            title: const Text('Tạo bài tập'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       TextFormField(
-                        controller: lateDeadlineCtrl,
+                        controller: titleCtrl,
                         decoration: const InputDecoration(
-                          labelText: 'Hạn nộp muộn',
+                          labelText: 'Tiêu đề *',
                           border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_today),
                         ),
-                        readOnly: true,
-                        onTap: () async {
-                          final date = await showDatePicker(
-                            context: dialogContext,
-                            initialDate: DateTime.now().add(const Duration(days: 14)),
-                            firstDate: DateTime.now(),
-                            lastDate: DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            lateDeadlineCtrl.text = '${date.day}/${date.month}/${date.year}';
+                        validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: descriptionCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Mô tả *',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                        validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // File upload section
+                      const Text('Tệp đính kèm:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Chọn tệp'),
+                        onPressed: () async {
+                          try {
+                            final encodedFiles = await FileUploadHelper.pickAndEncodeMultipleFiles();
+                            if (encodedFiles.isNotEmpty) {
+                              setDialogState(() {
+                                selectedFiles.addAll(encodedFiles);
+                              });
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Lỗi chọn file: $e')),
+                            );
                           }
+                        },
+                      ),
+                      if (selectedFiles.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ...selectedFiles.map((fileData) {
+                          return Card(
+                            child: ListTile(
+                              leading: const Icon(Icons.attachment),
+                              title: Text(fileData['fileName']),
+                              subtitle: Text('${(fileData['fileSize'] / 1024).toStringAsFixed(1)} KB'),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  setDialogState(() {
+                                    selectedFiles.remove(fileData);
+                                  });
+                                },
+                              ),
+                              dense: true,
+                            ),
+                          );
+                        }),
+                      ],
+                      const SizedBox(height: 16),
+                      
+                      // Date fields
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: startDateCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Ngày bắt đầu *',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.calendar_today),
+                              ),
+                              readOnly: true,
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: dialogContext,
+                                  initialDate: DateTime.now(),
+                                  firstDate: DateTime.now(),
+                                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                                );
+                                if (date != null) {
+                                  startDateCtrl.text = '${date.day}/${date.month}/${date.year}';
+                                }
+                              },
+                              validator: (v) => v?.isEmpty == true ? 'Bắt buộc' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: deadlineCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Hạn nộp *',
+                                border: OutlineInputBorder(),
+                                suffixIcon: Icon(Icons.calendar_today),
+                              ),
+                              readOnly: true,
+                              onTap: () async {
+                                final date = await showDatePicker(
+                                  context: dialogContext,
+                                  initialDate: DateTime.now().add(const Duration(days: 7)),
+                                  firstDate: DateTime.now(),
+                                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                                );
+                                if (date != null) {
+                                  deadlineCtrl.text = '${date.day}/${date.month}/${date.year}';
+                                }
+                              },
+                              validator: (v) => v?.isEmpty == true ? 'Bắt buộc' : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      CheckboxListTile(
+                        title: const Text('Cho phép nộp muộn'),
+                        value: allowLateSubmission,
+                        onChanged: (v) => setDialogState(() => allowLateSubmission = v!),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      if (allowLateSubmission) ...[
+                        TextFormField(
+                          controller: lateDeadlineCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Hạn nộp muộn',
+                            border: OutlineInputBorder(),
+                            suffixIcon: Icon(Icons.calendar_today),
+                          ),
+                          readOnly: true,
+                          onTap: () async {
+                            final date = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: DateTime.now().add(const Duration(days: 14)),
+                              firstDate: DateTime.now(),
+                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                            );
+                            if (date != null) {
+                              lateDeadlineCtrl.text = '${date.day}/${date.month}/${date.year}';
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      
+                      TextFormField(
+                        controller: maxAttemptsCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Số lần nộp tối đa *',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (v) {
+                          if (v?.isEmpty == true) return 'Bắt buộc';
+                          final n = int.tryParse(v!);
+                          if (n == null || n < 1) return 'Phải >= 1';
+                          return null;
                         },
                       ),
                       const SizedBox(height: 16),
-                    ],
-                    
-                    TextFormField(
-                      controller: maxAttemptsCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Số lần nộp tối đa *',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (v) {
-                        if (v?.isEmpty == true) return 'Bắt buộc';
-                        final n = int.tryParse(v!);
-                        if (n == null || n < 1) return 'Phải >= 1';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: allowedFormatsCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Định dạng cho phép (VD: pdf,doc,docx)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: maxFileSizeCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Kích thước tối đa (bytes)',
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // ✅ NEW: Group Selection Button
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.group, color: Colors.blue[700]),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Chọn nhóm áp dụng:',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Đã chọn: ${selectedGroupIds.length}/${widget.groups.length} nhóm',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          
-                          // Button to open group selection
-// ✅ FIX 1: Update the function call (inside _showCreateAssignmentDialog)
-ElevatedButton.icon(
-  icon: const Icon(Icons.edit),
-  label: Text(
-    selectedGroupIds.isEmpty 
-      ? 'Chọn nhóm' 
-      : 'Sửa nhóm đã chọn',
-  ),
-  style: ElevatedButton.styleFrom(
-    minimumSize: const Size(double.infinity, 48),
-  ),
-  onPressed: () async {
-    // ✅ Pass widget.groups as parameter
-    final result = await _showGroupSelectionDialog(
-      dialogContext,
-      selectedGroupIds,
-      widget.groups, // ✅ ADD THIS
-    );
-    if (result != null) {
-      setDialogState(() {
-        selectedGroupIds.clear();
-        selectedGroupIds.addAll(result);
-      });
-    }
-  },
-),
-
-// ... rest of the code
-                          
-                          // Show selected groups
-                          if (selectedGroupIds.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: selectedGroupIds.map((groupId) {
-                                final group = widget.groups.firstWhere(
-                                  (g) => g.id == groupId,
-                                  orElse: () => Group(id: '', name: 'Unknown', courseId: ''),
-                                );
-                                return Chip(
-                                  label: Text(group.name),
-                                  deleteIcon: const Icon(Icons.close, size: 16),
-                                  onDeleted: () {
-                                    setDialogState(() {
-                                      selectedGroupIds.remove(groupId);
-                                    });
-                                  },
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Hủy'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
-
-                if (selectedGroupIds.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Vui lòng chọn ít nhất một nhóm')),
-                  );
-                  return;
-                }
-
-                DateTime? startDate = _parseDate(startDateCtrl.text);
-                DateTime? deadline = _parseDate(deadlineCtrl.text);
-                DateTime? lateDeadline = allowLateSubmission && lateDeadlineCtrl.text.isNotEmpty
-                    ? _parseDate(lateDeadlineCtrl.text)
-                    : null;
-
-                if (startDate == null || deadline == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Vui lòng chọn ngày hợp lệ')),
-                  );
-                  return;
-                }
-
-                if (deadline.isBefore(startDate)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Hạn nộp phải sau ngày bắt đầu')),
-                  );
-                  return;
-                }
-
-                final allowedFormats = allowedFormatsCtrl.text
-                    .split(',')
-                    .map((f) => f.trim())
-                    .where((f) => f.isNotEmpty)
-                    .toList();
-
-                final attachments = selectedFiles.map((fileData) {
-                  return AssignmentAttachment(
-                    fileName: fileData['fileName'],
-                    fileUrl: fileData['fileData'] ?? '',
-                    fileSize: fileData['fileSize'],
-                    mimeType: fileData['mimeType'],
-                  );
-                }).toList();
-
-                try {
-                  await ref.read(assignmentProvider.notifier).createAssignment(
-                    courseId: widget.courseId,
-                    title: titleCtrl.text.trim(),
-                    description: descriptionCtrl.text.trim(),
-                    startDate: startDate,
-                    deadline: deadline,
-                    allowLateSubmission: allowLateSubmission,
-                    lateDeadline: lateDeadline,
-                    maxAttempts: int.parse(maxAttemptsCtrl.text),
-                    allowedFileFormats: allowedFormats,
-                    maxFileSize: int.tryParse(maxFileSizeCtrl.text) ?? 10485760,
-                    groupIds: selectedGroupIds,
-                    instructorId: widget.instructorId,
-                    instructorName: widget.instructorName,
-                    attachments: attachments,
-                  );
-                  Navigator.pop(ctx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Đã tạo bài tập cho ${selectedGroupIds.length} nhóm'),
-                    ),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi: $e')),
-                  );
-                }
-              },
-              child: const Text('Tạo'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-}
-
-// ✅ FIX 2: Update function definition to accept groups parameter
-Future<List<String>?> _showGroupSelectionDialog(
-  BuildContext context,
-  List<String> currentSelectedIds,
-  List<Group> groups, // ✅ ADD THIS PARAMETER
-) async {
-  final tempSelectedIds = List<String>.from(currentSelectedIds);
-  
-  return showDialog<List<String>>(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (context, setDialogState) {
-        final allSelected = tempSelectedIds.length == groups.length; // ✅ Use parameter
-        
-        return AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.group, color: Colors.blue),
-              const SizedBox(width: 8),
-              const Text('Chọn nhóm'),
-              const Spacer(),
-              Text(
-                '${tempSelectedIds.length}/${groups.length}', // ✅ Use parameter
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 400,
-            child: Column(
-              children: [
-                // "Add All" button
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: allSelected ? Colors.green.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: allSelected ? Colors.green : Colors.blue,
-                      width: 2,
-                    ),
-                  ),
-                  child: ListTile(
-                    leading: Icon(
-                      allSelected ? Icons.check_circle : Icons.add_circle_outline,
-                      color: allSelected ? Colors.green : Colors.blue,
-                    ),
-                    title: Text(
-                      allSelected ? 'Đã chọn tất cả' : 'Chọn tất cả nhóm',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: allSelected ? Colors.green : Colors.blue,
-                      ),
-                    ),
-                    subtitle: Text('${groups.length} nhóm'), // ✅ Use parameter
-                    onTap: () {
-                      setDialogState(() {
-                        if (allSelected) {
-                          // Deselect all
-                          tempSelectedIds.clear();
-                        } else {
-                          // Select all
-                          tempSelectedIds.clear();
-                          tempSelectedIds.addAll(groups.map((g) => g.id)); // ✅ Use parameter
-                        }
-                      });
-                    },
-                  ),
-                ),
-                
-                const Divider(),
-                
-                // Group list
-                Expanded(
-                  child: groups.isEmpty // ✅ Check if empty
-                    ? const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.group_off, size: 64, color: Colors.grey),
-                            SizedBox(height: 16),
-                            Text('Chưa có nhóm nào'),
-                          ],
+                      TextFormField(
+                        controller: allowedFormatsCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Định dạng cho phép (VD: pdf,doc,docx)',
+                          border: OutlineInputBorder(),
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: groups.length, // ✅ Use parameter
-                        itemBuilder: (context, index) {
-                          final group = groups[index]; // ✅ Use parameter
-                          final isSelected = tempSelectedIds.contains(group.id);
-                          
-                          return Card(
-                            color: isSelected ? Colors.blue.withOpacity(0.1) : null,
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: isSelected ? Colors.blue : Colors.grey,
-                                child: Icon(
-                                  isSelected ? Icons.check : Icons.add,
-                                  color: Colors.white,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: maxFileSizeCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Kích thước tối đa (bytes)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Group Selection
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.group, color: Colors.blue[700]),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Chọn nhóm áp dụng:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Đã chọn: ${selectedGroupIds.length}/${widget.groups.length} nhóm',
+                              style: TextStyle(
+                                color: Colors.grey[700],
+                                fontSize: 12,
                               ),
-                              title: Text(
-                                group.name,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                ),
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.edit),
+                              label: Text(
+                                selectedGroupIds.isEmpty 
+                                  ? 'Chọn nhóm' 
+                                  : 'Sửa nhóm đã chọn',
                               ),
-                              subtitle: Text('${group.studentIds.length} học sinh'),
-                              trailing: isSelected 
-                                ? const Icon(Icons.check_circle, color: Colors.green)
-                                : const Icon(Icons.add_circle_outline, color: Colors.grey),
-                              onTap: () {
-                                setDialogState(() {
-                                  if (isSelected) {
-                                    tempSelectedIds.remove(group.id);
-                                  } else {
-                                    tempSelectedIds.add(group.id);
-                                  }
-                                });
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 48),
+                              ),
+                              onPressed: () async {
+                                final result = await _showGroupSelectionDialog(
+                                  dialogContext,
+                                  selectedGroupIds,
+                                  widget.groups,
+                                );
+                                if (result != null) {
+                                  setDialogState(() {
+                                    selectedGroupIds.clear();
+                                    selectedGroupIds.addAll(result);
+                                  });
+                                }
                               },
                             ),
-                          );
-                        },
+                            
+                            if (selectedGroupIds.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: selectedGroupIds.map((groupId) {
+                                  final group = widget.groups.firstWhere(
+                                    (g) => g.id == groupId,
+                                    orElse: () => Group(id: '', name: 'Unknown', courseId: ''),
+                                  );
+                                  return Chip(
+                                    label: Text(group.name),
+                                    deleteIcon: const Icon(Icons.close, size: 16),
+                                    onDeleted: () {
+                                      setDialogState(() {
+                                        selectedGroupIds.remove(groupId);
+                                      });
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+
+                  if (selectedGroupIds.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Vui lòng chọn ít nhất một nhóm')),
+                    );
+                    return;
+                  }
+
+                  DateTime? startDate = _parseDate(startDateCtrl.text);
+                  DateTime? deadline = _parseDate(deadlineCtrl.text);
+                  DateTime? lateDeadline = allowLateSubmission && lateDeadlineCtrl.text.isNotEmpty
+                      ? _parseDate(lateDeadlineCtrl.text)
+                      : null;
+
+                  if (startDate == null || deadline == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Vui lòng chọn ngày hợp lệ')),
+                    );
+                    return;
+                  }
+
+                  if (deadline.isBefore(startDate)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Hạn nộp phải sau ngày bắt đầu')),
+                    );
+                    return;
+                  }
+
+                  final allowedFormats = allowedFormatsCtrl.text
+                      .split(',')
+                      .map((f) => f.trim())
+                      .where((f) => f.isNotEmpty)
+                      .toList();
+
+                  final attachments = selectedFiles.map((fileData) {
+                    return AssignmentAttachment(
+                      fileName: fileData['fileName'],
+                      fileUrl: fileData['fileData'] ?? '',
+                      fileSize: fileData['fileSize'],
+                      mimeType: fileData['mimeType'],
+                    );
+                  }).toList();
+
+                  try {
+                    await ref.read(assignmentProvider.notifier).createAssignment(
+                      courseId: widget.courseId,
+                      title: titleCtrl.text.trim(),
+                      description: descriptionCtrl.text.trim(),
+                      startDate: startDate,
+                      deadline: deadline,
+                      allowLateSubmission: allowLateSubmission,
+                      lateDeadline: lateDeadline,
+                      maxAttempts: int.parse(maxAttemptsCtrl.text),
+                      allowedFileFormats: allowedFormats,
+                      maxFileSize: int.tryParse(maxFileSizeCtrl.text) ?? 10485760,
+                      groupIds: selectedGroupIds,
+                      instructorId: widget.instructorId,
+                      instructorName: widget.instructorName,
+                      attachments: attachments,
+                    );
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Đã tạo bài tập cho ${selectedGroupIds.length} nhóm'),
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Lỗi: $e')),
+                    );
+                  }
+                },
+                child: const Text('Tạo'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<List<String>?> _showGroupSelectionDialog(
+    BuildContext context,
+    List<String> currentSelectedIds,
+    List<Group> groups,
+  ) async {
+    final tempSelectedIds = List<String>.from(currentSelectedIds);
+    
+    return showDialog<List<String>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final allSelected = tempSelectedIds.length == groups.length;
+          
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.group, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text('Chọn nhóm'),
+                const Spacer(),
+                Text(
+                  '${tempSelectedIds.length}/${groups.length}',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: const Text('Hủy'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 400,
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: allSelected ? Colors.green.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: allSelected ? Colors.green : Colors.blue,
+                        width: 2,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: Icon(
+                        allSelected ? Icons.check_circle : Icons.add_circle_outline,
+                        color: allSelected ? Colors.green : Colors.blue,
+                      ),
+                      title: Text(
+                        allSelected ? 'Đã chọn tất cả' : 'Chọn tất cả nhóm',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: allSelected ? Colors.green : Colors.blue,
+                        ),
+                      ),
+                      subtitle: Text('${groups.length} nhóm'),
+                      onTap: () {
+                        setDialogState(() {
+                          if (allSelected) {
+                            tempSelectedIds.clear();
+                          } else {
+                            tempSelectedIds.clear();
+                            tempSelectedIds.addAll(groups.map((g) => g.id));
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                  
+                  const Divider(),
+                  
+                  Expanded(
+                    child: groups.isEmpty
+                      ? const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.group_off, size: 64, color: Colors.grey),
+                              SizedBox(height: 16),
+                              Text('Chưa có nhóm nào'),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: groups.length,
+                          itemBuilder: (context, index) {
+                            final group = groups[index];
+                            final isSelected = tempSelectedIds.contains(group.id);
+                            
+                            return Card(
+                              color: isSelected ? Colors.blue.withOpacity(0.1) : null,
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: isSelected ? Colors.blue : Colors.grey,
+                                  child: Icon(
+                                    isSelected ? Icons.check : Icons.add,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                title: Text(
+                                  group.name,
+                                  style: TextStyle(
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                subtitle: Text('${group.studentIds.length} học sinh'),
+                                trailing: isSelected 
+                                  ? const Icon(Icons.check_circle, color: Colors.green)
+                                  : const Icon(Icons.add_circle_outline, color: Colors.grey),
+                                onTap: () {
+                                  setDialogState(() {
+                                    if (isSelected) {
+                                      tempSelectedIds.remove(group.id);
+                                    } else {
+                                      tempSelectedIds.add(group.id);
+                                    }
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                  ),
+                ],
+              ),
             ),
-            ElevatedButton(
-              onPressed: tempSelectedIds.isEmpty 
-                ? null 
-                : () => Navigator.pop(ctx, tempSelectedIds),
-              child: Text('Xác nhận (${tempSelectedIds.length})'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-}
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: tempSelectedIds.isEmpty 
+                  ? null 
+                  : () => Navigator.pop(ctx, tempSelectedIds),
+                child: Text('Xác nhận (${tempSelectedIds.length})'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   DateTime? _parseDate(String dateStr) {
     try {
@@ -795,6 +785,7 @@ Future<List<String>?> _showGroupSelectionDialog(
     return null;
   }
 
+  // ✅ UPDATED: Add email notification when grading
   void _showAssignmentDetail(BuildContext context, Assignment assignment) {
     showModalBottomSheet(
       context: context,
@@ -803,10 +794,31 @@ Future<List<String>?> _showGroupSelectionDialog(
         assignment: assignment,
         groups: widget.groups,
         students: widget.students,
-        onGrade: (submissionId, grade, feedback) {
-          ref.read(assignmentProvider.notifier).gradeSubmission(
+        onGrade: (submissionId, grade, feedback) async {
+          // ✅ Get student info for email
+          final submission = assignment.submissions.firstWhere(
+            (s) => s.id == submissionId,
+          );
+          
+          final student = widget.students.firstWhere(
+            (s) => s.id == submission.studentId,
+            orElse: () => AppUser(
+              id: '',
+              fullName: 'Unknown',
+              email: '',
+              role: UserRole.student,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          );
+
+          // ✅ Grade with email notification
+          await ref.read(assignmentProvider.notifier).gradeSubmission(
             assignmentId: assignment.id,
             submissionId: submissionId,
+            studentEmail: student.email, // ✅ ADD
+            studentName: student.fullName, // ✅ ADD
+            courseName: widget.courseName, // ✅ ADD
             grade: grade,
             feedback: feedback,
           );
@@ -928,8 +940,6 @@ Future<List<String>?> _showGroupSelectionDialog(
     }
   }
 }
-
-// ... (continued from previous)
 
 class _AssignmentCard extends StatelessWidget {
   final Assignment assignment;
@@ -1059,7 +1069,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
   String _sortBy = 'name';
   bool _sortAscending = true;
 
-  // ✅ FIX: Download instructor's attachment files
   Future<void> _downloadFile(BuildContext context, AssignmentAttachment attachment) async {
     try {
       if (mounted) {
@@ -1070,7 +1079,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
 
       String result;
       
-      // Check if it's a URL
       if (attachment.fileUrl.startsWith('http://') || 
           attachment.fileUrl.startsWith('https://')) {
         final path = await FileDownloadHelper.downloadFile(
@@ -1079,7 +1087,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
         );
         result = 'Đã tải: $path';
       }
-      // Check if it's a local path
       else if (attachment.fileUrl.startsWith('/') || 
                attachment.fileUrl.contains('\\')) {
         final sourceFile = File(attachment.fileUrl);
@@ -1092,7 +1099,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
           throw Exception('Tệp không tồn tại');
         }
       }
-      // Otherwise it's base64 encoded
       else if (attachment.fileUrl.isNotEmpty) {
         final path = await FileDownloadHelper.downloadFromBase64(
           base64Data: attachment.fileUrl,
@@ -1123,7 +1129,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
     final assignment = ref.watch(assignmentProvider)
         .firstWhere((a) => a.id == widget.assignment.id, orElse: () => widget.assignment);
 
-    // Get all students who should submit
     final relevantStudents = assignment.groupIds.isEmpty
         ? widget.students
         : widget.students.where((s) {
@@ -1132,7 +1137,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                 .any((g) => g.studentIds.contains(s.id));
           }).toList();
 
-    // Build tracking data
     final trackingData = relevantStudents.map((student) {
       final group = widget.groups.firstWhere(
         (g) => g.studentIds.contains(student.id),
@@ -1156,7 +1160,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
       );
     }).toList();
 
-    // Apply filters
     var filtered = trackingData;
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((row) {
@@ -1168,7 +1171,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
       filtered = filtered.where((row) => row.group.id == _selectedGroupFilter).toList();
     }
 
-    // Sort
     filtered.sort((a, b) {
       int comparison = 0;
       switch (_sortBy) {
@@ -1236,7 +1238,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
               ),
             ),
             
-            // Assignment Details and Attachments
             if (assignment.attachments.isNotEmpty || assignment.description.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(16),
@@ -1279,7 +1280,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                 ),
               ),
             
-            // Filters
             Padding(
               padding: const EdgeInsets.all(8),
               child: Column(
@@ -1344,7 +1344,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
               ),
             ),
             
-            // Tracking Table
             Expanded(
               child: SingleChildScrollView(
                 controller: scrollController,
@@ -1504,7 +1503,7 @@ class _TrackingRow {
               );
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã chấm điểm')),
+                const SnackBar(content: Text('Đã chấm điểm và gửi email thông báo')), // ✅ UPDATED MESSAGE
               );
             },
             child: const Text('Lưu'),

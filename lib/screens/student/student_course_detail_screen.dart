@@ -8,7 +8,7 @@ import '../../providers/student_provider.dart';
 import 'tabs/student_stream_tab.dart';
 import 'tabs/student_classwork_tab.dart';
 import 'tabs/student_people_tab.dart';
-import '../shared/forum_list_widget.dart'; // ✅ ADD THIS
+import '../shared/forum_list_widget.dart';
 
 class StudentCourseDetailScreen extends ConsumerStatefulWidget {
   final Course course;
@@ -36,7 +36,7 @@ class _StudentCourseDetailScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this); // ✅ CHANGED FROM 3 TO 4
+    _tabController = TabController(length: 4, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(groupProvider.notifier).loadGroups();
@@ -72,7 +72,7 @@ class _StudentCourseDetailScreenState
             Tab(icon: Icon(Icons.stream), text: 'Bảng tin'),
             Tab(icon: Icon(Icons.assignment), text: 'Bài tập'),
             Tab(icon: Icon(Icons.people), text: 'Mọi người'),
-            Tab(icon: Icon(Icons.forum), text: 'Diễn đàn'), // ✅ ADD THIS
+            Tab(icon: Icon(Icons.forum), text: 'Diễn đàn'),
           ],
         ),
       ),
@@ -89,11 +89,28 @@ class _StudentCourseDetailScreenState
                     const Icon(Icons.school, color: Colors.indigo),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        widget.semester.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        children: [
+                          Text(
+                            widget.semester.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          // ✅ ADD: Show active badge
+                          if (widget.semester.isActive) ...[
+                            const SizedBox(width: 8),
+                            const Chip(
+                              label: Text(
+                                'Đang hoạt động',
+                                style: TextStyle(fontSize: 9, color: Colors.white),
+                              ),
+                              backgroundColor: Colors.green,
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                     Text('${widget.course.sessions} buổi'),
@@ -114,7 +131,7 @@ class _StudentCourseDetailScreenState
             ),
           ),
 
-          // ✅ KEEP THIS: Past semester warning
+          // ✅ UPDATED: Warning for non-active semesters
           if (widget.isPastSemester)
             Container(
               padding: const EdgeInsets.all(12),
@@ -125,7 +142,7 @@ class _StudentCourseDetailScreenState
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Học kỳ cũ - Chỉ xem, không thể nộp bài hoặc làm quiz',
+                      'Học kỳ cũ - Chỉ xem và tải tài liệu, không thể nộp bài hoặc làm quiz',
                       style: TextStyle(
                         color: Colors.orange[800],
                         fontSize: 12,
@@ -155,7 +172,6 @@ class _StudentCourseDetailScreenState
                   groups: groups,
                   students: students,
                 ),
-                // ✅ ADD THIS: Forum tab
                 ForumListWidget(
                   courseId: widget.course.id,
                   courseName: widget.course.name,

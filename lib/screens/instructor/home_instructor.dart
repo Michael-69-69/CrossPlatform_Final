@@ -7,12 +7,13 @@ import '../../providers/semester_provider.dart';
 import '../../providers/course_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/group_provider.dart';
-import '../../providers/message_provider.dart'; // ✅ ADD
+import '../../providers/message_provider.dart';
 import '../../models/semester.dart';
 import '../../models/course.dart';
 import '../../models/user.dart';
-import '../shared/inbox_screen.dart'; // ✅ ADD
+import '../shared/inbox_screen.dart';
 import 'csv_preview_screen.dart';
+import 'test_screen.dart';
 
 class HomeInstructor extends ConsumerStatefulWidget {
   const HomeInstructor({super.key});
@@ -24,7 +25,11 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   String? _selectedSemesterId;
   bool _isLoading = false;
   late TabController _tabController;
-  int _currentBottomNavIndex = 0; // ✅ ADD
+  int _currentBottomNavIndex = 0;
+  
+  // ✅ Secret test button tracking
+  int _secretTapCount = 0;
+  DateTime? _lastTapTime;
 
   @override
   void initState() {
@@ -50,7 +55,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
         ref.read(courseProvider.notifier).loadCourses(),
         ref.read(studentProvider.notifier).loadStudents(),
         ref.read(groupProvider.notifier).loadGroups(),
-        _loadConversations(), // ✅ ADD
+        _loadConversations(),
       ]);
       
       print('✅ All data refreshed');
@@ -65,15 +70,95 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     }
   }
 
-  // ✅ ADD THIS METHOD
   Future<void> _loadConversations() async {
     final user = ref.read(authProvider);
     if (user != null) {
       await ref.read(conversationProvider.notifier).loadConversations(
             user.id,
-            true, // isInstructor
+            true,
           );
     }
+  }
+
+  void _showSecretDialog() {
+    final codeController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.lock, color: Colors.deepPurple),
+            const SizedBox(width: 12),
+            const Text('🔐 Testing Access'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter access code to continue:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: codeController,
+              decoration: const InputDecoration(
+                labelText: 'Access Code',
+                border: OutlineInputBorder(),
+                hintText: 'tester',
+              ),
+              obscureText: true,
+              onSubmitted: (value) {
+                if (value == 'tester') {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TestScreen(),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('❌ Invalid access code'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (codeController.text == 'tester') {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TestScreen(),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('❌ Invalid access code'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+            ),
+            child: const Text('Enter'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -82,30 +167,53 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     final semesters = ref.watch(semesterProvider);
     final courses = ref.watch(courseProvider);
     final students = ref.watch(studentProvider);
-    final conversations = ref.watch(conversationProvider); // ✅ ADD
+    final conversations = ref.watch(conversationProvider);
 
     final filteredCourses = _selectedSemesterId == null
         ? courses.where((c) => c.instructorId == user.id).toList()
         : courses.where((c) => c.instructorId == user.id && c.semesterId == _selectedSemesterId).toList();
 
-    // ✅ ADD: Calculate unread count
     final unreadCount = conversations.fold<int>(
       0,
       (sum, c) => sum + c.unreadCountInstructor,
     );
 
-    // ✅ ADD: Bottom navigation pages
     final pages = [
       _buildHomeTab(user, semesters, filteredCourses, students),
       const InboxScreen(),
     ];
 
     return Scaffold(
-      appBar: _currentBottomNavIndex == 0 // ✅ Only show AppBar on home tab
+      appBar: _currentBottomNavIndex == 0
           ? AppBar(
               title: Text('GV: ${user.fullName}'),
               actions: [
-                // ✅ ADD: Message icon with badge
+                // Test access button
+                IconButton(
+                  icon: const Icon(Icons.science),
+                  tooltip: 'Test Dashboard',
+                  onPressed: () {
+                    final now = DateTime.now();
+                    if (_lastTapTime != null && now.difference(_lastTapTime!).inSeconds > 2) {
+                      _secretTapCount = 0;
+                    }
+                    _lastTapTime = now;
+                    _secretTapCount++;
+
+                    if (_secretTapCount >= 5) {
+                      _secretTapCount = 0;
+                      _showSecretDialog();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Tap ${5 - _secretTapCount} more times...'),
+                          duration: const Duration(milliseconds: 500),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                // Message icon with badge
                 Stack(
                   children: [
                     IconButton(
@@ -151,7 +259,6 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
               ],
             )
           : null,
-      // ✅ ADD: Bottom navigation
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentBottomNavIndex,
         onTap: (index) {
@@ -197,11 +304,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
           ),
         ],
       ),
-      body: pages[_currentBottomNavIndex], // ✅ Show selected page
+      body: pages[_currentBottomNavIndex],
     );
   }
 
-  // ✅ EXTRACT HOME TAB INTO METHOD
   Widget _buildHomeTab(
     AppUser user,
     List<Semester> semesters,
@@ -210,67 +316,188 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   ) {
     return Column(
       children: [
-        // ────── SEMESTER FILTER + ADD ──────
         Container(
           color: Theme.of(context).colorScheme.surface,
           padding: const EdgeInsets.all(12),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedSemesterId,
-                  decoration: InputDecoration(
-                    labelText: 'Chọn học kỳ',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.school),
-                    suffixIcon: _selectedSemesterId != null
-                        ? IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () async {
+              // ✅ FIXED: Semester Row with Active Button
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedSemesterId,
+                      decoration: InputDecoration(
+                        labelText: 'Chọn học kỳ',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.school),
+                        // ✅ Show checkmark if active
+                        suffixIcon: _selectedSemesterId != null &&
+                                semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
+                            ? const Icon(Icons.check_circle, color: Colors.green)
+                            : null,
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
+                        ...semesters.map((s) => DropdownMenuItem(
+                              value: s.id,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min, // ✅ FIX: Prevent overflow
+                                children: [
+                                  Flexible( // ✅ FIX: Wrap text in Flexible
+                                    child: Text(
+                                      '${s.code}: ${s.name}',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  // ✅ Active badge
+                                  if (s.isActive) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Text(
+                                        'ACTIVE',
+                                        style: TextStyle(
+                                          fontSize: 8,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            )),
+                      ],
+                      onChanged: (v) => setState(() => _selectedSemesterId = v),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // ✅ Set Active Button
+                  Tooltip(
+                    message: 'Kích hoạt học kỳ',
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.play_arrow, size: 16),
+                      label: const Text('Kích hoạt', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      ),
+                      onPressed: _selectedSemesterId != null &&
+                              !semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
+                          ? () async {
+                              final selectedSemester = semesters.firstWhere(
+                                (s) => s.id == _selectedSemesterId,
+                              );
+
                               final confirm = await showDialog<bool>(
                                 context: context,
                                 builder: (ctx) => AlertDialog(
-                                  title: const Text('Xóa học kỳ'),
+                                  title: const Text('Kích hoạt học kỳ'),
                                   content: Text(
-                                      'Xóa "${semesters.firstWhere((s) => s.id == _selectedSemesterId).name}"?'),
+                                    'Đặt "${selectedSemester.name}" làm học kỳ hiện tại?\n\n'
+                                    '• Sinh viên chỉ có thể nộp bài/làm quiz trong học kỳ này\n'
+                                    '• Các học kỳ khác sẽ chuyển sang chế độ chỉ xem',
+                                  ),
                                   actions: [
                                     TextButton(
-                                        onPressed: () => Navigator.pop(ctx, false),
-                                        child: const Text('Hủy')),
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Hủy'),
+                                    ),
                                     ElevatedButton(
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                      ),
                                       onPressed: () => Navigator.pop(ctx, true),
-                                      child: const Text('Xóa'),
+                                      child: const Text('Kích hoạt'),
                                     ),
                                   ],
                                 ),
                               );
-                              if (confirm == true) {
-                                await ref.read(semesterProvider.notifier).deleteSemester(_selectedSemesterId!);
-                                setState(() => _selectedSemesterId = null);
+
+                              if (confirm == true && _selectedSemesterId != null) {
+                                try {
+                                  await ref.read(semesterProvider.notifier).setActiveSemester(_selectedSemesterId!);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('✅ Đã kích hoạt: ${selectedSemester.name}'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('❌ Lỗi: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
                               }
-                            },
-                          )
-                        : null,
+                            }
+                          : null,
+                    ),
                   ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
-                    ...semesters.map((s) => DropdownMenuItem(value: s.id, child: Text('${s.code}: ${s.name}'))),
-                  ],
-                  onChanged: (v) => setState(() => _selectedSemesterId = v),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.add_circle, color: Colors.green),
-                tooltip: 'Thêm học kỳ',
-                onPressed: () => context.push('/instructor/semester/create'),
+                  const SizedBox(width: 8),
+                  // Add semester button
+                  IconButton(
+                    icon: const Icon(Icons.add_circle, color: Colors.green),
+                    tooltip: 'Thêm học kỳ',
+                    onPressed: () => context.push('/instructor/semester/create'),
+                  ),
+                  // Delete semester button (only if selected and not active)
+                  if (_selectedSemesterId != null &&
+                      !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: 'Xóa học kỳ',
+                      onPressed: () async {
+                        final semesterToDelete = semesters.firstWhere(
+                          (s) => s.id == _selectedSemesterId,
+                        );
+
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Xóa học kỳ'),
+                            content: Text('Xóa "${semesterToDelete.name}"?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Hủy'),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Xóa'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirm == true) {
+                          await ref.read(semesterProvider.notifier).deleteSemester(_selectedSemesterId!);
+                          setState(() => _selectedSemesterId = null);
+                        }
+                      },
+                    ),
+                ],
               ),
             ],
           ),
         ),
 
-        // ────── TABS ──────
         TabBar(
           controller: _tabController,
           tabs: const [
@@ -327,7 +554,35 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                   child: ListTile(
                     leading: const Icon(Icons.book, color: Colors.green),
                     title: Text('${course.code}: ${course.name}'),
-                    subtitle: Text('${semester.name} • ${course.sessions} buổi'),
+                    subtitle: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '${semester.name} • ${course.sessions} buổi',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        // ✅ Show if course is in active semester
+                        if (semester.isActive) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Active',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () async {
                       print('🔄 Loading groups for course: ${course.name}');
@@ -402,7 +657,6 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                         ),
                         title: Text(s.fullName),
                         subtitle: Text('${s.code} • ${s.email}'),
-                        // ✅ ADD: Message button
                         trailing: IconButton(
                           icon: const Icon(Icons.message),
                           onPressed: () async {
@@ -428,7 +682,6 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
-  // Keep all existing methods below...
   void _showCreateCourseDialog(BuildContext context, List<Semester> semesters, AppUser user) {
     final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();

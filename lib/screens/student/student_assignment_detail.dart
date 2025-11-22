@@ -6,6 +6,7 @@ import '../../../models/assignment.dart';
 import '../../../providers/assignment_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/group_provider.dart';
+import '../../../providers/course_provider.dart'; // ✅ ADD
 import '../../../utils/file_upload_helper.dart';
 import '../../../utils/file_download_helper.dart';
 
@@ -315,7 +316,6 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
     }
   }
 
-  // ✅ FIX: Download instructor's attachment files
   Future<void> _downloadInstructorFile(AssignmentAttachment attachment) async {
     try {
       if (mounted) {
@@ -326,7 +326,6 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
 
       String result;
       
-      // Check if it's a URL
       if (attachment.fileUrl.startsWith('http://') || 
           attachment.fileUrl.startsWith('https://')) {
         final path = await FileDownloadHelper.downloadFile(
@@ -335,7 +334,6 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
         );
         result = 'Đã tải: $path';
       } 
-      // Check if it's a local path
       else if (attachment.fileUrl.startsWith('/') || 
                attachment.fileUrl.contains('\\')) {
         final downloaded = await FileDownloadHelper.downloadFromLocalPath(
@@ -344,7 +342,6 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
         );
         result = downloaded != null ? 'Đã tải: $downloaded' : 'Không thể tải file';
       }
-      // Otherwise it might be base64 encoded
       else if (attachment.fileUrl.isNotEmpty) {
         final path = await FileDownloadHelper.downloadFromBase64(
           base64Data: attachment.fileUrl,
@@ -370,7 +367,6 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
     }
   }
 
-  // ✅ FIX: Download student's submitted files (stored as base64 in fileUrl)
   Future<void> _downloadSubmittedFile(AssignmentAttachment file) async {
     try {
       if (mounted) {
@@ -381,16 +377,13 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
 
       String result;
       
-      // Student submitted files are stored as base64 in fileUrl
       if (file.fileUrl.isNotEmpty) {
-        // Try to detect if it's base64 (doesn't start with http/https or path separators)
         final isLikelyBase64 = !file.fileUrl.startsWith('http://') && 
                                !file.fileUrl.startsWith('https://') &&
                                !file.fileUrl.startsWith('/') &&
                                !file.fileUrl.contains('\\');
         
         if (isLikelyBase64) {
-          // Download from base64
           final path = await FileDownloadHelper.downloadFromBase64(
             base64Data: file.fileUrl,
             fileName: file.fileName,
@@ -398,14 +391,12 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
           result = 'Đã tải: $path';
         } else if (file.fileUrl.startsWith('http://') || 
                    file.fileUrl.startsWith('https://')) {
-          // Download from URL
           final path = await FileDownloadHelper.downloadFile(
             url: file.fileUrl,
             fileName: file.fileName,
           );
           result = 'Đã tải: $path';
         } else {
-          // Try local path
           final downloaded = await FileDownloadHelper.downloadFromLocalPath(
             localPath: file.fileUrl,
             fileName: file.fileName,
@@ -430,11 +421,11 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
     }
   }
 
+  // ✅ UPDATED: Submit assignment with email notification
   Future<void> _submitAssignment() async {
     final user = ref.read(authProvider);
     if (user == null) return;
 
-    // Get student's group
     final groups = ref.read(groupProvider);
     
     try {
@@ -442,22 +433,31 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
         (g) => g.courseId == widget.assignment.courseId && g.studentIds.contains(user.id),
       );
 
+      // ✅ Get course info for email
+      final courses = ref.read(courseProvider);
+      final course = courses.firstWhere(
+        (c) => c.id == widget.assignment.courseId,
+        orElse: () => throw Exception('Course not found'),
+      );
+
       setState(() => _isSubmitting = true);
 
-      // ✅ FIX: Store base64 data properly in fileUrl field
       final attachments = _selectedFiles.map((fileData) {
         return AssignmentAttachment(
           fileName: fileData['fileName'],
-          fileUrl: fileData['fileData'] ?? '', // Base64 data stored in fileUrl
+          fileUrl: fileData['fileData'] ?? '',
           fileSize: fileData['fileSize'],
           mimeType: fileData['mimeType'],
         );
       }).toList();
 
+      // ✅ Submit with email notification
       await ref.read(assignmentProvider.notifier).submitAssignment(
             assignmentId: widget.assignment.id,
             studentId: user.id,
             studentName: user.fullName,
+            studentEmail: user.email, // ✅ ADD
+            courseName: course.name, // ✅ ADD
             groupId: studentGroup.id,
             groupName: studentGroup.name,
             files: attachments,
@@ -469,7 +469,10 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã nộp bài thành công!')),
+          const SnackBar(
+            content: Text('Đã nộp bài thành công! Email xác nhận đã được gửi.'), // ✅ UPDATED MESSAGE
+            duration: Duration(seconds: 3),
+          ),
         );
       }
     } catch (e) {

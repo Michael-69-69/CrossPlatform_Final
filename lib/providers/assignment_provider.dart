@@ -2,11 +2,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/assignment.dart';
 import '../services/database_service.dart';
+import 'notification_provider.dart';
 
-final assignmentProvider = StateNotifierProvider<AssignmentNotifier, List<Assignment>>((ref) => AssignmentNotifier());
+final assignmentProvider = StateNotifierProvider<AssignmentNotifier, List<Assignment>>((ref) => AssignmentNotifier(ref));
 
 class AssignmentNotifier extends StateNotifier<List<Assignment>> {
-  AssignmentNotifier() : super([]);
+  final Ref ref;
+  
+  AssignmentNotifier(this.ref) : super([]);
   
   bool _isLoading = false;
 
@@ -20,7 +23,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         filter: {'courseId': courseId},
       );
       
-      // ✅ FIX: Explicit type casting for mobile
       state = data.map((e) {
         final map = Map<String, dynamic>.from(e);
         return Assignment.fromMap(map);
@@ -56,7 +58,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
     try {
       final now = DateTime.now();
       
-      // ✅ FIX: Explicit type casting for nested objects
       final doc = <String, dynamic>{
         'courseId': courseId,
         'title': title,
@@ -90,7 +91,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         document: doc,
       );
 
-      // Add to state immediately
       state = [
         Assignment(
           id: insertedId,
@@ -126,6 +126,8 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
     required String assignmentId,
     required String studentId,
     required String studentName,
+    required String studentEmail, // ✅ ADD
+    required String courseName, // ✅ ADD
     required String groupId,
     required String groupName,
     required List<AssignmentAttachment> files,
@@ -157,7 +159,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
       final updatedSubmissions = [...assignment.submissions, submission];
       
-      // ✅ FIX: Explicit type casting for submissions
       await DatabaseService.updateOne(
         collection: 'assignments',
         id: assignmentId,
@@ -189,7 +190,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         },
       );
 
-      // Update local state
       state = state.map((a) {
         if (a.id == assignmentId) {
           return Assignment(
@@ -215,6 +215,19 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         }
         return a;
       }).toList();
+      
+      // ✅ SEND CONFIRMATION EMAIL
+      if (studentEmail.isNotEmpty) {
+        Future.microtask(() {
+          ref.read(notificationProvider.notifier).notifySubmissionConfirmation(
+            recipientEmail: studentEmail,
+            recipientName: studentName,
+            courseName: courseName,
+            assignmentTitle: assignment.title,
+            submittedAt: now,
+          );
+        });
+      }
     } catch (e, stackTrace) {
       print('submitAssignment error: $e');
       print('StackTrace: $stackTrace');
@@ -225,6 +238,9 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
   Future<void> gradeSubmission({
     required String assignmentId,
     required String submissionId,
+    required String studentEmail, // ✅ ADD
+    required String studentName, // ✅ ADD
+    required String courseName, // ✅ ADD
     required double grade,
     String? feedback,
   }) async {
@@ -251,7 +267,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
       final now = DateTime.now();
       
-      // ✅ FIX: Explicit type casting
       await DatabaseService.updateOne(
         collection: 'assignments',
         id: assignmentId,
@@ -283,7 +298,6 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         },
       );
 
-      // Update local state
       state = state.map((a) {
         if (a.id == assignmentId) {
           return Assignment(
@@ -309,6 +323,20 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         }
         return a;
       }).toList();
+      
+      // ✅ SEND FEEDBACK EMAIL
+      if (studentEmail.isNotEmpty && feedback != null) {
+        Future.microtask(() {
+          ref.read(notificationProvider.notifier).notifyInstructorFeedback(
+            recipientEmail: studentEmail,
+            recipientName: studentName,
+            courseName: courseName,
+            assignmentTitle: assignment.title,
+            grade: grade,
+            feedback: feedback,
+          );
+        });
+      }
     } catch (e, stackTrace) {
       print('gradeSubmission error: $e');
       print('StackTrace: $stackTrace');
@@ -318,10 +346,7 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
   Future<void> deleteAssignment(String id) async {
     try {
-      await DatabaseService.deleteOne(
-        collection: 'assignments',
-        id: id,
-      );
+      await DatabaseService.deleteOne(collection: 'assignments', id: id);
       state = state.where((a) => a.id != id).toList();
       print('✅ Deleted assignment: $id');
     } catch (e) {

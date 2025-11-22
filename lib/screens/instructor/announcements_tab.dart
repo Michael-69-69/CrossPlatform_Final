@@ -6,6 +6,7 @@ import '../../models/group.dart';
 import '../../models/user.dart';
 import '../../providers/announcement_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/course_provider.dart';
 
 class AnnouncementsTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -198,18 +199,45 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
                   if (user == null) return;
 
                   try {
+                    // ✅ Get course info for email
+                    final courses = ref.read(courseProvider);
+                    final course = courses.firstWhere(
+                      (c) => c.id == widget.courseId,
+                      orElse: () => throw Exception('Course not found'),
+                    );
+
+                    // ✅ Get students who will receive this announcement
+                    List<AppUser> recipientStudents;
+                    if (selectedScope == AnnouncementScope.allGroups) {
+                      recipientStudents = widget.students;
+                    } else {
+                      recipientStudents = widget.students.where((s) {
+                        return widget.groups
+                            .where((g) => selectedGroupIds.contains(g.id))
+                            .any((g) => g.studentIds.contains(s.id));
+                      }).toList();
+                    }
+
+                    // ✅ Create announcement with email notification
                     await ref.read(announcementProvider.notifier).createAnnouncement(
                       courseId: widget.courseId,
+                      courseName: course.name, // ✅ ADD
                       title: titleCtrl.text.trim(),
                       content: contentCtrl.text.trim(),
                       scope: selectedScope,
                       groupIds: selectedGroupIds,
                       instructorId: user.id,
                       instructorName: user.fullName,
+                      students: recipientStudents, // ✅ ADD
                     );
+
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Đã tạo thông báo')),
+                      SnackBar(
+                        content: Text(
+                          'Đã tạo thông báo và gửi email đến ${recipientStudents.length} học sinh'
+                        ),
+                      ),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -227,7 +255,6 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
   }
 
   void _showAnnouncementDetail(BuildContext context, Announcement announcement, AppUser user) {
-    // Mark as viewed
     ref.read(announcementProvider.notifier).markAsViewed(announcement.id, user.id);
 
     showModalBottomSheet(
@@ -280,6 +307,7 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
   }
 }
 
+// ... (keep all the existing _AnnouncementCard, _AnnouncementDetailSheet classes unchanged)
 class _AnnouncementCard extends StatelessWidget {
   final Announcement announcement;
   final List<Group> groups;
@@ -482,7 +510,6 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
                                 widget.currentUser.id,
                                 attachment.fileName,
                               );
-                              // TODO: Implement actual file download
                             },
                           ),
                         );
@@ -569,4 +596,3 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
     return 'Vừa xong';
   }
 }
-
