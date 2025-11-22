@@ -196,34 +196,44 @@ async def health_check():
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database connection failed: {str(e)}")
 
-# ✅ ADD: Email endpoint
+# ✅ SIMPLE NON-BLOCKING VERSION
 @app.post("/api/send-email")
 async def send_email(request: EmailRequest):
     """Send email via SMTP"""
+    import asyncio
+    
     try:
+        print(f"📧 Received email request for: {request.to}")
+        
         # Check if email is configured
         if not EMAIL_USER or not EMAIL_PASS:
+            print("❌ Email credentials not configured")
             raise HTTPException(
                 status_code=503,
                 detail="Email service not configured"
             )
         
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = request.subject
-        msg['From'] = f"{EMAIL_SENDER_NAME} <{EMAIL_USER}>"
-        msg['To'] = request.to
+        def _send_email_sync():
+            """Synchronous SMTP send"""
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = request.subject
+            msg['From'] = f"{EMAIL_SENDER_NAME} <{EMAIL_USER}>"
+            msg['To'] = request.to
+            
+            # Add text and HTML parts
+            if request.text:
+                msg.attach(MIMEText(request.text, 'plain'))
+            msg.attach(MIMEText(request.html, 'html'))
+            
+            # Send via Gmail SMTP with timeout
+            with smtplib.SMTP('smtp.gmail.com', 587, timeout=30) as server:
+                server.starttls()
+                server.login(EMAIL_USER, EMAIL_PASS)
+                server.send_message(msg)
         
-        # Add text and HTML parts
-        if request.text:
-            msg.attach(MIMEText(request.text, 'plain'))
-        msg.attach(MIMEText(request.html, 'html'))
-        
-        # Send via Gmail SMTP
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(EMAIL_USER, EMAIL_PASS)
-            server.send_message(msg)
+        # ✅ Run synchronous code in thread pool
+        await asyncio.to_thread(_send_email_sync)
         
         print(f"✅ Email sent to {request.to}")
         return {
@@ -232,17 +242,11 @@ async def send_email(request: EmailRequest):
         }
     
     except smtplib.SMTPAuthenticationError:
-        print("❌ SMTP authentication failed - check EMAIL_USER and EMAIL_PASS")
-        raise HTTPException(
-            status_code=401,
-            detail="Email authentication failed"
-        )
+        print("❌ SMTP authentication failed")
+        raise HTTPException(status_code=401, detail="Email authentication failed")
     except Exception as e:
-        print(f"❌ Error sending email: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to send email: {str(e)}"
-        )
+        print(f"❌ Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
 # Find multiple documents
 @app.post("/api/find")
