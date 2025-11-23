@@ -31,7 +31,7 @@ class EmailService {
     required String htmlBody,
     String? plainTextBody,
   }) async {
-    // ✅ WEB: Use backend API
+    // ✅ WEB: Use backend API (Resend)
     if (kIsWeb) {
       return await _sendEmailViaAPI(
         recipientEmail: recipientEmail,
@@ -42,7 +42,7 @@ class EmailService {
       );
     }
     
-    // ✅ MOBILE/DESKTOP: Use direct SMTP
+    // ✅ MOBILE/DESKTOP: Use direct SMTP (NO CHANGES)
     return await _sendEmailViaSMTP(
       recipientEmail: recipientEmail,
       recipientName: recipientName,
@@ -52,7 +52,7 @@ class EmailService {
     );
   }
 
-  // ✅ MOBILE: Send via SMTP
+  // ✅ MOBILE: Send via SMTP (UNCHANGED - WORKING FINE)
   static Future<bool> _sendEmailViaSMTP({
     required String recipientEmail,
     required String recipientName,
@@ -87,62 +87,80 @@ class EmailService {
     }
   }
 
-// ✅ WEB: Send via API
-static Future<bool> _sendEmailViaAPI({
-  required String recipientEmail,
-  required String recipientName,
-  required String subject,
-  required String htmlBody,
-  String? plainTextBody,
-}) async {
-  if (_apiBaseUrl.isEmpty) {
-    print('⚠️ API_BASE_URL not configured - skipping email on web');
-    print('   Would send to: $recipientEmail');
-    print('   Subject: $subject');
-    return false;
-  }
-
-  try {
-    // ✅ CLEAN URL BUILDING
-    // Remove trailing slash from base URL
-    String baseUrl = _apiBaseUrl.endsWith('/') 
-        ? _apiBaseUrl.substring(0, _apiBaseUrl.length - 1) 
-        : _apiBaseUrl;
-    
-    // Build endpoint URL
-    // If base URL already ends with /api, don't add it again
-    String endpoint = baseUrl.endsWith('/api') 
-        ? '$baseUrl/send-email'
-        : '$baseUrl/api/send-email';
-
-    print('🌐 Sending email via API to: $recipientEmail');
-    print('📍 API URL: $endpoint');
-    
-    final response = await http.post(
-      Uri.parse(endpoint),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'to': recipientEmail,
-        'name': recipientName,
-        'subject': subject,
-        'html': htmlBody,
-        'text': plainTextBody ?? _stripHtml(htmlBody),
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      print('✅ Email sent to $recipientEmail (API)');
+  // ✅ WEB: Send via API (UPDATED FOR RESEND - BETTER ERROR HANDLING)
+  static Future<bool> _sendEmailViaAPI({
+    required String recipientEmail,
+    required String recipientName,
+    required String subject,
+    required String htmlBody,
+    String? plainTextBody,
+  }) async {
+    if (_apiBaseUrl.isEmpty) {
+      print('⚠️ API_BASE_URL not configured - skipping email on web');
+      print('   Would send to: $recipientEmail');
       print('   Subject: $subject');
-      return true;
-    } else {
-      print('❌ API error: ${response.statusCode} - ${response.body}');
       return false;
     }
-  } catch (e) {
-    print('❌ Error sending email via API to $recipientEmail: $e');
-    return false;
+
+    try {
+      // ✅ Build API URL
+      String baseUrl = _apiBaseUrl.endsWith('/') 
+          ? _apiBaseUrl.substring(0, _apiBaseUrl.length - 1) 
+          : _apiBaseUrl;
+      
+      String endpoint = baseUrl.endsWith('/api') 
+          ? '$baseUrl/send-email'
+          : '$baseUrl/api/send-email';
+
+      print('🌐 Sending email via Resend API to: $recipientEmail');
+      print('📍 API URL: $endpoint');
+      
+      // ✅ Send request with timeout
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'to': recipientEmail,
+          'name': recipientName,
+          'subject': subject,
+          'html': htmlBody,
+          'text': plainTextBody ?? _stripHtml(htmlBody),
+        }),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Email request timeout after 30 seconds');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // ✅ Parse response to get email ID
+        try {
+          final data = jsonDecode(response.body);
+          print('✅ Email sent to $recipientEmail (Resend)');
+          print('   Subject: $subject');
+          if (data['id'] != null) {
+            print('   Email ID: ${data['id']}');
+          }
+        } catch (e) {
+          // Response might not be JSON, that's ok
+          print('✅ Email sent to $recipientEmail (Resend)');
+          print('   Subject: $subject');
+        }
+        return true;
+      } else {
+        print('❌ API error: ${response.statusCode}');
+        print('   Response: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error sending email via API to $recipientEmail: $e');
+      return false;
+    }
   }
-}
 
   // ============================================
   // BULK SEND EMAIL
