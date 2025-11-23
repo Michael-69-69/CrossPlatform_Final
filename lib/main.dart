@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:ggclassroom/l10n/app_localizations.dart'; // ← Chỉ import 1 lần
+import 'package:google_fonts/google_fonts.dart'; // ✅ ADD THIS
+import 'package:ggclassroom/l10n/app_localizations.dart';
 import 'routes/app_router.dart';
 import 'services/mongodb_service.dart';
 
@@ -48,6 +49,7 @@ class MyApp extends ConsumerWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
+        textTheme: GoogleFonts.robotoTextTheme(), // ✅ ADD THIS LINE
       ),
     );
   }

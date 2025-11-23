@@ -1,18 +1,14 @@
 // screens/instructor/assignments_tab.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:csv/csv.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
-import 'dart:io';
 import '../../models/assignment.dart';
 import '../../models/group.dart';
 import '../../models/user.dart';
 import '../../providers/assignment_provider.dart';
-import '../../providers/course_provider.dart'; // ✅ ADD
+import '../../providers/course_provider.dart';
 import '../../utils/file_upload_helper.dart';
 import '../../utils/file_download_helper.dart';
+import '../../utils/csv_export_helper.dart'; // ✅ NEW IMPORT
 
 class AssignmentsTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -515,7 +511,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                                 children: selectedGroupIds.map((groupId) {
                                   final group = widget.groups.firstWhere(
                                     (g) => g.id == groupId,
-                                    orElse: () => Group(id: '', name: 'Unknown', courseId: ''),
+                                    orElse: () => Group(id: '', name: 'Unknown', courseId: '', studentIds: []),
                                   );
                                   return Chip(
                                     label: Text(group.name),
@@ -785,7 +781,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
     return null;
   }
 
-  // ✅ UPDATED: Add email notification when grading
   void _showAssignmentDetail(BuildContext context, Assignment assignment) {
     showModalBottomSheet(
       context: context,
@@ -795,7 +790,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
         groups: widget.groups,
         students: widget.students,
         onGrade: (submissionId, grade, feedback) async {
-          // ✅ Get student info for email
           final submission = assignment.submissions.firstWhere(
             (s) => s.id == submissionId,
           );
@@ -812,13 +806,12 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
             ),
           );
 
-          // ✅ Grade with email notification
           await ref.read(assignmentProvider.notifier).gradeSubmission(
             assignmentId: assignment.id,
             submissionId: submissionId,
-            studentEmail: student.email, // ✅ ADD
-            studentName: student.fullName, // ✅ ADD
-            courseName: widget.courseName, // ✅ ADD
+            studentEmail: student.email,
+            studentName: student.fullName,
+            courseName: widget.courseName,
             grade: grade,
             feedback: feedback,
           );
@@ -858,8 +851,10 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
     }
   }
 
+  // ✅ UPDATED: Platform-aware CSV export
   Future<void> _exportAssignmentToCSV(Assignment assignment) async {
     try {
+      // Build CSV rows
       final rows = <List<dynamic>>[
         ['Tên', 'Nhóm', 'Trạng thái', 'Lần nộp', 'Thời gian nộp', 'Điểm', 'Nhận xét'],
       ];
@@ -875,7 +870,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
       for (final student in relevantStudents) {
         final group = widget.groups.firstWhere(
           (g) => g.studentIds.contains(student.id),
-          orElse: () => Group(id: '', name: 'N/A', courseId: ''),
+          orElse: () => Group(id: '', name: 'N/A', courseId: '', studentIds: []),
         );
         final submissions = assignment.submissions
             .where((s) => s.studentId == student.id)
@@ -906,14 +901,15 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
         }
       }
 
-      final csv = const ListToCsvConverter().convert(rows);
-      final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/assignment_${assignment.id}.csv');
-      await file.writeAsString(csv);
+      // ✅ Use platform-aware CSV export
+      final result = await CsvExportHelper.exportCsv(
+        rows: rows,
+        fileName: 'assignment_${assignment.title}_${DateTime.now().millisecondsSinceEpoch}.csv',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã xuất CSV: ${file.path}')),
+          SnackBar(content: Text('Đã xuất CSV: $result')),
         );
       }
     } catch (e) {
@@ -1087,18 +1083,6 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
         );
         result = 'Đã tải: $path';
       }
-      else if (attachment.fileUrl.startsWith('/') || 
-               attachment.fileUrl.contains('\\')) {
-        final sourceFile = File(attachment.fileUrl);
-        if (await sourceFile.exists()) {
-          final directory = await getApplicationDocumentsDirectory();
-          final destinationFile = File('${directory.path}/${attachment.fileName}');
-          await sourceFile.copy(destinationFile.path);
-          result = 'Đã tải: ${destinationFile.path}';
-        } else {
-          throw Exception('Tệp không tồn tại');
-        }
-      }
       else if (attachment.fileUrl.isNotEmpty) {
         final path = await FileDownloadHelper.downloadFromBase64(
           base64Data: attachment.fileUrl,
@@ -1140,7 +1124,7 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
     final trackingData = relevantStudents.map((student) {
       final group = widget.groups.firstWhere(
         (g) => g.studentIds.contains(student.id),
-        orElse: () => Group(id: '', name: 'N/A', courseId: ''),
+        orElse: () => Group(id: '', name: 'N/A', courseId: '', studentIds: []),
       );
       final submissions = assignment.submissions
           .where((s) => s.studentId == student.id)
@@ -1503,7 +1487,7 @@ class _TrackingRow {
               );
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã chấm điểm và gửi email thông báo')), // ✅ UPDATED MESSAGE
+                const SnackBar(content: Text('Đã chấm điểm và gửi email thông báo')),
               );
             },
             child: const Text('Lưu'),
