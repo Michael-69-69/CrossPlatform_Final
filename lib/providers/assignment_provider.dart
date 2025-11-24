@@ -2,6 +2,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/assignment.dart';
 import '../services/database_service.dart';
+import '../services/cache_service.dart'; // ✅ ADD
+import '../services/network_service.dart'; // ✅ ADD
 import 'notification_provider.dart';
 
 final assignmentProvider = StateNotifierProvider<AssignmentNotifier, List<Assignment>>((ref) => AssignmentNotifier(ref));
@@ -18,6 +20,34 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
     
     try {
       _isLoading = true;
+      
+      // ✅ 1. Try to load from cache first (cache key includes courseId)
+      final cacheKey = 'assignments_$courseId';
+      final cached = await CacheService.getCachedCategoryData(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return Assignment.fromMap(map);
+        }).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        print('📦 Loaded ${state.length} assignments from cache');
+        
+        // ✅ If online, refresh in background
+        if (NetworkService().isOnline) {
+          _refreshAssignmentsInBackground(courseId, cacheKey);
+        }
+        
+        return;
+      }
+
+      // ✅ 2. If no cache and offline, show empty
+      if (NetworkService().isOffline) {
+        print('⚠️ Offline and no cache available for assignments');
+        state = [];
+        return;
+      }
+
+      // ✅ 3. Fetch from database if online or no cache
       final data = await DatabaseService.find(
         collection: 'assignments',
         filter: {'courseId': courseId},
@@ -29,13 +59,61 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
       }).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       
-      print('✅ Loaded ${state.length} assignments');
+      // ✅ 4. Save to cache (shorter duration for dynamic content)
+      await CacheService.cacheCategoryData(
+        key: cacheKey,
+        data: data,
+        durationMinutes: 15, // Shorter cache for assignments
+      );
+      
+      print('✅ Loaded ${state.length} assignments from database');
     } catch (e, stackTrace) {
       print('loadAssignments error: $e');
       print('StackTrace: $stackTrace');
-      state = [];
+      
+      // ✅ 5. On error, try to fallback to cache
+      final cacheKey = 'assignments_$courseId';
+      final cached = await CacheService.getCachedCategoryData(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return Assignment.fromMap(map);
+        }).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        print('📦 Loaded ${state.length} assignments from cache (fallback)');
+      } else {
+        state = [];
+      }
     } finally {
       _isLoading = false;
+    }
+  }
+
+  // ✅ Background refresh (silent update without blocking UI)
+  Future<void> _refreshAssignmentsInBackground(String courseId, String cacheKey) async {
+    try {
+      final data = await DatabaseService.find(
+        collection: 'assignments',
+        filter: {'courseId': courseId},
+      );
+      
+      state = data.map((e) {
+        final map = Map<String, dynamic>.from(e);
+        return Assignment.fromMap(map);
+      }).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      // Update cache
+      await CacheService.cacheCategoryData(
+        key: cacheKey,
+        data: data,
+        durationMinutes: 15,
+      );
+      
+      print('🔄 Background refresh: assignments updated');
+    } catch (e) {
+      print('Background refresh failed: $e');
+      // Don't throw - this is a background operation
     }
   }
 
@@ -113,6 +191,9 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         ),
         ...state,
       ];
+      
+      // ✅ Clear cache after creating
+      await CacheService.clearCache('assignments_$courseId');
       
       print('✅ Created assignment: $insertedId');
     } catch (e, stackTrace) {
@@ -216,6 +297,9 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         return a;
       }).toList();
       
+      // ✅ Clear cache after submitting
+      await CacheService.clearCache('assignments_${assignment.courseId}');
+      
       // ✅ SEND CONFIRMATION EMAIL
       if (studentEmail.isNotEmpty) {
         Future.microtask(() {
@@ -228,6 +312,8 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
           );
         });
       }
+      
+      print('✅ Assignment submitted: $assignmentId');
     } catch (e, stackTrace) {
       print('submitAssignment error: $e');
       print('StackTrace: $stackTrace');
@@ -324,6 +410,9 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
         return a;
       }).toList();
       
+      // ✅ Clear cache after grading
+      await CacheService.clearCache('assignments_${assignment.courseId}');
+      
       // ✅ SEND FEEDBACK EMAIL
       if (studentEmail.isNotEmpty && feedback != null) {
         Future.microtask(() {
@@ -337,6 +426,8 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
           );
         });
       }
+      
+      print('✅ Assignment graded: $assignmentId');
     } catch (e, stackTrace) {
       print('gradeSubmission error: $e');
       print('StackTrace: $stackTrace');
@@ -346,11 +437,24 @@ class AssignmentNotifier extends StateNotifier<List<Assignment>> {
 
   Future<void> deleteAssignment(String id) async {
     try {
+      final assignment = state.firstWhere((a) => a.id == id);
+      
       await DatabaseService.deleteOne(collection: 'assignments', id: id);
       state = state.where((a) => a.id != id).toList();
+      
+      // ✅ Clear cache after deleting
+      await CacheService.clearCache('assignments_${assignment.courseId}');
+      
       print('✅ Deleted assignment: $id');
     } catch (e) {
       print('deleteAssignment error: $e');
     }
+  }
+
+  // ✅ Add method to force refresh from database
+  Future<void> refresh(String courseId) async {
+    // Clear cache first to force fresh fetch
+    await CacheService.clearCache('assignments_$courseId');
+    await loadAssignments(courseId);
   }
 }

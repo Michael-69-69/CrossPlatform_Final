@@ -2,6 +2,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/group.dart' as app;
 import '../services/database_service.dart';
+import '../services/cache_service.dart'; // ✅ ADD
+import '../services/network_service.dart'; // ✅ ADD
 
 final groupProvider = StateNotifierProvider<GroupNotifier, List<app.Group>>((ref) => GroupNotifier());
 
@@ -10,11 +12,70 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
 
   Future<void> loadGroups() async {
     try {
+      // ✅ 1. Try to load from cache first
+      final cached = await CacheService.getCachedCategoryData('groups');
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) => app.Group.fromMap(e)).toList();
+        print('📦 Loaded ${state.length} groups from cache');
+        
+        // ✅ If online, refresh in background
+        if (NetworkService().isOnline) {
+          _refreshGroupsInBackground();
+        }
+        
+        return;
+      }
+
+      // ✅ 2. If no cache and offline, show empty
+      if (NetworkService().isOffline) {
+        print('⚠️ Offline and no cache available for groups');
+        state = [];
+        return;
+      }
+
+      // ✅ 3. Fetch from database if online or no cache
       final data = await DatabaseService.find(collection: 'groups');
       state = data.map(app.Group.fromMap).toList();
+      
+      // ✅ 4. Save to cache
+      await CacheService.cacheCategoryData(
+        key: 'groups',
+        data: data,
+        durationMinutes: CacheService.CATEGORY_CACHE_DURATION,
+      );
+      
+      print('✅ Loaded ${state.length} groups from database');
     } catch (e) {
       print('loadGroups error: $e');
-      state = [];
+      
+      // ✅ 5. On error, try to fallback to cache
+      final cached = await CacheService.getCachedCategoryData('groups');
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) => app.Group.fromMap(e)).toList();
+        print('📦 Loaded ${state.length} groups from cache (fallback)');
+      } else {
+        state = [];
+      }
+    }
+  }
+
+  // ✅ Background refresh (silent update without blocking UI)
+  Future<void> _refreshGroupsInBackground() async {
+    try {
+      final data = await DatabaseService.find(collection: 'groups');
+      state = data.map(app.Group.fromMap).toList();
+      
+      // Update cache
+      await CacheService.cacheCategoryData(
+        key: 'groups',
+        data: data,
+        durationMinutes: CacheService.CATEGORY_CACHE_DURATION,
+      );
+      
+      print('🔄 Background refresh: groups updated');
+    } catch (e) {
+      print('Background refresh failed: $e');
+      // Don't throw - this is a background operation
     }
   }
 
@@ -44,6 +105,11 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
           studentIds: [],
         ),
       ];
+      
+      // ✅ Clear cache after creating
+      await CacheService.clearCache('groups');
+      
+      print('✅ Created group: $insertedId');
     } catch (e) {
       print('createGroup error: $e');
       rethrow;
@@ -69,6 +135,11 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
         }
         return g;
       }).toList();
+      
+      // ✅ Clear cache after updating
+      await CacheService.clearCache('groups');
+      
+      print('✅ Updated group: $groupId');
     } catch (e) {
       print('updateGroup error: $e');
       rethrow;
@@ -126,7 +197,12 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
         update: {'studentIds': currentStudentIds},
       );
 
+      // ✅ Clear cache before reloading
+      await CacheService.clearCache('groups');
+      
       await loadGroups();
+      
+      print('✅ Added students to group: $groupId');
     } catch (e) {
       print('addStudents error: $e');
       rethrow;
@@ -152,7 +228,12 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
         update: {'studentIds': currentStudentIds},
       );
 
+      // ✅ Clear cache before reloading
+      await CacheService.clearCache('groups');
+      
       await loadGroups();
+      
+      print('✅ Removed student from group: $groupId');
     } catch (e) {
       print('removeStudent error: $e');
     }
@@ -165,8 +246,20 @@ class GroupNotifier extends StateNotifier<List<app.Group>> {
         id: id,
       );
       state = state.where((g) => g.id != id).toList();
+      
+      // ✅ Clear cache after deleting
+      await CacheService.clearCache('groups');
+      
+      print('✅ Deleted group: $id');
     } catch (e) {
       print('deleteGroup error: $e');
     }
+  }
+
+  // ✅ Add method to force refresh from database
+  Future<void> refresh() async {
+    // Clear cache first to force fresh fetch
+    await CacheService.clearCache('groups');
+    await loadGroups();
   }
 }

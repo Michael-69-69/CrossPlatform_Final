@@ -23,12 +23,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState != null;
       final isLoginPage = state.uri.path == '/';
 
-      // Not logged in and not on login page -> redirect to login
+      // ✅ Not logged in and not on login page -> redirect to login
       if (!isLoggedIn && !isLoginPage) {
         return '/';
       }
 
-      // Logged in and on login page -> redirect based on role
+      // ✅ Logged in and on login page -> redirect based on role
       if (isLoggedIn && isLoginPage) {
         if (authState.role == UserRole.instructor) {
           return '/instructor/home';

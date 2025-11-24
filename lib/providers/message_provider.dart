@@ -1,7 +1,10 @@
 // providers/message_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mongo_dart/mongo_dart.dart';
 import '../models/message.dart';
 import '../services/database_service.dart';
+import '../services/cache_service.dart';
+import '../services/network_service.dart';
 
 final conversationProvider = StateNotifierProvider<ConversationNotifier, List<Conversation>>((ref) {
   return ConversationNotifier();
@@ -14,11 +17,70 @@ final messageProvider = StateNotifierProvider<MessageNotifier, List<Message>>((r
 class ConversationNotifier extends StateNotifier<List<Conversation>> {
   ConversationNotifier() : super([]);
 
+  // ✅ Helper: Convert ObjectIds to strings recursively
+  Map<String, dynamic> _convertObjectIds(Map<String, dynamic> map) {
+    final result = <String, dynamic>{};
+    
+    for (final entry in map.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      if (value is ObjectId) {
+        result[key] = value.toHexString();
+      } else if (value is List) {
+        result[key] = value.map((item) {
+          if (item is ObjectId) {
+            return item.toHexString();
+          } else if (item is Map<String, dynamic>) {
+            return _convertObjectIds(item);
+          } else if (item is Map) {
+            return _convertObjectIds(Map<String, dynamic>.from(item));
+          }
+          return item;
+        }).toList();
+      } else if (value is Map<String, dynamic>) {
+        result[key] = _convertObjectIds(value);
+      } else if (value is Map) {
+        result[key] = _convertObjectIds(Map<String, dynamic>.from(value));
+      } else {
+        result[key] = value;
+      }
+    }
+    
+    return result;
+  }
+
   // Load conversations for a user (instructor or student)
   Future<void> loadConversations(String userId, bool isInstructor) async {
     try {
       print('📥 Loading conversations for userId: $userId (instructor: $isInstructor)');
       
+      // ✅ 1. Try to load from cache first
+      final cacheKey = 'conversations_$userId';
+      final cached = await CacheService.getCachedCategoryData(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return Conversation.fromMap(map);
+        }).toList();
+        print('📦 Loaded ${state.length} conversations from cache');
+        
+        // ✅ If online, refresh in background
+        if (NetworkService().isOnline) {
+          _refreshConversationsInBackground(userId, isInstructor, cacheKey);
+        }
+        
+        return;
+      }
+
+      // ✅ 2. If no cache and offline, show empty
+      if (NetworkService().isOffline) {
+        print('⚠️ Offline and no cache available for conversations');
+        state = [];
+        return;
+      }
+
+      // ✅ 3. Fetch from database
       final filter = isInstructor
           ? {'instructorId': userId}
           : {'studentId': userId};
@@ -26,19 +88,70 @@ class ConversationNotifier extends StateNotifier<List<Conversation>> {
       final data = await DatabaseService.find(
         collection: 'conversations',
         filter: filter,
-        sort: {'updatedAt': -1}, // Most recent first
+        sort: {'updatedAt': -1},
       );
 
       state = data.map((e) {
-        final map = Map<String, dynamic>.from(e);
+        final map = _convertObjectIds(Map<String, dynamic>.from(e));
         return Conversation.fromMap(map);
       }).toList();
+
+      // ✅ 4. Save to cache
+      final cacheData = data.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
+      await CacheService.cacheCategoryData(
+        key: cacheKey,
+        data: cacheData,
+        durationMinutes: 30,
+      );
 
       print('✅ Loaded ${state.length} conversations');
     } catch (e, stack) {
       print('❌ Error loading conversations: $e');
       print('Stack: $stack');
-      state = [];
+      
+      // ✅ 5. Fallback to cache on error
+      final cacheKey = 'conversations_$userId';
+      final cached = await CacheService.getCachedCategoryData(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return Conversation.fromMap(map);
+        }).toList();
+        print('📦 Loaded ${state.length} conversations from cache (fallback)');
+      } else {
+        state = [];
+      }
+    }
+  }
+
+  // ✅ Background refresh
+  Future<void> _refreshConversationsInBackground(String userId, bool isInstructor, String cacheKey) async {
+    try {
+      final filter = isInstructor
+          ? {'instructorId': userId}
+          : {'studentId': userId};
+
+      final data = await DatabaseService.find(
+        collection: 'conversations',
+        filter: filter,
+        sort: {'updatedAt': -1},
+      );
+
+      state = data.map((e) {
+        final map = _convertObjectIds(Map<String, dynamic>.from(e));
+        return Conversation.fromMap(map);
+      }).toList();
+
+      final cacheData = data.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
+      await CacheService.cacheCategoryData(
+        key: cacheKey,
+        data: cacheData,
+        durationMinutes: 30,
+      );
+
+      print('🔄 Background refresh: conversations updated');
+    } catch (e) {
+      print('Background refresh failed: $e');
     }
   }
 
@@ -49,6 +162,20 @@ class ConversationNotifier extends StateNotifier<List<Conversation>> {
     required String studentId,
     required String studentName,
   }) async {
+    // ✅ Check if online before creating
+    if (NetworkService().isOffline) {
+      // Try to find in current state first
+      final existing = state.where((c) => 
+        c.instructorId == instructorId && c.studentId == studentId
+      ).toList();
+      
+      if (existing.isNotEmpty) {
+        return existing.first;
+      }
+      
+      throw Exception('Không thể tạo cuộc hội thoại khi offline');
+    }
+    
     try {
       // Check if conversation exists
       final existing = await DatabaseService.find(
@@ -60,7 +187,7 @@ class ConversationNotifier extends StateNotifier<List<Conversation>> {
       );
 
       if (existing.isNotEmpty) {
-        return Conversation.fromMap(existing.first);
+        return Conversation.fromMap(_convertObjectIds(Map<String, dynamic>.from(existing.first)));
       }
 
       // Create new conversation
@@ -92,6 +219,10 @@ class ConversationNotifier extends StateNotifier<List<Conversation>> {
       );
 
       state = [newConversation, ...state];
+
+      // ✅ Clear cache after creating
+      await CacheService.clearCache('conversations_$instructorId');
+      await CacheService.clearCache('conversations_$studentId');
 
       print('✅ Created new conversation: $insertedId');
       return newConversation;
@@ -160,6 +291,10 @@ class ConversationNotifier extends StateNotifier<List<Conversation>> {
       // Re-sort by updatedAt
       state.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
+      // ✅ Clear cache after updating
+      await CacheService.clearCache('conversations_${conversation.instructorId}');
+      await CacheService.clearCache('conversations_${conversation.studentId}');
+
       print('✅ Updated conversation: $conversationId');
     } catch (e, stack) {
       print('❌ Error updating conversation: $e');
@@ -170,17 +305,22 @@ class ConversationNotifier extends StateNotifier<List<Conversation>> {
   // Mark conversation as read
   Future<void> markAsRead(String conversationId, bool isInstructor) async {
     try {
-      final update = isInstructor
-          ? {'unreadCountInstructor': 0}
-          : {'unreadCountStudent': 0};
+      final conversation = state.firstWhere((c) => c.id == conversationId);
+      
+      // ✅ Only update server if online
+      if (NetworkService().isOnline) {
+        final update = isInstructor
+            ? {'unreadCountInstructor': 0}
+            : {'unreadCountStudent': 0};
 
-      await DatabaseService.updateOne(
-        collection: 'conversations',
-        id: conversationId,
-        update: update,
-      );
+        await DatabaseService.updateOne(
+          collection: 'conversations',
+          id: conversationId,
+          update: update,
+        );
+      }
 
-      // Update state
+      // Update state (always update local state)
       state = state.map((c) {
         if (c.id == conversationId) {
           return Conversation(
@@ -200,72 +340,208 @@ class ConversationNotifier extends StateNotifier<List<Conversation>> {
         return c;
       }).toList();
 
+      // ✅ Clear cache after updating
+      await CacheService.clearCache('conversations_${conversation.instructorId}');
+      await CacheService.clearCache('conversations_${conversation.studentId}');
+
       print('✅ Marked conversation as read: $conversationId');
     } catch (e) {
       print('❌ Error marking as read: $e');
     }
+  }
+  
+  // ✅ Force refresh from database
+  Future<void> forceRefresh(String userId, bool isInstructor) async {
+    await CacheService.clearCache('conversations_$userId');
+    await loadConversations(userId, isInstructor);
   }
 }
 
 class MessageNotifier extends StateNotifier<List<Message>> {
   MessageNotifier() : super([]);
 
-  // Load messages for a conversation
-// Load messages for a conversation
-Future<void> loadMessages(String conversationId) async {
-  try {
-    print('📥 Loading messages for conversation: $conversationId');
-
-    // ✅ WORKAROUND: Get ALL messages and filter in memory
-    final data = await DatabaseService.find(
-      collection: 'messages',
-      filter: {}, // Get all
-      sort: {'createdAt': 1},
-    );
-
-    print('📦 Total messages fetched: ${data.length}');
-
-    // ✅ FIX: Filter in memory with type checking
-    final filteredData = data.where((msg) {
-      final msgConvId = msg['conversationId'];
+  // ✅ Helper: Convert ObjectIds to strings recursively
+  Map<String, dynamic> _convertObjectIds(Map<String, dynamic> map) {
+    final result = <String, dynamic>{};
+    
+    for (final entry in map.entries) {
+      final key = entry.key;
+      final value = entry.value;
       
-      // ✅ Handle both ObjectId and String by converting to string
-      String convIdStr;
-      if (msgConvId.runtimeType.toString().contains('ObjectId')) {
-        // It's an ObjectId, extract the hex string
-        // ObjectId has a toHexString() method or we can parse from toString()
-        final objIdStr = msgConvId.toString();
-        // Extract hex from format: ObjectId("hexstring")
-        if (objIdStr.contains('"')) {
-          convIdStr = objIdStr.split('"')[1];
-        } else {
-          convIdStr = msgConvId.toString();
-        }
+      if (value is ObjectId) {
+        result[key] = value.toHexString();
+      } else if (value is List) {
+        result[key] = value.map((item) {
+          if (item is ObjectId) {
+            return item.toHexString();
+          } else if (item is Map<String, dynamic>) {
+            return _convertObjectIds(item);
+          } else if (item is Map) {
+            return _convertObjectIds(Map<String, dynamic>.from(item));
+          }
+          return item;
+        }).toList();
+      } else if (value is Map<String, dynamic>) {
+        result[key] = _convertObjectIds(value);
+      } else if (value is Map) {
+        result[key] = _convertObjectIds(Map<String, dynamic>.from(value));
       } else {
-        convIdStr = msgConvId.toString();
+        result[key] = value;
       }
-      
-      final match = convIdStr == conversationId;
-      if (match) {
-        print('  ✅ Match: $convIdStr == $conversationId');
-      }
-      return match;
-    }).toList();
-
-    print('📦 Filtered messages: ${filteredData.length}');
-
-    state = filteredData.map((e) {
-      final map = Map<String, dynamic>.from(e);
-      return Message.fromMap(map);
-    }).toList();
-
-    print('✅ Loaded ${state.length} messages into state');
-  } catch (e, stack) {
-    print('❌ Error loading messages: $e');
-    print('Stack: $stack');
-    state = [];
+    }
+    
+    return result;
   }
-}
+
+  // ✅ Helper: Extract ObjectId string properly
+  String _extractObjectIdString(dynamic value) {
+    if (value == null) return '';
+    
+    if (value is ObjectId) {
+      return value.toHexString();
+    }
+    
+    final valueStr = value.toString();
+    
+    // Check if it's in ObjectId("...") format
+    if (valueStr.startsWith('ObjectId(')) {
+      final regex = RegExp(r'ObjectId\("?([a-fA-F0-9]{24})"?\)');
+      final match = regex.firstMatch(valueStr);
+      if (match != null) {
+        return match.group(1)!;
+      }
+    }
+    
+    // Check if it contains quotes (older format)
+    if (valueStr.contains('"')) {
+      final parts = valueStr.split('"');
+      if (parts.length >= 2) {
+        return parts[1];
+      }
+    }
+    
+    // Return as-is if it looks like a valid hex string
+    if (RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(valueStr)) {
+      return valueStr;
+    }
+    
+    return valueStr;
+  }
+
+  // Load messages for a conversation
+  Future<void> loadMessages(String conversationId) async {
+    try {
+      print('📥 Loading messages for conversation: $conversationId');
+
+      // ✅ 1. Try to load from cache first
+      final cacheKey = 'messages_$conversationId';
+      final cached = await CacheService.getCachedCategoryData(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return Message.fromMap(map);
+        }).toList();
+        print('📦 Loaded ${state.length} messages from cache');
+        
+        // ✅ If online, refresh in background
+        if (NetworkService().isOnline) {
+          _refreshMessagesInBackground(conversationId, cacheKey);
+        }
+        
+        return;
+      }
+
+      // ✅ 2. If no cache and offline, show empty
+      if (NetworkService().isOffline) {
+        print('⚠️ Offline and no cache available for messages');
+        state = [];
+        return;
+      }
+
+      // ✅ 3. Fetch from database - WORKAROUND: Get ALL messages and filter in memory
+      final data = await DatabaseService.find(
+        collection: 'messages',
+        filter: {},
+        sort: {'createdAt': 1},
+      );
+
+      print('📦 Total messages fetched: ${data.length}');
+
+      // ✅ Filter in memory with improved type checking
+      final filteredData = data.where((msg) {
+        final msgConvId = msg['conversationId'];
+        final convIdStr = _extractObjectIdString(msgConvId);
+        final match = convIdStr == conversationId;
+        return match;
+      }).toList();
+
+      print('📦 Filtered messages: ${filteredData.length}');
+
+      state = filteredData.map((e) {
+        final map = _convertObjectIds(Map<String, dynamic>.from(e));
+        return Message.fromMap(map);
+      }).toList();
+
+      // ✅ 4. Save to cache
+      final cacheData = filteredData.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
+      await CacheService.cacheCategoryData(
+        key: cacheKey,
+        data: cacheData,
+        durationMinutes: 60,
+      );
+
+      print('✅ Loaded ${state.length} messages into state');
+    } catch (e, stack) {
+      print('❌ Error loading messages: $e');
+      print('Stack: $stack');
+      
+      // ✅ 5. Fallback to cache on error
+      final cacheKey = 'messages_$conversationId';
+      final cached = await CacheService.getCachedCategoryData(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return Message.fromMap(map);
+        }).toList();
+        print('📦 Loaded ${state.length} messages from cache (fallback)');
+      } else {
+        state = [];
+      }
+    }
+  }
+
+  // ✅ Background refresh
+  Future<void> _refreshMessagesInBackground(String conversationId, String cacheKey) async {
+    try {
+      final data = await DatabaseService.find(
+        collection: 'messages',
+        filter: {},
+        sort: {'createdAt': 1},
+      );
+
+      final filteredData = data.where((msg) {
+        final msgConvId = msg['conversationId'];
+        final convIdStr = _extractObjectIdString(msgConvId);
+        return convIdStr == conversationId;
+      }).toList();
+
+      state = filteredData.map((e) {
+        final map = _convertObjectIds(Map<String, dynamic>.from(e));
+        return Message.fromMap(map);
+      }).toList();
+
+      final cacheData = filteredData.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
+      await CacheService.cacheCategoryData(
+        key: cacheKey,
+        data: cacheData,
+        durationMinutes: 60,
+      );
+
+      print('🔄 Background refresh: messages updated');
+    } catch (e) {
+      print('Background refresh failed: $e');
+    }
+  }
 
   // Send a message
   Future<void> sendMessage({
@@ -276,6 +552,11 @@ Future<void> loadMessages(String conversationId) async {
     required String content,
     List<MessageAttachment> attachments = const [],
   }) async {
+    // ✅ Check if online before sending
+    if (NetworkService().isOffline) {
+      throw Exception('Không thể gửi tin nhắn khi offline');
+    }
+    
     try {
       final now = DateTime.now();
 
@@ -321,6 +602,9 @@ Future<void> loadMessages(String conversationId) async {
         ),
       ];
 
+      // ✅ Clear cache after sending
+      await CacheService.clearCache('messages_$conversationId');
+
       print('✅ Sent message: $insertedId');
     } catch (e, stack) {
       print('❌ Error sending message: $e');
@@ -332,20 +616,22 @@ Future<void> loadMessages(String conversationId) async {
   // Mark messages as read
   Future<void> markMessagesAsRead(String conversationId, String userId) async {
     try {
-      // Mark all unread messages from the other person as read
-      for (var message in state) {
-        if (message.conversationId == conversationId &&
-            message.senderId != userId &&
-            !message.isRead) {
-          await DatabaseService.updateOne(
-            collection: 'messages',
-            id: message.id,
-            update: {'isRead': true},
-          );
+      // ✅ Only update server if online
+      if (NetworkService().isOnline) {
+        for (var message in state) {
+          if (message.conversationId == conversationId &&
+              message.senderId != userId &&
+              !message.isRead) {
+            await DatabaseService.updateOne(
+              collection: 'messages',
+              id: message.id,
+              update: {'isRead': true},
+            );
+          }
         }
       }
 
-      // Update local state
+      // Update local state (always)
       state = state.map((m) {
         if (m.conversationId == conversationId &&
             m.senderId != userId &&
@@ -365,9 +651,18 @@ Future<void> loadMessages(String conversationId) async {
         return m;
       }).toList();
 
+      // ✅ Clear cache after updating
+      await CacheService.clearCache('messages_$conversationId');
+
       print('✅ Marked messages as read in conversation: $conversationId');
     } catch (e) {
       print('❌ Error marking messages as read: $e');
     }
+  }
+  
+  // ✅ Force refresh from database
+  Future<void> forceRefresh(String conversationId) async {
+    await CacheService.clearCache('messages_$conversationId');
+    await loadMessages(conversationId);
   }
 }

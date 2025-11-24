@@ -6,6 +6,8 @@ import 'dart:convert';
 import '../models/user.dart';
 import '../models/csv_preview_item.dart';
 import '../services/database_service.dart';
+import '../services/cache_service.dart'; // ✅ ADD
+import '../services/network_service.dart'; // ✅ ADD
 
 final studentProvider = StateNotifierProvider<StudentNotifier, List<AppUser>>((ref) => StudentNotifier());
 
@@ -15,15 +17,78 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
   // ────── LOAD ALL STUDENTS ──────
   Future<void> loadStudents() async {
     try {
+      // ✅ 1. Try to load from cache first
+      final cached = await CacheService.getCachedCategoryData('students');
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) => AppUser.fromMap(e)).toList();
+        print('📦 Loaded ${state.length} students from cache');
+        
+        // ✅ If online, refresh in background
+        if (NetworkService().isOnline) {
+          _refreshStudentsInBackground();
+        }
+        
+        return;
+      }
+
+      // ✅ 2. If no cache and offline, show empty
+      if (NetworkService().isOffline) {
+        print('⚠️ Offline and no cache available for students');
+        state = [];
+        return;
+      }
+
+      // ✅ 3. Fetch from database if online or no cache
       await DatabaseService.connect();
       final data = await DatabaseService.find(
         collection: 'users',
         filter: {'role': 'student'},
       );
       state = data.map(AppUser.fromMap).toList();
+      
+      // ✅ 4. Save to cache
+      await CacheService.cacheCategoryData(
+        key: 'students',
+        data: data,
+        durationMinutes: CacheService.CATEGORY_CACHE_DURATION,
+      );
+      
+      print('✅ Loaded ${state.length} students from database');
     } catch (e) {
       print('loadStudents error: $e');
-      state = [];
+      
+      // ✅ 5. On error, try to fallback to cache
+      final cached = await CacheService.getCachedCategoryData('students');
+      if (cached != null && cached.isNotEmpty) {
+        state = cached.map((e) => AppUser.fromMap(e)).toList();
+        print('📦 Loaded ${state.length} students from cache (fallback)');
+      } else {
+        state = [];
+      }
+    }
+  }
+
+  // ✅ Background refresh (silent update without blocking UI)
+  Future<void> _refreshStudentsInBackground() async {
+    try {
+      await DatabaseService.connect();
+      final data = await DatabaseService.find(
+        collection: 'users',
+        filter: {'role': 'student'},
+      );
+      state = data.map(AppUser.fromMap).toList();
+      
+      // Update cache
+      await CacheService.cacheCategoryData(
+        key: 'students',
+        data: data,
+        durationMinutes: CacheService.CATEGORY_CACHE_DURATION,
+      );
+      
+      print('🔄 Background refresh: students updated');
+    } catch (e) {
+      print('Background refresh failed: $e');
+      // Don't throw - this is a background operation
     }
   }
 
@@ -89,6 +154,11 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
         final newUser = AppUser.fromMap(insertedUser);
         state = [...state, newUser];
       }
+      
+      // ✅ Clear cache after creating
+      await CacheService.clearCache('students');
+      
+      print('✅ Created student: $insertedId');
     } catch (e) {
       print('createStudent error: $e');
       rethrow;
@@ -277,7 +347,13 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
       }
     }
 
+    // ✅ Clear cache before reloading
+    await CacheService.clearCache('students');
+    
     await loadStudents(); // Refresh full list
+    
+    print('✅ Imported ${created.length} students from CSV');
+    
     return {
       'created': created,
       'errors': errors,
@@ -354,7 +430,20 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
       }
     }
 
+    // ✅ Clear cache before reloading
+    await CacheService.clearCache('students');
+    
     await loadStudents(); // Refresh full list
+    
+    print('✅ Legacy CSV import: ${created.length} students');
+    
     return created;
+  }
+
+  // ✅ Add method to force refresh from database
+  Future<void> refresh() async {
+    // Clear cache first to force fresh fetch
+    await CacheService.clearCache('students');
+    await loadStudents();
   }
 }

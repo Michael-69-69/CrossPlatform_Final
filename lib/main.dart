@@ -1,12 +1,16 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_fonts/google_fonts.dart'; // ✅ ADD THIS
+import 'package:google_fonts/google_fonts.dart';
 import 'package:ggclassroom/l10n/app_localizations.dart';
 import 'routes/app_router.dart';
 import 'services/mongodb_service.dart';
+import 'services/cache_service.dart'; // ✅ ADD
+import 'services/network_service.dart'; // ✅ ADD
+import 'widgets/network_status_banner.dart'; // ✅ ADD
 
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
 
@@ -14,6 +18,22 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await Hive.initFlutter();
+  
+  // ✅ Initialize Cache Service
+  try {
+    await CacheService.initialize();
+    print('✅ Cache service initialized');
+  } catch (e) {
+    print('⚠️ Cache initialization failed: $e');
+  }
+  
+  // ✅ Initialize Network Service
+  try {
+    await NetworkService().initialize();
+    print('✅ Network service initialized');
+  } catch (e) {
+    print('⚠️ Network monitoring failed: $e');
+  }
   
   // Initialize MongoDB connection (skip on web)
   try {
@@ -49,8 +69,12 @@ class MyApp extends ConsumerWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
-        textTheme: GoogleFonts.robotoTextTheme(), // ✅ ADD THIS LINE
+        textTheme: GoogleFonts.robotoTextTheme(),
       ),
+      // ✅ Wrap with network status banner
+      builder: (context, child) {
+        return NetworkStatusBanner(child: child ?? const SizedBox());
+      },
     );
   }
 }

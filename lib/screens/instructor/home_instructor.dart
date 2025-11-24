@@ -14,6 +14,7 @@ import '../../models/user.dart';
 import '../shared/inbox_screen.dart';
 import 'csv_preview_screen.dart';
 import 'test_screen.dart';
+import 'cache_management_screen.dart'; // ✅ ADD THIS
 
 class HomeInstructor extends ConsumerStatefulWidget {
   const HomeInstructor({super.key});
@@ -80,50 +81,72 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     }
   }
 
+  // ✅ UPDATED: Handle secret code - now supports "tester" and "cache"
+  void _handleSecretCode(BuildContext dialogContext, String code) {
+    Navigator.pop(dialogContext);
+    
+    switch (code.toLowerCase().trim()) {
+      case 'tester':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const TestScreen(),
+          ),
+        );
+        break;
+        
+      case 'cache':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CacheManagementScreen(),
+          ),
+        );
+        break;
+        
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Invalid access code'),
+            backgroundColor: Colors.red,
+          ),
+        );
+    }
+  }
+
+  // ✅ UPDATED: Secret dialog now shows hint for both codes
   void _showSecretDialog() {
     final codeController = TextEditingController();
     
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(
+        title: const Row(
           children: [
             Icon(Icons.lock, color: Colors.deepPurple),
-            const SizedBox(width: 12),
-            const Text('🔐 Testing Access'),
+            SizedBox(width: 12),
+            Text('🔐 Admin Access'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Enter access code to continue:'),
+            const SizedBox(height: 8),
+            Text(
+              'Hint: "tester" hoặc "cache"',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: codeController,
               decoration: const InputDecoration(
                 labelText: 'Access Code',
                 border: OutlineInputBorder(),
-                hintText: 'tester',
+                hintText: 'Enter code...',
               ),
               obscureText: true,
-              onSubmitted: (value) {
-                if (value == 'tester') {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TestScreen(),
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('❌ Invalid access code'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
+              onSubmitted: (value) => _handleSecretCode(ctx, value),
             ),
           ],
         ),
@@ -133,24 +156,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (codeController.text == 'tester') {
-                Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TestScreen(),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('❌ Invalid access code'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
+            onPressed: () => _handleSecretCode(ctx, codeController.text),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurple,
             ),
