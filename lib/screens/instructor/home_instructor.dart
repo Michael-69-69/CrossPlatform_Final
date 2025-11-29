@@ -349,97 +349,94 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
-  Widget _buildSemesterSelector(List<Semester> semesters) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: DropdownButtonFormField<String>(
-            value: _selectedSemesterId,
-            decoration: InputDecoration(
-              labelText: 'Chọn học kỳ',
-              border: const OutlineInputBorder(),
-              prefixIcon: const Icon(Icons.school),
-              suffixIcon: _selectedSemesterId != null &&
-                      semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
-                  ? const Icon(Icons.check_circle, color: Colors.green)
-                  : null,
-            ),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
-              ...semesters.map((s) => DropdownMenuItem(
-                    value: s.id,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '${s.code}: ${s.name}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (s.isActive) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'ACTIVE',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  )),
-            ],
-            onChanged: (v) => setState(() => _selectedSemesterId = v),
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Activate Button
-        Tooltip(
-          message: 'Kích hoạt học kỳ',
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.play_arrow, size: 16),
-            label: const Text('Kích hoạt', style: TextStyle(fontSize: 12)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            ),
-            onPressed: _selectedSemesterId != null &&
-                    !semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
-                ? () => _activateSemester(semesters)
+Widget _buildSemesterSelector(List<Semester> semesters) {
+  return Row(
+    children: [
+      Expanded(
+        child: DropdownButtonFormField<String>(
+          value: _selectedSemesterId,
+          isExpanded: true, // ✅ FIX: Allow dropdown to expand properly
+          decoration: InputDecoration(
+            labelText: 'Chọn học kỳ',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.school),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            suffixIcon: _selectedSemesterId != null &&
+                    semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
+                ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
                 : null,
           ),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
+            ...semesters.map((s) => DropdownMenuItem(
+                  value: s.id,
+                  child: Row(
+                    children: [
+                      Expanded( // ✅ FIX: Use Expanded instead of Flexible with MainAxisSize.min
+                        child: Text(
+                          '${s.code}: ${s.name}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (s.isActive) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'ACTIVE',
+                            style: TextStyle(
+                              fontSize: 8,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                )),
+          ],
+          onChanged: (v) => setState(() => _selectedSemesterId = v),
         ),
-        const SizedBox(width: 8),
-        // Add semester button
-        IconButton(
-          icon: const Icon(Icons.add_circle, color: Colors.green),
-          tooltip: 'Thêm học kỳ',
-          onPressed: () => context.push('/instructor/semester/create'),
-        ),
-        // Delete semester button
-        if (_selectedSemesterId != null &&
-            !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
+      ),
+      const SizedBox(width: 8),
+      // Action buttons in a more compact layout
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Activate Button
+          if (_selectedSemesterId != null &&
+              !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
+            Tooltip(
+              message: 'Kích hoạt học kỳ',
+              child: IconButton(
+                icon: const Icon(Icons.play_arrow, color: Colors.green),
+                onPressed: () => _activateSemester(semesters),
+              ),
+            ),
+          // Add semester button
           IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            tooltip: 'Xóa học kỳ',
-            onPressed: () => _deleteSemester(semesters),
+            icon: const Icon(Icons.add_circle, color: Colors.green),
+            tooltip: 'Thêm học kỳ',
+            onPressed: () => context.push('/instructor/semester/create'),
           ),
-      ],
-    );
-  }
+          // Delete semester button
+          if (_selectedSemesterId != null &&
+              !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              tooltip: 'Xóa học kỳ',
+              onPressed: () => _deleteSemester(semesters),
+            ),
+        ],
+      ),
+    ],
+  );
+}
 
   Future<void> _activateSemester(List<Semester> semesters) async {
     final selectedSemester =

@@ -5,10 +5,9 @@ import '../../models/assignment.dart';
 import '../../models/group.dart';
 import '../../models/user.dart';
 import '../../providers/assignment_provider.dart';
-import '../../providers/course_provider.dart';
 import '../../utils/file_upload_helper.dart';
 import '../../utils/file_download_helper.dart';
-import '../../utils/csv_export_helper.dart'; // ✅ NEW IMPORT
+import '../../utils/csv_export_helper.dart';
 
 class AssignmentsTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -55,7 +54,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
 
     return Column(
       children: [
-        // Create Button
         Padding(
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
@@ -67,7 +65,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
             ),
           ),
         ),
-        // Filters and Search
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
@@ -160,7 +157,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
             ],
           ),
         ),
-        // Assignments List
         Expanded(
           child: assignments.isEmpty
               ? const Center(
@@ -284,7 +280,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                       ),
                       const SizedBox(height: 16),
                       
-                      // File upload section
                       const Text('Tệp đính kèm:', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
@@ -299,9 +294,11 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                               });
                             }
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Lỗi chọn file: $e')),
-                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Lỗi chọn file: $e')),
+                              );
+                            }
                           }
                         },
                       ),
@@ -311,8 +308,8 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                           return Card(
                             child: ListTile(
                               leading: const Icon(Icons.attachment),
-                              title: Text(fileData['fileName']),
-                              subtitle: Text('${(fileData['fileSize'] / 1024).toStringAsFixed(1)} KB'),
+                              title: Text(fileData['fileName'] as String),
+                              subtitle: Text('${((fileData['fileSize'] as int) / 1024).toStringAsFixed(1)} KB'),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () {
@@ -328,7 +325,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                       ],
                       const SizedBox(height: 16),
                       
-                      // Date fields
                       Row(
                         children: [
                           Expanded(
@@ -444,7 +440,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                       ),
                       const SizedBox(height: 24),
                       
-                      // Group Selection
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -461,29 +456,21 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                                 const SizedBox(width: 8),
                                 const Text(
                                   'Chọn nhóm áp dụng:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Đã chọn: ${selectedGroupIds.length}/${widget.groups.length} nhóm',
-                              style: TextStyle(
-                                color: Colors.grey[700],
-                                fontSize: 12,
-                              ),
+                              style: TextStyle(color: Colors.grey[700], fontSize: 12),
                             ),
                             const SizedBox(height: 12),
                             
                             ElevatedButton.icon(
                               icon: const Icon(Icons.edit),
                               label: Text(
-                                selectedGroupIds.isEmpty 
-                                  ? 'Chọn nhóm' 
-                                  : 'Sửa nhóm đã chọn',
+                                selectedGroupIds.isEmpty ? 'Chọn nhóm' : 'Sửa nhóm đã chọn',
                               ),
                               style: ElevatedButton.styleFrom(
                                 minimumSize: const Size(double.infinity, 48),
@@ -577,10 +564,10 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
 
                   final attachments = selectedFiles.map((fileData) {
                     return AssignmentAttachment(
-                      fileName: fileData['fileName'],
-                      fileUrl: fileData['fileData'] ?? '',
-                      fileSize: fileData['fileSize'],
-                      mimeType: fileData['mimeType'],
+                      fileName: fileData['fileName'] as String,
+                      fileUrl: (fileData['fileData'] as String?) ?? '',
+                      fileSize: fileData['fileSize'] as int,
+                      mimeType: fileData['mimeType'] as String,
                     );
                   }).toList();
 
@@ -601,16 +588,18 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                       instructorName: widget.instructorName,
                       attachments: attachments,
                     );
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Đã tạo bài tập cho ${selectedGroupIds.length} nhóm'),
-                      ),
-                    );
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Đã tạo bài tập cho ${selectedGroupIds.length} nhóm')),
+                      );
+                    }
                   } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e')),
-                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Lỗi: $e')),
+                      );
+                    }
                   }
                 },
                 child: const Text('Tạo'),
@@ -633,7 +622,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
-          final allSelected = tempSelectedIds.length == groups.length;
+          final allSelected = tempSelectedIds.length == groups.length && groups.isNotEmpty;
           
           return AlertDialog(
             title: Row(
@@ -688,61 +677,59 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                       },
                     ),
                   ),
-                  
                   const Divider(),
-                  
                   Expanded(
                     child: groups.isEmpty
-                      ? const Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.group_off, size: 64, color: Colors.grey),
-                              SizedBox(height: 16),
-                              Text('Chưa có nhóm nào'),
-                            ],
+                        ? const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.group_off, size: 64, color: Colors.grey),
+                                SizedBox(height: 16),
+                                Text('Chưa có nhóm nào'),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: groups.length,
+                            itemBuilder: (context, index) {
+                              final group = groups[index];
+                              final isSelected = tempSelectedIds.contains(group.id);
+                              
+                              return Card(
+                                color: isSelected ? Colors.blue.withOpacity(0.1) : null,
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: isSelected ? Colors.blue : Colors.grey,
+                                    child: Icon(
+                                      isSelected ? Icons.check : Icons.add,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    group.name,
+                                    style: TextStyle(
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  subtitle: Text('${group.studentIds.length} học sinh'),
+                                  trailing: isSelected
+                                      ? const Icon(Icons.check_circle, color: Colors.green)
+                                      : const Icon(Icons.add_circle_outline, color: Colors.grey),
+                                  onTap: () {
+                                    setDialogState(() {
+                                      if (isSelected) {
+                                        tempSelectedIds.remove(group.id);
+                                      } else {
+                                        tempSelectedIds.add(group.id);
+                                      }
+                                    });
+                                  },
+                                ),
+                              );
+                            },
                           ),
-                        )
-                      : ListView.builder(
-                          itemCount: groups.length,
-                          itemBuilder: (context, index) {
-                            final group = groups[index];
-                            final isSelected = tempSelectedIds.contains(group.id);
-                            
-                            return Card(
-                              color: isSelected ? Colors.blue.withOpacity(0.1) : null,
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: isSelected ? Colors.blue : Colors.grey,
-                                  child: Icon(
-                                    isSelected ? Icons.check : Icons.add,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                title: Text(
-                                  group.name,
-                                  style: TextStyle(
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  ),
-                                ),
-                                subtitle: Text('${group.studentIds.length} học sinh'),
-                                trailing: isSelected 
-                                  ? const Icon(Icons.check_circle, color: Colors.green)
-                                  : const Icon(Icons.add_circle_outline, color: Colors.grey),
-                                onTap: () {
-                                  setDialogState(() {
-                                    if (isSelected) {
-                                      tempSelectedIds.remove(group.id);
-                                    } else {
-                                      tempSelectedIds.add(group.id);
-                                    }
-                                  });
-                                },
-                              ),
-                            );
-                          },
-                        ),
                   ),
                 ],
               ),
@@ -753,9 +740,9 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                 child: const Text('Hủy'),
               ),
               ElevatedButton(
-                onPressed: tempSelectedIds.isEmpty 
-                  ? null 
-                  : () => Navigator.pop(ctx, tempSelectedIds),
+                onPressed: tempSelectedIds.isEmpty
+                    ? null
+                    : () => Navigator.pop(ctx, tempSelectedIds),
                 child: Text('Xác nhận (${tempSelectedIds.length})'),
               ),
             ],
@@ -851,10 +838,8 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
     }
   }
 
-  // ✅ UPDATED: Platform-aware CSV export
   Future<void> _exportAssignmentToCSV(Assignment assignment) async {
     try {
-      // Build CSV rows
       final rows = <List<dynamic>>[
         ['Tên', 'Nhóm', 'Trạng thái', 'Lần nộp', 'Thời gian nộp', 'Điểm', 'Nhận xét'],
       ];
@@ -877,15 +862,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
             .toList();
         
         if (submissions.isEmpty) {
-          rows.add([
-            student.fullName,
-            group.name,
-            'Chưa nộp',
-            '0',
-            '',
-            '',
-            '',
-          ]);
+          rows.add([student.fullName, group.name, 'Chưa nộp', '0', '', '', '']);
         } else {
           for (final submission in submissions) {
             rows.add([
@@ -901,7 +878,6 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
         }
       }
 
-      // ✅ Use platform-aware CSV export
       final result = await CsvExportHelper.exportCsv(
         rows: rows,
         fileName: 'assignment_${assignment.title}_${DateTime.now().millisecondsSinceEpoch}.csv',
@@ -936,6 +912,10 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
     }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ASSIGNMENT CARD
+// ═══════════════════════════════════════════════════════════════════════════
 
 class _AssignmentCard extends StatelessWidget {
   final Assignment assignment;
@@ -979,15 +959,13 @@ class _AssignmentCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       assignment.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
                   PopupMenuButton(
                     itemBuilder: (context) => [
                       PopupMenuItem(
+                        onTap: onExport,
                         child: const Row(
                           children: [
                             Icon(Icons.file_download),
@@ -995,9 +973,9 @@ class _AssignmentCard extends StatelessWidget {
                             Text('Xuất CSV'),
                           ],
                         ),
-                        onTap: onExport,
                       ),
                       PopupMenuItem(
+                        onTap: onDelete,
                         child: const Row(
                           children: [
                             Icon(Icons.delete, color: Colors.red),
@@ -1005,18 +983,13 @@ class _AssignmentCard extends StatelessWidget {
                             Text('Xóa', style: TextStyle(color: Colors.red)),
                           ],
                         ),
-                        onTap: onDelete,
                       ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                assignment.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Text(assignment.description, maxLines: 2, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -1039,6 +1012,10 @@ class _AssignmentCard extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ASSIGNMENT DETAIL SHEET
+// ═══════════════════════════════════════════════════════════════════════════
 
 class _AssignmentDetailSheet extends ConsumerStatefulWidget {
   final Assignment assignment;
@@ -1067,43 +1044,34 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
 
   Future<void> _downloadFile(BuildContext context, AssignmentAttachment attachment) async {
     try {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đang tải xuống...')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đang tải xuống...')),
+      );
 
       String result;
       
-      if (attachment.fileUrl.startsWith('http://') || 
-          attachment.fileUrl.startsWith('https://')) {
+      if (attachment.fileUrl.startsWith('http://') || attachment.fileUrl.startsWith('https://')) {
         final path = await FileDownloadHelper.downloadFile(
           url: attachment.fileUrl,
           fileName: attachment.fileName,
         );
         result = 'Đã tải: $path';
-      }
-      else if (attachment.fileUrl.isNotEmpty) {
+      } else if (attachment.fileUrl.isNotEmpty) {
         final path = await FileDownloadHelper.downloadFromBase64(
           base64Data: attachment.fileUrl,
           fileName: attachment.fileName,
         );
         result = 'Đã tải: $path';
-      } 
-      else {
+      } else {
         throw Exception('No valid file source');
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result)),
-        );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải file: $e')),
-        );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi tải file: $e')));
       }
     }
   }
@@ -1126,9 +1094,7 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
         (g) => g.studentIds.contains(student.id),
         orElse: () => Group(id: '', name: 'N/A', courseId: '', studentIds: []),
       );
-      final submissions = assignment.submissions
-          .where((s) => s.studentId == student.id)
-          .toList();
+      final submissions = assignment.submissions.where((s) => s.studentId == student.id).toList();
       final status = assignment.getStatusForStudent(student.id, group.id);
       final latestSubmission = submissions.isNotEmpty
           ? submissions.reduce((a, b) => a.submittedAt.isAfter(b.submittedAt) ? a : b)
@@ -1181,180 +1147,162 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
-        return Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          assignment.title,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Hạn: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.file_download),
-                    onPressed: widget.onExport,
-                    tooltip: 'Xuất CSV',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            
-            if (assignment.attachments.isNotEmpty || assignment.description.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(16),
-                color: Theme.of(context).colorScheme.surfaceVariant,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                ),
+                child: Row(
                   children: [
-                    if (assignment.description.isNotEmpty) ...[
-                      const Text(
-                        'Mô tả:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(assignment.description),
-                      const SizedBox(height: 16),
-                    ],
-                    if (assignment.attachments.isNotEmpty) ...[
-                      const Text(
-                        'Tệp đính kèm:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      ...assignment.attachments.map((attachment) {
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: const Icon(Icons.attachment),
-                            title: Text(attachment.fileName),
-                            subtitle: Text('${(attachment.fileSize / 1024).toStringAsFixed(1)} KB'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.download),
-                              onPressed: () => _downloadFile(context, attachment),
-                            ),
-                            dense: true,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(assignment.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text(
+                            'Hạn: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
+                            style: TextStyle(color: Colors.grey[600]),
                           ),
-                        );
-                      }),
-                    ],
+                        ],
+                      ),
+                    ),
+                    IconButton(icon: const Icon(Icons.file_download), onPressed: widget.onExport, tooltip: 'Xuất CSV'),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                   ],
                 ),
               ),
-            
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                children: [
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Tìm kiếm...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
-                    onChanged: (value) => setState(() => _searchQuery = value),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+              if (assignment.attachments.isNotEmpty || assignment.description.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedGroupFilter,
-                          decoration: const InputDecoration(
-                            labelText: 'Nhóm',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          items: [
-                            const DropdownMenuItem(value: null, child: Text('Tất cả')),
-                            ...widget.groups.map((g) => DropdownMenuItem(
-                                  value: g.id,
-                                  child: Text(g.name),
-                                )),
-                          ],
-                          onChanged: (value) => setState(() => _selectedGroupFilter = value),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _sortBy,
-                          decoration: const InputDecoration(
-                            labelText: 'Sắp xếp',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'name', child: Text('Tên')),
-                            DropdownMenuItem(value: 'group', child: Text('Nhóm')),
-                            DropdownMenuItem(value: 'time', child: Text('Thời gian')),
-                            DropdownMenuItem(value: 'status', child: Text('Trạng thái')),
-                          ],
-                          onChanged: (value) => setState(() => _sortBy = value!),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward),
-                        onPressed: () => setState(() => _sortAscending = !_sortAscending),
-                      ),
+                      if (assignment.description.isNotEmpty) ...[
+                        const Text('Mô tả:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Text(assignment.description),
+                        const SizedBox(height: 16),
+                      ],
+                      if (assignment.attachments.isNotEmpty) ...[
+                        const Text('Tệp đính kèm:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        ...assignment.attachments.map((attachment) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: const Icon(Icons.attachment),
+                              title: Text(attachment.fileName),
+                              subtitle: Text('${(attachment.fileSize / 1024).toStringAsFixed(1)} KB'),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.download),
+                                onPressed: () => _downloadFile(context, attachment),
+                              ),
+                              dense: true,
+                            ),
+                          );
+                        }),
+                      ],
                     ],
                   ),
-                ],
+                ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  children: [
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        isDense: true,
+                      ),
+                      onChanged: (value) => setState(() => _searchQuery = value),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedGroupFilter,
+                            decoration: const InputDecoration(labelText: 'Nhóm', border: OutlineInputBorder(), isDense: true),
+                            items: [
+                              const DropdownMenuItem(value: null, child: Text('Tất cả')),
+                              ...widget.groups.map((g) => DropdownMenuItem(value: g.id, child: Text(g.name))),
+                            ],
+                            onChanged: (value) => setState(() => _selectedGroupFilter = value),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _sortBy,
+                            decoration: const InputDecoration(labelText: 'Sắp xếp', border: OutlineInputBorder(), isDense: true),
+                            items: const [
+                              DropdownMenuItem(value: 'name', child: Text('Tên')),
+                              DropdownMenuItem(value: 'group', child: Text('Nhóm')),
+                              DropdownMenuItem(value: 'time', child: Text('Thời gian')),
+                              DropdownMenuItem(value: 'status', child: Text('Trạng thái')),
+                            ],
+                            onChanged: (value) => setState(() => _sortBy = value!),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward),
+                          onPressed: () => setState(() => _sortAscending = !_sortAscending),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            
-            Expanded(
-              child: SingleChildScrollView(
-                controller: scrollController,
-                scrollDirection: Axis.vertical,
+              Expanded(
                 child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Tên')),
-                      DataColumn(label: Text('Nhóm')),
-                      DataColumn(label: Text('Trạng thái')),
-                      DataColumn(label: Text('Lần nộp')),
-                      DataColumn(label: Text('Thời gian')),
-                      DataColumn(label: Text('Điểm')),
-                      DataColumn(label: Text('Hành động')),
-                    ],
-                    rows: filtered.map((row) => row.buildDataRow(context)).toList(),
+                  controller: scrollController,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Tên')),
+                        DataColumn(label: Text('Nhóm')),
+                        DataColumn(label: Text('Trạng thái')),
+                        DataColumn(label: Text('Lần nộp')),
+                        DataColumn(label: Text('Thời gian')),
+                        DataColumn(label: Text('Điểm')),
+                        DataColumn(label: Text('Hành động')),
+                      ],
+                      rows: filtered.map((row) => row.buildDataRow(context)).toList(),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TRACKING ROW - CLICKABLE TO VIEW SUBMISSIONS
+// ═══════════════════════════════════════════════════════════════════════════
 
 class _TrackingRow {
   final AppUser student;
@@ -1374,9 +1322,32 @@ class _TrackingRow {
   });
 
   DataRow buildDataRow(BuildContext context) {
+    final hasSubmissions = submissions.isNotEmpty;
+
     return DataRow(
+      onSelectChanged: hasSubmissions ? (_) => _showSubmissionsSheet(context) : null,
+      color: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.hovered) && hasSubmissions) {
+          return Colors.blue.withOpacity(0.05);
+        }
+        return null;
+      }),
       cells: [
-        DataCell(Text(student.fullName)),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(student.fullName),
+              if (hasSubmissions) ...[
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: 'Nhấn để xem chi tiết bài nộp',
+                  child: Icon(Icons.open_in_new, size: 14, color: Colors.blue[400]),
+                ),
+              ],
+            ],
+          ),
+        ),
         DataCell(Text(group.name)),
         DataCell(_buildStatusChip()),
         DataCell(Text('${submissions.length}')),
@@ -1385,18 +1356,33 @@ class _TrackingRow {
               ? '${latestSubmission!.submittedAt.day}/${latestSubmission!.submittedAt.month}/${latestSubmission!.submittedAt.year}'
               : '-',
         )),
-        DataCell(Text(
-          latestSubmission?.grade?.toString() ?? '-',
-        )),
+        DataCell(Text(latestSubmission?.grade?.toString() ?? '-')),
         DataCell(
           latestSubmission != null && latestSubmission!.grade == null
               ? ElevatedButton(
                   onPressed: () => _showGradeDialog(context),
-                  child: const Text('Chấm điểm'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  child: const Text('Chấm điểm', style: TextStyle(fontSize: 12)),
                 )
               : const SizedBox.shrink(),
         ),
       ],
+    );
+  }
+
+  void _showSubmissionsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _StudentSubmissionsSheet(
+        student: student,
+        submissions: submissions,
+        onGrade: onGrade,
+      ),
     );
   }
 
@@ -1449,28 +1435,19 @@ class _TrackingRow {
           children: [
             TextField(
               controller: gradeCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Điểm *',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Điểm *', border: OutlineInputBorder()),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: feedbackCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nhận xét',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Nhận xét', border: OutlineInputBorder()),
               maxLines: 3,
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () {
               final grade = double.tryParse(gradeCtrl.text);
@@ -1480,11 +1457,7 @@ class _TrackingRow {
                 );
                 return;
               }
-              onGrade(
-                latestSubmission!.id,
-                grade,
-                feedbackCtrl.text.trim().isEmpty ? null : feedbackCtrl.text.trim(),
-              );
+              onGrade(latestSubmission!.id, grade, feedbackCtrl.text.trim().isEmpty ? null : feedbackCtrl.text.trim());
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Đã chấm điểm và gửi email thông báo')),
@@ -1495,5 +1468,435 @@ class _TrackingRow {
         ],
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STUDENT SUBMISSIONS SHEET - Shows all submissions from a student
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _StudentSubmissionsSheet extends StatelessWidget {
+  final AppUser student;
+  final List<AssignmentSubmission> submissions;
+  final Function(String, double, String?) onGrade;
+
+  const _StudentSubmissionsSheet({
+    required this.student,
+    required this.submissions,
+    required this.onGrade,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedSubmissions = List<AssignmentSubmission>.from(submissions)
+      ..sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey[300]!))),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Colors.blue[100],
+                      radius: 24,
+                      child: Text(
+                        student.fullName.isNotEmpty ? student.fullName[0].toUpperCase() : '?',
+                        style: TextStyle(color: Colors.blue[700], fontWeight: FontWeight.bold, fontSize: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(student.fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text(
+                            '${student.code ?? student.email} • ${submissions.length} lần nộp',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: sortedSubmissions.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text('Chưa có bài nộp', style: TextStyle(color: Colors.grey[600])),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: sortedSubmissions.length,
+                        itemBuilder: (context, index) {
+                          final submission = sortedSubmissions[index];
+                          return _SubmissionCard(
+                            submission: submission,
+                            onGrade: submission.grade == null ? () => _showGradeDialog(context, submission) : null,
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showGradeDialog(BuildContext context, AssignmentSubmission submission) {
+    final gradeCtrl = TextEditingController();
+    final feedbackCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Chấm điểm - Lần ${submission.attemptNumber}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: gradeCtrl,
+              decoration: const InputDecoration(labelText: 'Điểm *', border: OutlineInputBorder()),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: feedbackCtrl,
+              decoration: const InputDecoration(labelText: 'Nhận xét', border: OutlineInputBorder()),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () {
+              final grade = double.tryParse(gradeCtrl.text);
+              if (grade == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Vui lòng nhập điểm hợp lệ')),
+                );
+                return;
+              }
+              onGrade(submission.id, grade, feedbackCtrl.text.trim().isEmpty ? null : feedbackCtrl.text.trim());
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Đã chấm điểm và gửi email thông báo')),
+              );
+            },
+            child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUBMISSION CARD - Shows a single submission with files
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _SubmissionCard extends StatelessWidget {
+  final AssignmentSubmission submission;
+  final VoidCallback? onGrade;
+
+  const _SubmissionCard({
+    required this.submission,
+    this.onGrade,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: submission.isLate ? Colors.orange : Colors.green,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Lần ${submission.attemptNumber}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+                if (submission.isLate) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
+                    child: const Text('NỘP TRỄ', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+                const Spacer(),
+                if (submission.grade != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.purple, borderRadius: BorderRadius.circular(16)),
+                    child: Text(
+                      'Điểm: ${submission.grade}',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  )
+                else if (onGrade != null)
+                  ElevatedButton(
+                    onPressed: onGrade,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      minimumSize: const Size(0, 36),
+                    ),
+                    child: const Text('Chấm điểm', style: TextStyle(fontSize: 12)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 6),
+                Text(_formatDateTime(submission.submittedAt), style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+              ],
+            ),
+            if (submission.files.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.attach_file, size: 16, color: Colors.grey[700]),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${submission.files.length} tệp đính kèm',
+                    style: TextStyle(color: Colors.grey[700], fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...submission.files.map((file) => _FileItem(file: file)),
+            ],
+            if (submission.feedback != null && submission.feedback!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.comment, size: 16, color: Colors.blue[600]),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Nhận xét:', style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(submission.feedback!, style: TextStyle(color: Colors.grey[800], fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDateTime(DateTime dt) {
+    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILE ITEM - Shows a single file with download button
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _FileItem extends StatelessWidget {
+  final AssignmentAttachment file;
+
+  const _FileItem({required this.file});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        children: [
+          Icon(_getFileIcon(file.fileName), size: 24, color: _getFileColor(file.fileName)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(file.fileName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(_formatFileSize(file.fileSize), style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.blue),
+            onPressed: () => _downloadFile(context),
+            tooltip: 'Tải xuống',
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getFileIcon(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Icons.image;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'mkv':
+        return Icons.video_file;
+      case 'mp3':
+      case 'wav':
+      case 'aac':
+        return Icons.audio_file;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Icons.folder_zip;
+      case 'txt':
+        return Icons.text_snippet;
+      case 'json':
+      case 'xml':
+        return Icons.code;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  Color _getFileColor(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+      case 'docx':
+        return Colors.blue;
+      case 'xls':
+      case 'xlsx':
+        return Colors.green;
+      case 'ppt':
+      case 'pptx':
+        return Colors.orange;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Colors.purple;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'mkv':
+        return Colors.pink;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Colors.amber;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  Future<void> _downloadFile(BuildContext context) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đang tải ${file.fileName}...')),
+      );
+
+      String result;
+
+      if (file.fileUrl.startsWith('http://') || file.fileUrl.startsWith('https://')) {
+        final path = await FileDownloadHelper.downloadFile(url: file.fileUrl, fileName: file.fileName);
+        result = 'Đã tải: $path';
+      } else if (file.fileUrl.isNotEmpty) {
+        final path = await FileDownloadHelper.downloadFromBase64(base64Data: file.fileUrl, fileName: file.fileName);
+        result = 'Đã tải: $path';
+      } else {
+        throw Exception('Không có nguồn file hợp lệ');
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi tải file: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 }

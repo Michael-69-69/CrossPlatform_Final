@@ -3,14 +3,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/course.dart';
+import '../../models/assignment.dart';
 import '../../models/group.dart' as app;
+import '../../models/user.dart';
 import '../../providers/course_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/group_provider.dart';
 import '../../providers/assignment_provider.dart';
-import '../../providers/quiz_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/semester_provider.dart';
+
+// ✅ Provider to cache dashboard data
+final _dashboardDataProvider = StateProvider<_DashboardData?>((ref) => null);
+
+class _DashboardData {
+  final String? semesterId;
+  final int coursesCount;
+  final int groupsCount;
+  final int studentsCount;
+  final List<Assignment> allAssignments;
+  final List<Course> courses;
+  final DateTime loadedAt;
+
+  _DashboardData({
+    required this.semesterId,
+    required this.coursesCount,
+    required this.groupsCount,
+    required this.studentsCount,
+    required this.allAssignments,
+    required this.courses,
+    required this.loadedAt,
+  });
+
+  // Check if cache is still valid (5 minutes)
+  bool get isValid => DateTime.now().difference(loadedAt).inMinutes < 5;
+}
 
 class InstructorDashboardWidget extends ConsumerStatefulWidget {
   final String? semesterId;
@@ -26,37 +53,44 @@ class InstructorDashboardWidget extends ConsumerStatefulWidget {
 }
 
 class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardWidget> {
-  bool _isLoading = true;
+  bool _isLoading = false;
   String? _error;
-
-  int _coursesCount = 0;
-  int _groupsCount = 0;
-  int _studentsCount = 0;
-  int _totalSubmissions = 0;
-  int _gradedSubmissions = 0;
-  int _ungradedSubmissions = 0;
-  int _lateSubmissions = 0;
-
-  List<Map<String, dynamic>> _coursesFolders = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
+      _loadDataIfNeeded();
     });
   }
 
   @override
   void didUpdateWidget(InstructorDashboardWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Only reload if semester changed
     if (oldWidget.semesterId != widget.semesterId) {
-      _loadData();
+      _loadDataIfNeeded(forceReload: true);
     }
   }
 
+  // ✅ Only load if cache is invalid or semester changed
+  Future<void> _loadDataIfNeeded({bool forceReload = false}) async {
+    final cachedData = ref.read(_dashboardDataProvider);
+    
+    // Check if we have valid cached data for the same semester
+    if (!forceReload && 
+        cachedData != null && 
+        cachedData.isValid && 
+        cachedData.semesterId == widget.semesterId) {
+      print('📦 Using cached dashboard data (loaded ${DateTime.now().difference(cachedData.loadedAt).inSeconds}s ago)');
+      return;
+    }
+
+    await _loadData();
+  }
+
   Future<void> _loadData() async {
-    if (!mounted) return;
+    if (!mounted || _isLoading) return;
 
     setState(() {
       _isLoading = true;
@@ -75,33 +109,57 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
         return;
       }
 
+      // Get courses for this instructor
       final allCourses = ref.read(courseProvider);
       final courses = widget.semesterId != null
           ? allCourses.where((c) => c.semesterId == widget.semesterId && c.instructorId == user.id).toList()
           : allCourses.where((c) => c.instructorId == user.id).toList();
 
-      _coursesCount = courses.length;
-
+      // Get groups and students
       final allGroups = ref.read(groupProvider);
       final groups = allGroups.where((g) => courses.any((c) => c.id == g.courseId)).toList();
-      _groupsCount = groups.length;
 
       final allStudents = ref.read(studentProvider);
       final studentIds = <String>{};
       for (final g in groups) {
         studentIds.addAll(g.studentIds);
       }
-      _studentsCount = allStudents.where((s) => studentIds.contains(s.id)).length;
+      final studentsCount = allStudents.where((s) => studentIds.contains(s.id)).length;
 
+      // Load assignments for each course and collect them all
+      final allAssignments = <Assignment>[];
       for (final course in courses) {
         try {
           await ref.read(assignmentProvider.notifier).loadAssignments(course.id);
+          final courseAssignments = ref.read(assignmentProvider)
+              .where((a) => a.courseId == course.id)
+              .toList();
+          allAssignments.addAll(courseAssignments);
         } catch (e) {
-          print('Error loading assignments for ${course.id}: $e');
+          print('Error loading assignments for ${course.code}: $e');
         }
       }
 
-      _processAssignments(courses);
+      // Remove duplicates
+      final seenIds = <String>{};
+      final uniqueAssignments = allAssignments.where((a) {
+        if (seenIds.contains(a.id)) return false;
+        seenIds.add(a.id);
+        return true;
+      }).toList();
+
+      // ✅ Cache the data
+      ref.read(_dashboardDataProvider.notifier).state = _DashboardData(
+        semesterId: widget.semesterId,
+        coursesCount: courses.length,
+        groupsCount: groups.length,
+        studentsCount: studentsCount,
+        allAssignments: uniqueAssignments,
+        courses: courses,
+        loadedAt: DateTime.now(),
+      );
+
+      print('✅ Dashboard data loaded and cached: ${uniqueAssignments.length} assignments from ${courses.length} courses');
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -118,85 +176,115 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
     }
   }
 
-  void _processAssignments(List<Course> courses) {
-    _totalSubmissions = 0;
-    _gradedSubmissions = 0;
-    _ungradedSubmissions = 0;
-    _lateSubmissions = 0;
-    _coursesFolders = [];
-
-    final assignments = ref.read(assignmentProvider);
-
-    for (final course in courses) {
-      final courseAssignments = assignments.where((a) => a.courseId == course.id).toList();
-
-      List<Map<String, dynamic>> assignmentFolders = [];
-
-      for (final assignment in courseAssignments) {
-        List<Map<String, dynamic>> ungradedSubs = [];
-
-        for (final sub in assignment.submissions) {
-          _totalSubmissions++;
-
-          if (sub.grade != null) {
-            _gradedSubmissions++;
-          } else {
-            _ungradedSubmissions++;
-            ungradedSubs.add({
-              'studentId': sub.studentId,
-              'studentName': sub.studentName,
-              'submittedAt': sub.submittedAt,
-              'isLate': sub.isLate,
-            });
-          }
-
-          if (sub.isLate) {
-            _lateSubmissions++;
-          }
-        }
-
-        if (ungradedSubs.isNotEmpty) {
-          assignmentFolders.add({
-            'id': assignment.id,
-            'title': assignment.title,
-            'deadline': assignment.deadline,
-            'submissions': ungradedSubs,
-          });
-        }
-      }
-
-      if (assignmentFolders.isNotEmpty) {
-        _coursesFolders.add({
-          'id': course.id,
-          'code': course.code,
-          'name': course.name,
-          'assignments': assignmentFolders,
-        });
-      }
-    }
+  // ✅ Force refresh (for pull-to-refresh)
+  Future<void> _forceRefresh() async {
+    ref.read(_dashboardDataProvider.notifier).state = null;
+    await _loadData();
   }
 
-  // ✅ NEW: Navigation method
-  void _navigateToCourseDetail(String courseId, String assignmentId) {
-    final courses = ref.read(courseProvider);
-    final course = courses.where((c) => c.id == courseId).firstOrNull;
+  // Get cached data
+  _DashboardData? get _cachedData => ref.watch(_dashboardDataProvider);
 
-    if (course == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không tìm thấy môn học')),
-      );
-      return;
+  // Stats from cached data
+  int get _totalSubmissions {
+    final data = _cachedData;
+    if (data == null) return 0;
+    int count = 0;
+    for (final a in data.allAssignments) {
+      count += a.submissions.length;
     }
+    return count;
+  }
+
+  int get _gradedSubmissions {
+    final data = _cachedData;
+    if (data == null) return 0;
+    int count = 0;
+    for (final a in data.allAssignments) {
+      count += a.submissions.where((s) => s.grade != null).length;
+    }
+    return count;
+  }
+
+  int get _ungradedSubmissions => _totalSubmissions - _gradedSubmissions;
+
+  // Get assignments with ungraded submissions, categorized by submission age
+  List<Map<String, dynamic>> _getUngradedAssignments({
+    required int maxDaysOld,
+    int? minDaysOld,
+  }) {
+    final data = _cachedData;
+    if (data == null) return [];
+
+    final now = DateTime.now();
+    final result = <Map<String, dynamic>>[];
+
+    for (final assignment in data.allAssignments) {
+      if (assignment.id.isEmpty || assignment.title.isEmpty) continue;
+
+      final ungradedSubs = assignment.submissions.where((s) {
+        if (s.grade != null) return false;
+        if (s.studentId.isEmpty) return false;
+
+        final daysOld = now.difference(s.submittedAt).inDays;
+        
+        if (minDaysOld != null) {
+          return daysOld >= minDaysOld && daysOld < maxDaysOld;
+        }
+        return daysOld < maxDaysOld;
+      }).toList();
+
+      if (ungradedSubs.isEmpty) continue;
+
+      final course = data.courses.firstWhere(
+        (c) => c.id == assignment.courseId,
+        orElse: () => Course(
+          id: '',
+          code: '???',
+          name: 'Unknown',
+          sessions: 0,
+          semesterId: '',
+          instructorId: '',
+          instructorName: '',
+        ),
+      );
+
+      result.add({
+        'assignment': assignment,
+        'course': course,
+        'ungradedCount': ungradedSubs.length,
+        'submissions': ungradedSubs.map((s) => {
+          'submission': s,
+          'daysOld': now.difference(s.submittedAt).inDays,
+        }).toList(),
+      });
+    }
+
+    // Sort by oldest submission first
+    result.sort((a, b) {
+      final aOldest = (a['submissions'] as List).isNotEmpty
+          ? (a['submissions'] as List).map((s) => s['daysOld'] as int).reduce((x, y) => x > y ? x : y)
+          : 0;
+      final bOldest = (b['submissions'] as List).isNotEmpty
+          ? (b['submissions'] as List).map((s) => s['daysOld'] as int).reduce((x, y) => x > y ? x : y)
+          : 0;
+      return bOldest.compareTo(aOldest);
+    });
+
+    return result;
+  }
+
+  void _navigateToAssignment(String courseId, String assignmentId) {
+    final data = _cachedData;
+    if (data == null) return;
+
+    final course = data.courses.firstWhere((c) => c.id == courseId, orElse: () => data.courses.first);
 
     final semesters = ref.read(semesterProvider);
-    final semester = semesters.where((s) => s.id == course.semesterId).firstOrNull;
-
-    if (semester == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không tìm thấy học kỳ')),
-      );
-      return;
-    }
+    final semester = semesters.firstWhere(
+      (s) => s.id == course.semesterId,
+      orElse: () => semesters.first,
+    );
 
     final allGroups = ref.read(groupProvider);
     final groups = allGroups.where((g) => g.courseId == courseId).toList();
@@ -221,38 +309,128 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
 
   @override
   Widget build(BuildContext context) {
+    final data = _cachedData;
+
     if (_error != null) {
       return _buildErrorWidget();
     }
 
-    if (_isLoading) {
+    if (_isLoading && data == null) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('Đang tải...'),
+            Text('Đang tải dữ liệu...'),
           ],
         ),
       );
     }
 
+    if (data == null) {
+      return const Center(child: Text('Không có dữ liệu'));
+    }
+
+    // Categorize by submission age
+    final recentUngraded = _getUngradedAssignments(maxDaysOld: 7);
+    final weekOldUngraded = _getUngradedAssignments(minDaysOld: 7, maxDaysOld: 30);
+    final monthOldUngraded = _getUngradedAssignments(minDaysOld: 30, maxDaysOld: 9999);
+
+    final hasContent = recentUngraded.isNotEmpty || 
+                       weekOldUngraded.isNotEmpty || 
+                       monthOldUngraded.isNotEmpty ||
+                       _totalSubmissions > 0;
+
     return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
+      onRefresh: _forceRefresh, // ✅ Use force refresh for pull-to-refresh
+      child: Stack(
         children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 16),
-          if (_ungradedSubmissions > 0 || _lateSubmissions > 0) _buildActionRequired(),
-          const SizedBox(height: 16),
-          _buildQuickStats(),
-          const SizedBox(height: 16),
-          _buildGradingProgress(),
-          const SizedBox(height: 16),
-          if (_coursesFolders.isNotEmpty) _buildUngradedFolders(),
-          if (_coursesFolders.isEmpty && _totalSubmissions == 0) _buildEmptyState(),
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildWelcomeCard(),
+              const SizedBox(height: 16),
+              _buildQuickStats(data),
+              const SizedBox(height: 16),
+              _buildGradingProgress(),
+              
+              // 30+ days old (URGENT)
+              if (monthOldUngraded.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildAssignmentsSection(
+                  title: '🚨 Quá 30 ngày chưa chấm',
+                  subtitle: 'Cần xử lý ngay!',
+                  assignments: monthOldUngraded,
+                  color: Colors.red[700]!,
+                  icon: Icons.error,
+                ),
+              ],
+              
+              // 7-30 days old
+              if (weekOldUngraded.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildAssignmentsSection(
+                  title: '⚠️ 7-30 ngày chưa chấm',
+                  subtitle: 'Nên chấm sớm',
+                  assignments: weekOldUngraded,
+                  color: Colors.orange,
+                  icon: Icons.warning_amber,
+                ),
+              ],
+              
+              // Recent (0-7 days)
+              if (recentUngraded.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildAssignmentsSection(
+                  title: '📝 Mới nộp (< 7 ngày)',
+                  subtitle: 'Bài nộp gần đây',
+                  assignments: recentUngraded,
+                  color: Colors.blue,
+                  icon: Icons.schedule,
+                ),
+              ],
+              
+              if (!hasContent) ...[
+                const SizedBox(height: 16),
+                _buildEmptyState(),
+              ],
+              
+              const SizedBox(height: 16),
+            ],
+          ),
+          
+          // ✅ Show loading indicator overlay when refreshing with existing data
+          if (_isLoading && data != null)
+            Positioned(
+              top: 8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Đang cập nhật...', style: TextStyle(color: Colors.white, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -270,7 +448,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
             Text(_error ?? 'Đã xảy ra lỗi', textAlign: TextAlign.center),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _loadData,
+              onPressed: _forceRefresh,
               icon: const Icon(Icons.refresh),
               label: const Text('Thử lại'),
             ),
@@ -281,19 +459,38 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
   }
 
   Widget _buildEmptyState() {
+    final allGraded = _totalSubmissions > 0 && _ungradedSubmissions == 0;
+    
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.1),
+        color: allGraded ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
-          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+          Icon(
+            allGraded ? Icons.check_circle : Icons.inbox_outlined,
+            size: 64,
+            color: allGraded ? Colors.green : Colors.grey[400],
+          ),
           const SizedBox(height: 16),
-          Text('Chưa có dữ liệu', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[600])),
+          Text(
+            allGraded ? 'Đã chấm hết! 🎉' : 'Chưa có bài nộp',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: allGraded ? Colors.green[700] : Colors.grey[600],
+            ),
+          ),
           const SizedBox(height: 8),
-          Text('Tạo bài tập để xem thống kê', style: TextStyle(color: Colors.grey[500])),
+          Text(
+            allGraded 
+                ? 'Tất cả $_totalSubmissions bài nộp đã được chấm điểm'
+                : 'Tạo bài tập để sinh viên nộp bài',
+            style: TextStyle(color: Colors.grey[500]),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -311,7 +508,9 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withOpacity(0.7)]),
+        gradient: LinearGradient(
+          colors: [Theme.of(context).primaryColor, Theme.of(context).primaryColor.withOpacity(0.7)],
+        ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -349,60 +548,14 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
     );
   }
 
-  Widget _buildActionRequired() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.red.shade400, Colors.orange.shade400]),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
-              SizedBox(width: 8),
-              Text('CẦN XỬ LÝ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (_ungradedSubmissions > 0) _actionChip(Icons.grading, '$_ungradedSubmissions chưa chấm'),
-              if (_lateSubmissions > 0) _actionChip(Icons.schedule, '$_lateSubmissions nộp trễ'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 16),
-          const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickStats() {
+  Widget _buildQuickStats(_DashboardData data) {
     return Row(
       children: [
-        _statCard(Icons.book, _coursesCount, 'Môn học', Colors.blue),
+        _statCard(Icons.book, data.coursesCount, 'Môn học', Colors.blue),
         const SizedBox(width: 10),
-        _statCard(Icons.group_work, _groupsCount, 'Nhóm', Colors.orange),
+        _statCard(Icons.group_work, data.groupsCount, 'Nhóm', Colors.orange),
         const SizedBox(width: 10),
-        _statCard(Icons.people, _studentsCount, 'Sinh viên', Colors.green),
+        _statCard(Icons.people, data.studentsCount, 'Sinh viên', Colors.green),
       ],
     );
   }
@@ -429,7 +582,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
   }
 
   Widget _buildGradingProgress() {
-    final total = _gradedSubmissions + _ungradedSubmissions;
+    final total = _totalSubmissions;
     final progress = total > 0 ? _gradedSubmissions / total : 0.0;
     final progressColor = progress >= 0.8 ? Colors.green : (progress >= 0.5 ? Colors.orange : Colors.red);
 
@@ -451,32 +604,49 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('${(progress * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: total > 0 ? progressColor : Colors.grey)),
-              Text('$_gradedSubmissions / $total', style: TextStyle(color: Colors.grey[600])),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 10,
-              backgroundColor: Colors.grey[200],
-              valueColor: AlwaysStoppedAnimation(total > 0 ? progressColor : Colors.grey),
+          if (total == 0)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Icon(Icons.hourglass_empty, size: 32, color: Colors.grey[400]),
+                    const SizedBox(height: 8),
+                    Text('Chưa có bài nộp nào', style: TextStyle(color: Colors.grey[500])),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${(progress * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: progressColor),
+                ),
+                Text('$_gradedSubmissions / $total bài nộp', style: TextStyle(color: Colors.grey[600])),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _progressLabel(Colors.green, 'Đã chấm', _gradedSubmissions),
-              _progressLabel(Colors.orange, 'Chưa chấm', _ungradedSubmissions),
-              _progressLabel(Colors.red, 'Nộp trễ', _lateSubmissions),
-            ],
-          ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 10,
+                backgroundColor: Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation(progressColor),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _progressLabel(Colors.green, 'Đã chấm', _gradedSubmissions),
+                _progressLabel(Colors.orange, 'Chưa chấm', _ungradedSubmissions),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -493,37 +663,60 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
     );
   }
 
-  // ✅ FIXED: Updated to use new navigation method
-  Widget _buildUngradedFolders() {
+  Widget _buildAssignmentsSection({
+    required String title,
+    required String subtitle,
+    required List<Map<String, dynamic>> assignments,
+    required Color color,
+    required IconData icon,
+  }) {
+    final totalUngraded = assignments.fold<int>(0, (sum, a) => sum + (a['ungradedCount'] as int));
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: color.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.folder_open, color: Theme.of(context).primaryColor, size: 20),
+              Icon(icon, color: color, size: 20),
               const SizedBox(width: 8),
-              const Expanded(child: Text('Bài cần chấm điểm', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+                    Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                  ],
+                ),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.purple, borderRadius: BorderRadius.circular(12)),
-                child: Text('$_ungradedSubmissions', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+                child: Text(
+                  '$totalUngraded',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          ..._coursesFolders.map((course) => _CourseFolderTile(
-            courseData: course,
-            onSubmissionTap: (courseId, assignmentId) {
-              _navigateToCourseDetail(courseId, assignmentId); // ✅ Use new method
-            },
-          )),
+          const SizedBox(height: 12),
+          ...assignments.map((data) => _AssignmentFolderTile(
+                assignment: data['assignment'] as Assignment,
+                course: data['course'] as Course,
+                ungradedCount: data['ungradedCount'] as int,
+                submissions: data['submissions'] as List,
+                color: color,
+                onTap: () => _navigateToAssignment(
+                  (data['course'] as Course).id,
+                  (data['assignment'] as Assignment).id,
+                ),
+              )),
         ],
       ),
     );
@@ -531,101 +724,25 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FOLDER TILES
+// ASSIGNMENT FOLDER TILE
 // ═══════════════════════════════════════════════════════════════════════════
-
-class _CourseFolderTile extends StatefulWidget {
-  final Map<String, dynamic> courseData;
-  final Function(String courseId, String assignmentId) onSubmissionTap;
-
-  const _CourseFolderTile({required this.courseData, required this.onSubmissionTap});
-
-  @override
-  State<_CourseFolderTile> createState() => _CourseFolderTileState();
-}
-
-class _CourseFolderTileState extends State<_CourseFolderTile> {
-  bool _isExpanded = false;
-
-  int get _totalUngraded {
-    int count = 0;
-    final assignments = widget.courseData['assignments'] as List<Map<String, dynamic>>? ?? [];
-    for (final a in assignments) {
-      final subs = a['submissions'] as List<Map<String, dynamic>>? ?? [];
-      count += subs.length;
-    }
-    return count;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final code = widget.courseData['code'] as String? ?? '';
-    final name = widget.courseData['name'] as String? ?? '';
-    final assignments = widget.courseData['assignments'] as List<Map<String, dynamic>>? ?? [];
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          InkWell(
-            onTap: () => setState(() => _isExpanded = !_isExpanded),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(_isExpanded ? Icons.folder_open : Icons.folder, color: Colors.blue, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(code, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        Text(name, style: TextStyle(fontSize: 12, color: Colors.grey[600]), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(12)),
-                    child: Text('$_totalUngraded', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(_isExpanded ? Icons.expand_less : Icons.expand_more, color: Colors.grey),
-                ],
-              ),
-            ),
-          ),
-          if (_isExpanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Column(
-                children: assignments.map((assignment) {
-                  return _AssignmentFolderTile(
-                    assignmentData: assignment,
-                    courseId: widget.courseData['id'] as String? ?? '',
-                    onSubmissionTap: widget.onSubmissionTap,
-                  );
-                }).toList(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 class _AssignmentFolderTile extends StatefulWidget {
-  final Map<String, dynamic> assignmentData;
-  final String courseId;
-  final Function(String courseId, String assignmentId) onSubmissionTap;
+  final Assignment assignment;
+  final Course course;
+  final int ungradedCount;
+  final List submissions;
+  final Color color;
+  final VoidCallback onTap;
 
-  const _AssignmentFolderTile({required this.assignmentData, required this.courseId, required this.onSubmissionTap});
+  const _AssignmentFolderTile({
+    required this.assignment,
+    required this.course,
+    required this.ungradedCount,
+    required this.submissions,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   State<_AssignmentFolderTile> createState() => _AssignmentFolderTileState();
@@ -636,17 +753,12 @@ class _AssignmentFolderTileState extends State<_AssignmentFolderTile> {
 
   @override
   Widget build(BuildContext context) {
-    final id = widget.assignmentData['id'] as String? ?? '';
-    final title = widget.assignmentData['title'] as String? ?? '';
-    final deadline = widget.assignmentData['deadline'] as DateTime?;
-    final submissions = widget.assignmentData['submissions'] as List<Map<String, dynamic>>? ?? [];
-
     return Container(
-      margin: const EdgeInsets.only(top: 8),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.purple.withOpacity(0.05),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.purple.withOpacity(0.2)),
+        border: Border.all(color: widget.color.withOpacity(0.2)),
       ),
       child: Column(
         children: [
@@ -654,125 +766,132 @@ class _AssignmentFolderTileState extends State<_AssignmentFolderTile> {
             onTap: () => setState(() => _isExpanded = !_isExpanded),
             borderRadius: BorderRadius.circular(10),
             child: Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  Icon(_isExpanded ? Icons.assignment : Icons.assignment_outlined, color: Colors.purple, size: 20),
-                  const SizedBox(width: 10),
+                  Icon(
+                    _isExpanded ? Icons.folder_open : Icons.folder,
+                    color: widget.color,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        if (deadline != null)
-                          Text('Deadline: ${deadline.day}/${deadline.month}/${deadline.year}', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                        Text(
+                          widget.assignment.title,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.course.code,
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                        ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: Colors.purple, borderRadius: BorderRadius.circular(10)),
-                    child: Text('${submissions.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.color,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${widget.ungradedCount}',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                    ),
                   ),
-                  const SizedBox(width: 6),
-                  Icon(_isExpanded ? Icons.expand_less : Icons.expand_more, color: Colors.grey, size: 20),
+                  const SizedBox(width: 4),
+                  Icon(_isExpanded ? Icons.expand_less : Icons.expand_more, color: Colors.grey),
                 ],
               ),
             ),
           ),
           if (_isExpanded)
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Column(
-                children: submissions.map((sub) {
-                  return _SubmissionTile(
-                    submissionData: sub,
-                    onTap: () => widget.onSubmissionTap(widget.courseId, id),
-                  );
-                }).toList(),
+                children: [
+                  ...widget.submissions.take(5).map((data) {
+                    final sub = data['submission'] as AssignmentSubmission;
+                    final daysOld = data['daysOld'] as int;
+                    return _buildSubmissionTile(sub, daysOld);
+                  }),
+                  if (widget.submissions.length > 5)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'và ${widget.submissions.length - 5} bài nộp khác...',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: widget.onTap,
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Mở bài tập', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.color,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
       ),
     );
   }
-}
 
-class _SubmissionTile extends StatelessWidget {
-  final Map<String, dynamic> submissionData;
-  final VoidCallback onTap;
-
-  const _SubmissionTile({required this.submissionData, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final studentName = submissionData['studentName'] as String? ?? 'Không rõ';
-    final submittedAt = submissionData['submittedAt'] as DateTime?;
-    final isLate = submissionData['isLate'] as bool? ?? false;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        margin: const EdgeInsets.only(top: 6),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isLate ? Colors.red.withOpacity(0.05) : Colors.green.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isLate ? Colors.red.withOpacity(0.2) : Colors.green.withOpacity(0.2)),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: isLate ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-              child: Text(
-                studentName.isNotEmpty ? studentName[0].toUpperCase() : '?',
-                style: TextStyle(color: isLate ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
-              ),
+  Widget _buildSubmissionTile(AssignmentSubmission sub, int daysOld) {
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: widget.color.withOpacity(0.1),
+            child: Text(
+              sub.studentName.isNotEmpty ? sub.studentName[0].toUpperCase() : '?',
+              style: TextStyle(color: widget.color, fontWeight: FontWeight.bold, fontSize: 11),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(studentName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-                  if (submittedAt != null)
-                    Row(
-                      children: [
-                        Icon(Icons.access_time, size: 10, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${submittedAt.day}/${submittedAt.month} ${submittedAt.hour.toString().padLeft(2, '0')}:${submittedAt.minute.toString().padLeft(2, '0')}',
-                          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                        ),
-                        if (isLate) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(4)),
-                            child: const Text('TRỄ', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ],
-                    ),
-                ],
-              ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(sub.studentName, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11)),
+                Text(
+                  '${sub.submittedAt.day}/${sub.submittedAt.month}/${sub.submittedAt.year}',
+                  style: TextStyle(fontSize: 9, color: Colors.grey[600]),
+                ),
+              ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.grading, color: Colors.white, size: 12),
-                  SizedBox(width: 4),
-                  Text('Chấm', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                ],
-              ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: daysOld >= 30 ? Colors.red : (daysOld >= 7 ? Colors.orange : Colors.blue),
+              borderRadius: BorderRadius.circular(4),
             ),
-          ],
-        ),
+            child: Text(
+              '$daysOld ngày',
+              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
