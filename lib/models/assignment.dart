@@ -80,23 +80,39 @@ class AssignmentSubmission {
         'isLate': isLate,
       };
 
+  // ✅ FIXED: Handle ObjectId for all ID fields
   factory AssignmentSubmission.fromMap(Map<String, dynamic> map) {
     final rawFiles = map['files'] as List? ?? [];
     final files = rawFiles
         .map((e) => AssignmentAttachment.fromMap(e as Map<String, dynamic>))
         .toList();
 
+    // ✅ FIX: Handle ObjectId conversion for id
+    final id = map['id'] is ObjectId
+        ? (map['id'] as ObjectId).toHexString()
+        : map['id']?.toString() ?? '';
+
+    // ✅ FIX: Handle ObjectId conversion for studentId
+    final studentId = map['studentId'] is ObjectId
+        ? (map['studentId'] as ObjectId).toHexString()
+        : map['studentId']?.toString() ?? '';
+
+    // ✅ FIX: Handle ObjectId conversion for groupId
+    final groupId = map['groupId'] is ObjectId
+        ? (map['groupId'] as ObjectId).toHexString()
+        : map['groupId']?.toString() ?? '';
+
     return AssignmentSubmission(
-      id: map['id'] ?? '',
-      studentId: map['studentId'] ?? '',
-      studentName: map['studentName'] ?? '',
-      groupId: map['groupId'] ?? '',
-      groupName: map['groupName'] ?? '',
+      id: id,
+      studentId: studentId,
+      studentName: map['studentName']?.toString() ?? '',
+      groupId: groupId,
+      groupName: map['groupName']?.toString() ?? '',
       files: files,
       submittedAt: DateTime.parse(map['submittedAt'] ?? DateTime.now().toIso8601String()),
       attemptNumber: map['attemptNumber'] ?? 1,
       grade: map['grade']?.toDouble(),
-      feedback: map['feedback'],
+      feedback: map['feedback']?.toString(),
       isLate: map['isLate'] ?? false,
     );
   }
@@ -248,4 +264,3 @@ class Assignment {
     return submissions.where((s) => s.studentId == studentId).length;
   }
 }
-

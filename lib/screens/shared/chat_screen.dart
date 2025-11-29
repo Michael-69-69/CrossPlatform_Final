@@ -80,7 +80,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
-    final messages = ref.watch(messageProvider);
+    final allMessages = ref.watch(messageProvider);
+    
+    // ✅ FIX: Filter messages for THIS conversation only
+    final messages = allMessages
+        .where((m) => m.conversationId == widget.conversation.id)
+        .toList();
 
     if (user == null) {
       return const Scaffold(

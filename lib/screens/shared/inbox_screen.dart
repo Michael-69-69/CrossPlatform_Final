@@ -19,22 +19,40 @@ class InboxScreen extends ConsumerStatefulWidget {
 
 class _InboxScreenState extends ConsumerState<InboxScreen> {
   String _searchQuery = '';
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadConversations();
+    // ✅ CHANGED: Don't automatically load on init, data should already be loaded from login
+    // Just check if we need to load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final conversations = ref.read(conversationProvider);
+      if (conversations.isEmpty) {
+        _loadConversations();
+      }
+    });
   }
 
   Future<void> _loadConversations() async {
-    final user = ref.read(authProvider);
-    if (user == null) return;
+    if (_isLoading) return;
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      final user = ref.read(authProvider);
+      if (user == null) return;
 
-    final isInstructor = user.role == UserRole.instructor;
-    await ref.read(conversationProvider.notifier).loadConversations(
-          user.id,
-          isInstructor,
-        );
+      final isInstructor = user.role == UserRole.instructor;
+      await ref.read(conversationProvider.notifier).loadConversations(
+            user.id,
+            isInstructor,
+          );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -70,36 +88,36 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tin nhắn'),
-        actions: [
-          if (unreadCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '$unreadCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+        title: Row(
+          children: [
+            const Text('Tin nhắn'),
+            if (unreadCount > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$unreadCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-            ),
+            ],
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Tin nhắn mới',
+            onPressed: () => _showNewMessageDialog(context, user, isInstructor),
+          ),
         ],
-      ),
-      // ✅ ADD: Floating action button to start new conversation
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showNewMessageDialog(context, user, isInstructor),
-        child: const Icon(Icons.message),
-        tooltip: 'Tin nhắn mới',
       ),
       body: Column(
         children: [
@@ -123,6 +141,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               onChanged: (value) => setState(() => _searchQuery = value),
             ),
           ),
+
+          // ✅ NEW: Loading indicator
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: LinearProgressIndicator(),
+            ),
 
           // Conversations list
           Expanded(
@@ -182,7 +207,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 ),
                               ),
                             );
-                            _loadConversations();
+                            // ✅ CHANGED: Don't reload after returning from chat
+                            // The chat screen already handles marking as read
                           },
                         );
                       },
@@ -205,25 +231,32 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           Navigator.pop(ctx);
           
           // Create or get conversation
-          final conversation = await ref.read(conversationProvider.notifier).getOrCreateConversation(
-                instructorId: isInstructor ? user.id : otherPerson.id,
-                instructorName: isInstructor ? user.fullName : otherPerson.fullName,
-                studentId: isInstructor ? otherPerson.id : user.id,
-                studentName: isInstructor ? otherPerson.fullName : user.fullName,
-              );
+          try {
+            final conversation = await ref.read(conversationProvider.notifier).getOrCreateConversation(
+                  instructorId: isInstructor ? user.id : otherPerson.id,
+                  instructorName: isInstructor ? user.fullName : otherPerson.fullName,
+                  studentId: isInstructor ? otherPerson.id : user.id,
+                  studentName: isInstructor ? otherPerson.fullName : user.fullName,
+                );
 
-          // Navigate to chat
-          if (mounted) {
-            await Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (ctx) => ChatScreen(
-                  conversation: conversation,
-                  otherPersonName: otherPerson.fullName,
-                  otherPersonId: otherPerson.id,
+            // Navigate to chat
+            if (mounted) {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (ctx) => ChatScreen(
+                    conversation: conversation,
+                    otherPersonName: otherPerson.fullName,
+                    otherPersonId: otherPerson.id,
+                  ),
                 ),
-              ),
-            );
-            _loadConversations();
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi: $e')),
+              );
+            }
           }
         },
       ),
@@ -231,7 +264,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   }
 }
 
-// ✅ NEW: Dialog to select who to message
 class _NewMessageDialog extends ConsumerWidget {
   final AppUser user;
   final bool isInstructor;
@@ -248,82 +280,112 @@ class _NewMessageDialog extends ConsumerWidget {
     final courses = ref.watch(courseProvider);
     final students = ref.watch(studentProvider);
 
-    // For instructors: show all students
-    // For students: show instructors of their enrolled courses
-    final List<AppUser> availablePeople = isInstructor
-        ? students // Show all students
-        : _getInstructorsFromCourses(courses, user.id);
-
-    return AlertDialog(
-      title: Text(isInstructor ? 'Chọn học sinh' : 'Chọn giảng viên'),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 400,
-        child: availablePeople.isEmpty
-            ? Center(
-                child: Text(
-                  isInstructor
-                      ? 'Chưa có học sinh nào'
-                      : 'Bạn chưa tham gia khóa học nào',
-                  style: const TextStyle(color: Colors.grey),
+    if (isInstructor) {
+      // Instructor: show list of students
+      return AlertDialog(
+        title: const Text('Chọn học sinh'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: students.isEmpty
+              ? const Center(child: Text('Chưa có học sinh nào'))
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: students.length,
+                  itemBuilder: (ctx, index) {
+                    final student = students[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        child: Text(student.fullName[0].toUpperCase()),
+                      ),
+                      title: Text(student.fullName),
+                      subtitle: Text(student.email),
+                      onTap: () => onSelected(student),
+                    );
+                  },
                 ),
-              )
-            : ListView.builder(
-                itemCount: availablePeople.length,
-                itemBuilder: (context, index) {
-                  final person = availablePeople[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      child: Text(person.fullName[0].toUpperCase()),
-                    ),
-                    title: Text(person.fullName),
-                    subtitle: Text(
-                      isInstructor
-                          ? (person.code ?? person.email)
-                          : _getInstructorCourses(courses, person.id),
-                    ),
-                    onTap: () => onSelected(person),
-                  );
-                },
-              ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Hủy'),
         ),
-      ],
-    );
-  }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+        ],
+      );
+    } else {
+      // Student: show list of instructors from their courses
+      final instructorIds = courses
+          .where((c) => c.instructorId != null)
+          .map((c) => c.instructorId!)
+          .toSet();
 
-  // Get unique instructors from courses the student is enrolled in
-  List<AppUser> _getInstructorsFromCourses(List<Course> courses, String studentId) {
-    final instructorMap = <String, AppUser>{};
-    
-    // Find courses where student is enrolled (via groups)
-    // For simplicity, get all instructors from available courses
-    // In real app, filter by student's enrolled courses
-    for (final course in courses) {
-      instructorMap[course.instructorId] = AppUser(
-        id: course.instructorId,
-        fullName: course.instructorName,
-        email: '',
-        role: UserRole.instructor,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+      if (instructorIds.isEmpty) {
+        return AlertDialog(
+          title: const Text('Tin nhắn mới'),
+          content: const Text('Bạn chưa có giảng viên nào'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Đóng'),
+            ),
+          ],
+        );
+      }
+
+      // Get instructor info from courses
+      final instructors = courses
+          .where((c) => c.instructorId != null && c.instructorName != null)
+          .map((c) => {
+                'id': c.instructorId!,
+                'name': c.instructorName!,
+              })
+          .toList();
+
+      // Remove duplicates
+      final uniqueInstructors = <String, String>{};
+      for (final instructor in instructors) {
+        uniqueInstructors[instructor['id']!] = instructor['name']!;
+      }
+
+      return AlertDialog(
+        title: const Text('Chọn giảng viên'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: uniqueInstructors.isEmpty
+              ? const Center(child: Text('Chưa có giảng viên nào'))
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: uniqueInstructors.length,
+                  itemBuilder: (ctx, index) {
+                    final entry = uniqueInstructors.entries.elementAt(index);
+                    return ListTile(
+                      leading: CircleAvatar(
+                        child: Text(entry.value[0].toUpperCase()),
+                      ),
+                      title: Text(entry.value),
+                      onTap: () {
+                        // Create a temporary AppUser object
+                        final instructor = AppUser(
+                          id: entry.key,
+                          fullName: entry.value,
+                          email: '',
+                          role: UserRole.instructor,
+                          createdAt: DateTime.now(),
+                          updatedAt: DateTime.now(),
+                        );
+                        onSelected(instructor);
+                      },
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+        ],
       );
     }
-    
-    return instructorMap.values.toList();
-  }
-
-  String _getInstructorCourses(List<Course> courses, String instructorId) {
-    final instructorCourses = courses
-        .where((c) => c.instructorId == instructorId)
-        .map((c) => c.name)
-        .take(2)
-        .join(', ');
-    return instructorCourses.isEmpty ? 'Giảng viên' : instructorCourses;
   }
 }
 
@@ -344,36 +406,16 @@ class _ConversationTile extends StatelessWidget {
     required this.onTap,
   });
 
-  String _formatTimestamp(DateTime? timestamp) {
-    if (timestamp == null) return '';
-
-    final now = DateTime.now();
-    final diff = now.difference(timestamp);
-
-    if (diff.inDays == 0) {
-      return '${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
-    } else if (diff.inDays == 1) {
-      return 'Hôm qua';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays} ngày trước';
-    } else {
-      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasUnread = unreadCount > 0;
-
+    
     return ListTile(
       leading: Stack(
         children: [
           CircleAvatar(
             radius: 24,
-            child: Text(
-              otherPersonName[0].toUpperCase(),
-              style: const TextStyle(fontSize: 18),
-            ),
+            child: Text(otherPersonName[0].toUpperCase()),
           ),
           if (hasUnread)
             Positioned(
@@ -397,25 +439,11 @@ class _ConversationTile extends StatelessWidget {
             ),
         ],
       ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              otherPersonName,
-              style: TextStyle(
-                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-          if (conversation.lastMessageAt != null)
-            Text(
-              _formatTimestamp(conversation.lastMessageAt),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-        ],
+      title: Text(
+        otherPersonName,
+        style: TextStyle(
+          fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+        ),
       ),
       subtitle: conversation.lastMessageContent != null
           ? Text(
@@ -428,8 +456,32 @@ class _ConversationTile extends StatelessWidget {
               ),
             )
           : null,
+      trailing: conversation.lastMessageAt != null
+          ? Text(
+              _formatTime(conversation.lastMessageAt!),
+              style: TextStyle(
+                fontSize: 12,
+                color: hasUnread ? Colors.blue : Colors.grey[600],
+                fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+              ),
+            )
+          : null,
       onTap: onTap,
       tileColor: hasUnread ? Colors.blue.withOpacity(0.05) : null,
     );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
+
+    if (messageDate == today) {
+      return '${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } else if (messageDate == today.subtract(const Duration(days: 1))) {
+      return 'Hôm qua';
+    } else {
+      return '${dateTime.day}/${dateTime.month}';
+    }
   }
 }

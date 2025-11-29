@@ -7,7 +7,7 @@ import '../services/cache_service.dart';
 import '../services/network_service.dart';
 
 final forumTopicProvider = StateNotifierProvider<ForumTopicNotifier, List<ForumTopic>>((ref) {
-  return ForumTopicNotifier();
+  return ForumTopicNotifier(ref);
 });
 
 final forumReplyProvider = StateNotifierProvider<ForumReplyNotifier, List<ForumReply>>((ref) {
@@ -15,7 +15,9 @@ final forumReplyProvider = StateNotifierProvider<ForumReplyNotifier, List<ForumR
 });
 
 class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
-  ForumTopicNotifier() : super([]);
+  final Ref ref;
+  
+  ForumTopicNotifier(this.ref) : super([]);
 
   // ✅ Helper: Convert ObjectIds to strings recursively
   Map<String, dynamic> _convertObjectIds(Map<String, dynamic> map) {
@@ -50,6 +52,38 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
     return result;
   }
 
+  // ✅ Helper: Extract ObjectId string
+  String _extractObjectIdString(dynamic value) {
+    if (value == null) return '';
+    
+    if (value is ObjectId) {
+      return value.toHexString();
+    }
+    
+    final valueStr = value.toString();
+    
+    if (valueStr.startsWith('ObjectId(')) {
+      final regex = RegExp(r'ObjectId\("?([a-fA-F0-9]{24})"?\)');
+      final match = regex.firstMatch(valueStr);
+      if (match != null) {
+        return match.group(1)!;
+      }
+    }
+    
+    if (valueStr.contains('"')) {
+      final parts = valueStr.split('"');
+      if (parts.length >= 2) {
+        return parts[1];
+      }
+    }
+    
+    if (RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(valueStr)) {
+      return valueStr;
+    }
+    
+    return valueStr;
+  }
+
   // ✅ Sort topics helper
   void _sortTopics() {
     state.sort((a, b) {
@@ -59,6 +93,59 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
       final bTime = b.lastReplyAt ?? b.createdAt;
       return bTime.compareTo(aTime);
     });
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // ✅ NEW: Pre-cache replies for all topics when loading topics
+  // This ensures replies are available in offline mode
+  // ══════════════════════════════════════════════════════════════
+  Future<void> _preCacheRepliesForTopics(List<ForumTopic> topics) async {
+    if (NetworkService().isOffline) return;
+    
+    try {
+      print('📦 Pre-caching replies for ${topics.length} topics...');
+      
+      // Fetch ALL replies at once (more efficient than per-topic)
+      final allReplies = await DatabaseService.find(
+        collection: 'forum_replies',
+        filter: {},
+        sort: {'createdAt': 1},
+      );
+      
+      print('📦 Total replies fetched: ${allReplies.length}');
+      
+      // Group replies by topicId
+      final Map<String, List<Map<String, dynamic>>> repliesByTopic = {};
+      
+      for (final reply in allReplies) {
+        final topicId = _extractObjectIdString(reply['topicId']);
+        if (topicId.isNotEmpty) {
+          repliesByTopic.putIfAbsent(topicId, () => []);
+          repliesByTopic[topicId]!.add(_convertObjectIds(Map<String, dynamic>.from(reply)));
+        }
+      }
+      
+      // Cache replies for each topic
+      for (final topic in topics) {
+        final topicReplies = repliesByTopic[topic.id] ?? [];
+        final cacheKey = 'forum_replies_${topic.id}';
+        
+        await CacheService.cacheCategoryData(
+          key: cacheKey,
+          data: topicReplies,
+          durationMinutes: 60, // Cache for 1 hour
+        );
+        
+        if (topicReplies.isNotEmpty) {
+          print('  ✅ Cached ${topicReplies.length} replies for topic: ${topic.title.substring(0, topic.title.length > 20 ? 20 : topic.title.length)}...');
+        }
+      }
+      
+      print('✅ Pre-cached replies for all topics');
+    } catch (e) {
+      print('⚠️ Error pre-caching replies: $e');
+      // Don't throw - this is a background operation
+    }
   }
 
   // Load all topics for a course
@@ -75,6 +162,7 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
         _sortTopics();
         print('📦 Loaded ${state.length} forum topics from cache');
         
+        // ✅ If online, refresh topics AND pre-cache replies in background
         if (NetworkService().isOnline) {
           _refreshTopicsInBackground(courseId, cacheKey);
         }
@@ -101,7 +189,7 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
       }).toList();
       _sortTopics();
       
-      // ✅ 4. Save to cache
+      // ✅ 4. Save topics to cache
       final cacheData = data.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
       await CacheService.cacheCategoryData(
         key: cacheKey,
@@ -110,11 +198,15 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
       );
       
       print('✅ Loaded ${state.length} forum topics');
+      
+      // ✅ 5. NEW: Pre-cache replies for all topics (background)
+      _preCacheRepliesForTopics(state);
+      
     } catch (e, stack) {
       print('❌ Error loading forum topics: $e');
       print('Stack: $stack');
       
-      // ✅ 5. Fallback to cache on error
+      // ✅ 6. Fallback to cache on error
       final cacheKey = 'forum_topics_$courseId';
       final cached = await CacheService.getCachedCategoryData(cacheKey);
       if (cached != null && cached.isNotEmpty) {
@@ -130,7 +222,7 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
     }
   }
 
-  // ✅ Background refresh
+  // ✅ Background refresh - now also pre-caches replies
   Future<void> _refreshTopicsInBackground(String courseId, String cacheKey) async {
     try {
       final data = await DatabaseService.find(
@@ -153,6 +245,10 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
       );
       
       print('🔄 Background refresh: forum topics updated');
+      
+      // ✅ NEW: Also pre-cache replies during background refresh
+      await _preCacheRepliesForTopics(state);
+      
     } catch (e) {
       print('Background refresh failed: $e');
     }
@@ -238,6 +334,13 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
       
       // ✅ Clear cache
       await CacheService.clearCache('forum_topics_$courseId');
+      
+      // ✅ NEW: Initialize empty replies cache for new topic
+      await CacheService.cacheCategoryData(
+        key: 'forum_replies_$insertedId',
+        data: [],
+        durationMinutes: 60,
+      );
 
       print('✅ Created forum topic: $insertedId');
     } catch (e, stack) {
@@ -426,8 +529,9 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
 
       state = state.where((t) => t.id != topicId).toList();
       
-      // ✅ Clear cache
+      // ✅ Clear both topic and replies cache
       await CacheService.clearCache('forum_topics_$courseId');
+      await CacheService.clearCache('forum_replies_$topicId');
       
       print('✅ Deleted topic: $topicId');
     } catch (e) {
@@ -493,6 +597,10 @@ class ForumTopicNotifier extends StateNotifier<List<ForumTopic>> {
     await loadTopics(courseId);
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FORUM REPLY NOTIFIER
+// ══════════════════════════════════════════════════════════════════════════════
 
 class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
   ForumReplyNotifier() : super([]);
@@ -562,6 +670,13 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
     return valueStr;
   }
 
+  // ✅ Check if replies are cached for a topic
+  Future<bool> hasRepliesCached(String topicId) async {
+    final cacheKey = 'forum_replies_$topicId';
+    final cached = await CacheService.getCachedCategoryData(cacheKey);
+    return cached != null;
+  }
+
   // Load replies for a topic
   Future<void> loadReplies(String topicId) async {
     try {
@@ -570,20 +685,23 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
       // ✅ 1. Try to load from cache first
       final cacheKey = 'forum_replies_$topicId';
       final cached = await CacheService.getCachedCategoryData(cacheKey);
-      if (cached != null && cached.isNotEmpty) {
+      
+      if (cached != null) {
+        // ✅ Cache exists (even if empty - this is valid for topics with no replies)
         state = cached.map((e) {
           final map = Map<String, dynamic>.from(e);
           return ForumReply.fromMap(map);
         }).toList();
         print('📦 Loaded ${state.length} forum replies from cache');
         
+        // If online, refresh in background
         if (NetworkService().isOnline) {
           _refreshRepliesInBackground(topicId, cacheKey);
         }
         return;
       }
 
-      // ✅ 2. If no cache and offline, show empty
+      // ✅ 2. If no cache and offline, show empty with warning
       if (NetworkService().isOffline) {
         print('⚠️ Offline and no cache available for forum replies');
         state = [];
@@ -605,22 +723,22 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
         return replyTopicId == topicId;
       }).toList();
       
-      print('📦 Filtered replies: ${filteredData.length}');
+      print('📦 Filtered replies for topic $topicId: ${filteredData.length}');
       
       state = filteredData.map((e) {
         final map = _convertObjectIds(Map<String, dynamic>.from(e));
         return ForumReply.fromMap(map);
       }).toList();
 
-      // ✅ 4. Save to cache
+      // ✅ 4. Save to cache (even if empty - so we know this topic has no replies)
       final cacheData = filteredData.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
       await CacheService.cacheCategoryData(
         key: cacheKey,
         data: cacheData,
-        durationMinutes: 30,
+        durationMinutes: 60, // Cache for 1 hour
       );
       
-      print('✅ Loaded ${state.length} forum replies');
+      print('✅ Loaded and cached ${state.length} forum replies');
     } catch (e, stack) {
       print('❌ Error loading forum replies: $e');
       print('Stack: $stack');
@@ -628,7 +746,7 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
       // ✅ 5. Fallback to cache on error
       final cacheKey = 'forum_replies_$topicId';
       final cached = await CacheService.getCachedCategoryData(cacheKey);
-      if (cached != null && cached.isNotEmpty) {
+      if (cached != null) {
         state = cached.map((e) {
           final map = Map<String, dynamic>.from(e);
           return ForumReply.fromMap(map);
@@ -663,10 +781,10 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
       await CacheService.cacheCategoryData(
         key: cacheKey,
         data: cacheData,
-        durationMinutes: 30,
+        durationMinutes: 60,
       );
       
-      print('🔄 Background refresh: forum replies updated');
+      print('🔄 Background refresh: forum replies updated (${state.length} replies)');
     } catch (e) {
       print('Background refresh failed: $e');
     }
@@ -720,26 +838,43 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
 
       print('✅ Reply inserted with ID: $insertedId');
 
-      state = [
-        ...state,
-        ForumReply(
-          id: insertedId,
-          topicId: topicId,
-          content: content,
-          authorId: authorId,
-          authorName: authorName,
-          isInstructor: isInstructor,
-          attachments: attachments,
-          parentReplyId: parentReplyId,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      ];
+      final newReply = ForumReply(
+        id: insertedId,
+        topicId: topicId,
+        content: content,
+        authorId: authorId,
+        authorName: authorName,
+        isInstructor: isInstructor,
+        attachments: attachments,
+        parentReplyId: parentReplyId,
+        createdAt: now,
+        updatedAt: now,
+      );
 
-      // ✅ Clear cache
-      await CacheService.clearCache('forum_replies_$topicId');
+      state = [...state, newReply];
 
-      print('✅ Added forum reply to state: $insertedId');
+      // ✅ Update cache with new reply
+      final cacheKey = 'forum_replies_$topicId';
+      final cacheData = state.map((r) => {
+        '_id': r.id,
+        'topicId': r.topicId,
+        'content': r.content,
+        'authorId': r.authorId,
+        'authorName': r.authorName,
+        'isInstructor': r.isInstructor,
+        'attachments': r.attachments.map((a) => a.toMap()).toList(),
+        if (r.parentReplyId != null) 'parentReplyId': r.parentReplyId,
+        'createdAt': r.createdAt.toIso8601String(),
+        'updatedAt': r.updatedAt.toIso8601String(),
+      }).toList();
+      
+      await CacheService.cacheCategoryData(
+        key: cacheKey,
+        data: cacheData,
+        durationMinutes: 60,
+      );
+
+      print('✅ Added forum reply to state and cache: $insertedId');
     } catch (e, stack) {
       print('❌ Error adding forum reply: $e');
       print('Stack: $stack');
@@ -759,6 +894,7 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
     try {
       final now = DateTime.now();
       final reply = state.firstWhere((r) => r.id == replyId);
+      final topicId = reply.topicId;
       
       await DatabaseService.updateOne(
         collection: 'forum_replies',
@@ -787,8 +923,8 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
         return r;
       }).toList();
 
-      // ✅ Clear cache
-      await CacheService.clearCache('forum_replies_${reply.topicId}');
+      // ✅ Update cache
+      await _updateRepliesCache(topicId);
 
       print('✅ Edited reply: $replyId');
     } catch (e) {
@@ -814,8 +950,8 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
 
       state = state.where((r) => r.id != replyId).toList();
       
-      // ✅ Clear cache
-      await CacheService.clearCache('forum_replies_$topicId');
+      // ✅ Update cache
+      await _updateRepliesCache(topicId);
       
       print('✅ Deleted reply: $replyId');
     } catch (e) {
@@ -823,10 +959,40 @@ class ForumReplyNotifier extends StateNotifier<List<ForumReply>> {
       rethrow;
     }
   }
+
+  // ✅ Helper: Update replies cache after modification
+  Future<void> _updateRepliesCache(String topicId) async {
+    final cacheKey = 'forum_replies_$topicId';
+    final topicReplies = state.where((r) => r.topicId == topicId).toList();
+    
+    final cacheData = topicReplies.map((r) => {
+      '_id': r.id,
+      'topicId': r.topicId,
+      'content': r.content,
+      'authorId': r.authorId,
+      'authorName': r.authorName,
+      'isInstructor': r.isInstructor,
+      'attachments': r.attachments.map((a) => a.toMap()).toList(),
+      if (r.parentReplyId != null) 'parentReplyId': r.parentReplyId,
+      'createdAt': r.createdAt.toIso8601String(),
+      'updatedAt': r.updatedAt.toIso8601String(),
+    }).toList();
+    
+    await CacheService.cacheCategoryData(
+      key: cacheKey,
+      data: cacheData,
+      durationMinutes: 60,
+    );
+  }
   
   // ✅ Force refresh
   Future<void> forceRefresh(String topicId) async {
     await CacheService.clearCache('forum_replies_$topicId');
     await loadReplies(topicId);
+  }
+
+  // ✅ Clear state (useful when navigating away)
+  void clearState() {
+    state = [];
   }
 }

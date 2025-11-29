@@ -1,18 +1,55 @@
 // providers/student_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mongo_dart/mongo_dart.dart';
 import 'package:csv/csv.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../models/user.dart';
 import '../models/csv_preview_item.dart';
 import '../services/database_service.dart';
-import '../services/cache_service.dart'; // ✅ ADD
-import '../services/network_service.dart'; // ✅ ADD
+import '../services/cache_service.dart';
+import '../services/network_service.dart';
 
 final studentProvider = StateNotifierProvider<StudentNotifier, List<AppUser>>((ref) => StudentNotifier());
 
 class StudentNotifier extends StateNotifier<List<AppUser>> {
   StudentNotifier() : super([]);
+
+  // ══════════════════════════════════════════════════════════════
+  // ✅ NEW: Helper to convert ObjectIds to strings for caching
+  // ══════════════════════════════════════════════════════════════
+  Map<String, dynamic> _convertObjectIds(Map<String, dynamic> map) {
+    final result = <String, dynamic>{};
+    
+    for (final entry in map.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      if (value is ObjectId) {
+        result[key] = value.toHexString();
+      } else if (value is List) {
+        result[key] = value.map((item) {
+          if (item is ObjectId) {
+            return item.toHexString();
+          } else if (item is Map<String, dynamic>) {
+            return _convertObjectIds(item);
+          } else if (item is Map) {
+            return _convertObjectIds(Map<String, dynamic>.from(item));
+          }
+          if (item == null) return null;
+          return item;
+        }).where((item) => item != null).toList();
+      } else if (value is Map<String, dynamic>) {
+        result[key] = _convertObjectIds(value);
+      } else if (value is Map) {
+        result[key] = _convertObjectIds(Map<String, dynamic>.from(value));
+      } else {
+        result[key] = value;
+      }
+    }
+    
+    return result;
+  }
 
   // ────── LOAD ALL STUDENTS ──────
   Future<void> loadStudents() async {
@@ -20,7 +57,10 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
       // ✅ 1. Try to load from cache first
       final cached = await CacheService.getCachedCategoryData('students');
       if (cached != null && cached.isNotEmpty) {
-        state = cached.map((e) => AppUser.fromMap(e)).toList();
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return AppUser.fromMap(map);
+        }).toList();
         print('📦 Loaded ${state.length} students from cache');
         
         // ✅ If online, refresh in background
@@ -44,23 +84,31 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
         collection: 'users',
         filter: {'role': 'student'},
       );
-      state = data.map(AppUser.fromMap).toList();
       
-      // ✅ 4. Save to cache
+      // ✅ Convert ObjectIds BEFORE caching
+      final convertedData = data.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
+      
+      state = convertedData.map((e) => AppUser.fromMap(e)).toList();
+      
+      // ✅ 4. Save CONVERTED data to cache
       await CacheService.cacheCategoryData(
         key: 'students',
-        data: data,
+        data: convertedData,
         durationMinutes: CacheService.CATEGORY_CACHE_DURATION,
       );
       
       print('✅ Loaded ${state.length} students from database');
-    } catch (e) {
+    } catch (e, stack) {
       print('loadStudents error: $e');
+      print('Stack: $stack');
       
       // ✅ 5. On error, try to fallback to cache
       final cached = await CacheService.getCachedCategoryData('students');
       if (cached != null && cached.isNotEmpty) {
-        state = cached.map((e) => AppUser.fromMap(e)).toList();
+        state = cached.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          return AppUser.fromMap(map);
+        }).toList();
         print('📦 Loaded ${state.length} students from cache (fallback)');
       } else {
         state = [];
@@ -76,16 +124,20 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
         collection: 'users',
         filter: {'role': 'student'},
       );
-      state = data.map(AppUser.fromMap).toList();
       
-      // Update cache
+      // ✅ Convert ObjectIds before caching
+      final convertedData = data.map((e) => _convertObjectIds(Map<String, dynamic>.from(e))).toList();
+      
+      state = convertedData.map((e) => AppUser.fromMap(e)).toList();
+      
+      // Update cache with converted data
       await CacheService.cacheCategoryData(
         key: 'students',
-        data: data,
+        data: convertedData,
         durationMinutes: CacheService.CATEGORY_CACHE_DURATION,
       );
       
-      print('🔄 Background refresh: students updated');
+      print('🔄 Background refresh: ${state.length} students updated');
     } catch (e) {
       print('Background refresh failed: $e');
       // Don't throw - this is a background operation
@@ -104,8 +156,12 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
     required String code,
     required String fullName,
     required String email,
-    String? password, // Optional, defaults to code if not provided
+    String? password,
   }) async {
+    if (NetworkService().isOffline) {
+      throw Exception('Không thể tạo sinh viên khi offline');
+    }
+    
     try {
       await DatabaseService.connect();
 
@@ -151,17 +207,43 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
         filter: {'_id': insertedId},
       );
       if (insertedUser != null) {
-        final newUser = AppUser.fromMap(insertedUser);
+        final convertedUser = _convertObjectIds(Map<String, dynamic>.from(insertedUser));
+        final newUser = AppUser.fromMap(convertedUser);
         state = [...state, newUser];
       }
       
-      // ✅ Clear cache after creating
-      await CacheService.clearCache('students');
+      // ✅ Update cache
+      await _updateCache();
       
       print('✅ Created student: $insertedId');
     } catch (e) {
       print('createStudent error: $e');
       rethrow;
+    }
+  }
+
+  // ✅ NEW: Update cache from current state
+  Future<void> _updateCache() async {
+    try {
+      final cacheData = state.map((s) => <String, dynamic>{
+        '_id': s.id,
+        'code': s.code,
+        'email': s.email,
+        'full_name': s.fullName,
+        'role': s.role.name,
+        'created_at': s.createdAt?.toIso8601String(),
+        'updated_at': s.updatedAt?.toIso8601String(),
+      }).toList();
+      
+      await CacheService.cacheCategoryData(
+        key: 'students',
+        data: cacheData,
+        durationMinutes: CacheService.CATEGORY_CACHE_DURATION,
+      );
+      
+      print('📦 Student cache updated: ${state.length} students');
+    } catch (e) {
+      print('⚠️ Failed to update student cache: $e');
     }
   }
 
@@ -279,6 +361,10 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
   Future<Map<String, dynamic>> importStudentsFromCsvPreview(
     List<CsvPreviewItem> previewItems,
   ) async {
+    if (NetworkService().isOffline) {
+      throw Exception('Không thể import khi offline');
+    }
+    
     final List<AppUser> created = [];
     final List<String> errors = [];
     final List<String> skipped = [];
@@ -339,7 +425,8 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
           filter: {'_id': insertedId},
         );
         if (insertedUser != null) {
-          final user = AppUser.fromMap(insertedUser);
+          final convertedUser = _convertObjectIds(Map<String, dynamic>.from(insertedUser));
+          final user = AppUser.fromMap(convertedUser);
           created.add(user);
         }
       } catch (e) {
@@ -347,10 +434,9 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
       }
     }
 
-    // ✅ Clear cache before reloading
+    // ✅ Clear cache and reload
     await CacheService.clearCache('students');
-    
-    await loadStudents(); // Refresh full list
+    await loadStudents();
     
     print('✅ Imported ${created.length} students from CSV');
     
@@ -364,6 +450,10 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
 
   // ────── LEGACY: IMPORT FROM CSV (for backward compatibility) ──────
   Future<List<AppUser>> importStudentsFromCsv(String csvContent) async {
+    if (NetworkService().isOffline) {
+      throw Exception('Không thể import khi offline');
+    }
+    
     if (csvContent.trim().isEmpty) return [];
 
     final rows = const CsvToListConverter().convert(csvContent);
@@ -422,7 +512,8 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
           filter: {'_id': insertedId},
         );
         if (insertedUser != null) {
-          final user = AppUser.fromMap(insertedUser);
+          final convertedUser = _convertObjectIds(Map<String, dynamic>.from(insertedUser));
+          final user = AppUser.fromMap(convertedUser);
           created.add(user);
         }
       } catch (e) {
@@ -430,20 +521,37 @@ class StudentNotifier extends StateNotifier<List<AppUser>> {
       }
     }
 
-    // ✅ Clear cache before reloading
+    // ✅ Clear cache and reload
     await CacheService.clearCache('students');
-    
-    await loadStudents(); // Refresh full list
+    await loadStudents();
     
     print('✅ Legacy CSV import: ${created.length} students');
     
     return created;
   }
 
-  // ✅ Add method to force refresh from database
+  // ✅ Force refresh from database
   Future<void> refresh() async {
-    // Clear cache first to force fresh fetch
     await CacheService.clearCache('students');
     await loadStudents();
+  }
+
+  // ✅ Get student by ID
+  AppUser? getStudentById(String id) {
+    try {
+      return state.firstWhere((s) => s.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ✅ Get students by IDs
+  List<AppUser> getStudentsByIds(List<String> ids) {
+    return state.where((s) => ids.contains(s.id)).toList();
+  }
+
+  // ✅ Clear state
+  void clearState() {
+    state = [];
   }
 }

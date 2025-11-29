@@ -1,4 +1,4 @@
-// screens/student/tabs/student_quiz_take.dart
+// screens/student/student_quiz_take.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,18 +21,41 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
   Timer? _timer;
   int _remainingSeconds = 0;
   bool _isSubmitting = false;
+  bool _isLoadingQuestions = true; // ✅ NEW
 
   @override
   void initState() {
     super.initState();
     _remainingSeconds = widget.quiz.durationMinutes * 60;
-    _startTimer();
+    _loadQuestionsAndStartTimer(); // ✅ NEW
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  // ✅ NEW: Load questions first, then start timer
+  Future<void> _loadQuestionsAndStartTimer() async {
+    try {
+      // Get the courseId from the quiz
+      final courseId = widget.quiz.courseId;
+      
+      // Load questions for this course
+      await ref.read(questionProvider.notifier).loadQuestions(courseId: courseId);
+      
+      print('✅ Loaded questions for quiz: ${widget.quiz.title}');
+      
+      // Start timer after questions are loaded
+      _startTimer();
+    } catch (e) {
+      print('❌ Error loading questions: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingQuestions = false);
+      }
+    }
   }
 
   void _startTimer() {
@@ -60,14 +83,36 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Show loading indicator while loading questions
+    if (_isLoadingQuestions) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.quiz.title),
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Đang tải câu hỏi...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     final allQuestions = ref.watch(questionProvider);
     
-    // ✅ FIX: Handle null values properly
+    // ✅ IMPROVED: Better error handling for missing questions
     final questions = widget.quiz.questionIds
         .map((id) {
           try {
             return allQuestions.firstWhere((q) => q.id == id);
           } catch (e) {
+            print('⚠️ Question not found: $id');
             return null;
           }
         })
@@ -75,13 +120,65 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
         .cast<Question>()
         .toList();
 
+    // ✅ IMPROVED: More detailed error message
     if (questions.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quiz')),
-        body: const Center(
-          child: Text('Không tìm thấy câu hỏi'),
+        appBar: AppBar(
+          title: Text(widget.quiz.title),
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'Không tìm thấy câu hỏi',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Quiz có ${widget.quiz.questionIds.length} câu hỏi nhưng không tìm thấy trong hệ thống',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Quay lại'),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () async {
+                  setState(() => _isLoadingQuestions = true);
+                  await _loadQuestionsAndStartTimer();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Thử lại'),
+              ),
+            ],
+          ),
         ),
       );
+    }
+
+    // ✅ IMPROVED: Show warning if some questions are missing
+    if (questions.length < widget.quiz.questionIds.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '⚠️ Chỉ tìm thấy ${questions.length}/${widget.quiz.questionIds.length} câu hỏi',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      });
     }
 
     final minutes = _remainingSeconds ~/ 60;
@@ -112,64 +209,41 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(widget.quiz.title),
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
           actions: [
-            // Timer
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: _remainingSeconds < 300 ? Colors.red : Colors.blue,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.timer, color: Colors.white, size: 20),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: Text(
+                  '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
+                ),
               ),
             ),
           ],
         ),
         body: Column(
           children: [
-            // Progress
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Theme.of(context).colorScheme.surface,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: _answers.length / questions.length,
-                      backgroundColor: Colors.grey[300],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${_answers.length}/${questions.length}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
+            // Progress Bar
+            LinearProgressIndicator(
+              value: _answers.length / questions.length,
+              backgroundColor: Colors.grey[300],
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
             ),
-
-            // Questions
+            
+            // Questions List
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: questions.length,
                 itemBuilder: (context, index) {
                   final question = questions[index];
-                  final selectedAnswer = _answers[index];
-
+                  final questionNumber = index + 1;
+                  
                   return Card(
                     margin: const EdgeInsets.only(bottom: 16),
                     child: Padding(
@@ -177,38 +251,21 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'Câu ${index + 1}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  question.questionText,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          // Question Text
+                          Text(
+                            'Câu $questionNumber: ${question.questionText}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 16),
-                          ...List.generate(question.choices.length, (choiceIndex) {
-                            final isSelected = selectedAnswer == choiceIndex;
+                          
+                          // Choices
+                          ...question.choices.asMap().entries.map((entry) {
+                            final choiceIndex = entry.key;
+                            final choiceText = entry.value;
+                            final isSelected = _answers[index] == choiceIndex;
                             
                             return InkWell(
                               onTap: () {
@@ -221,40 +278,28 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? Colors.blue.withOpacity(0.2)
-                                      : Colors.grey.withOpacity(0.1),
+                                      ? Colors.blue.withOpacity(0.1)
+                                      : Colors.transparent,
                                   border: Border.all(
                                     color: isSelected ? Colors.blue : Colors.grey[300]!,
-                                    width: 2,
+                                    width: isSelected ? 2 : 1,
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
                                   children: [
-                                    Container(
-                                      width: 24,
-                                      height: 24,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: isSelected ? Colors.blue : Colors.transparent,
-                                        border: Border.all(
-                                          color: isSelected ? Colors.blue : Colors.grey,
-                                          width: 2,
-                                        ),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: isSelected
-                                          ? const Icon(Icons.check, color: Colors.white, size: 16)
-                                          : null,
+                                    Radio<int>(
+                                      value: choiceIndex,
+                                      groupValue: _answers[index],
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _answers[index] = value!;
+                                        });
+                                      },
                                     ),
-                                    const SizedBox(width: 12),
+                                    const SizedBox(width: 8),
                                     Expanded(
-                                      child: Text(
-                                        '${String.fromCharCode(65 + choiceIndex)}. ${question.choices[choiceIndex]}',
-                                        style: TextStyle(
-                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                        ),
-                                      ),
+                                      child: Text(choiceText),
                                     ),
                                   ],
                                 ),
@@ -268,12 +313,12 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                 },
               ),
             ),
-
+            
             // Submit Button
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
+                color: Colors.white,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
@@ -282,22 +327,59 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                   ),
                 ],
               ),
-              child: ElevatedButton(
-                onPressed: _answers.length == questions.length && !_isSubmitting
-                    ? _submitQuiz
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        'Nộp bài (${_answers.length}/${questions.length})',
+              child: Column(
+                children: [
+                  Text(
+                    'Đã trả lời: ${_answers.length}/${questions.length}',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () {
+                              if (_answers.length < questions.length) {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Chưa hoàn thành'),
+                                    content: Text(
+                                      'Bạn chỉ trả lời ${_answers.length}/${questions.length} câu hỏi. Bạn có chắc muốn nộp bài?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: const Text('Hủy'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.pop(ctx);
+                                          _submitQuiz();
+                                        },
+                                        child: const Text('Nộp bài'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else {
+                                _submitQuiz();
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Nộp bài'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -307,38 +389,13 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
   }
 
   Future<void> _submitQuiz() async {
-    final user = ref.read(authProvider);
-    if (user == null) return;
-
-    // Confirm submission
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nộp bài?'),
-        content: Text('Bạn đã trả lời ${_answers.length}/${widget.quiz.questionIds.length} câu hỏi.\nXác nhận nộp bài?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Nộp bài'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
     setState(() => _isSubmitting = true);
 
     try {
-      _timer?.cancel();
+      final user = ref.read(authProvider);
+      if (user == null) return;
 
       final allQuestions = ref.read(questionProvider);
-      
-      // ✅ FIX: Handle null values properly
       final questions = widget.quiz.questionIds
           .map((id) {
             try {

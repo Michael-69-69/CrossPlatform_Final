@@ -10,7 +10,12 @@ import 'semester_provider.dart';
 import 'course_provider.dart';
 import 'student_provider.dart';
 import 'group_provider.dart';
+import 'assignment_provider.dart';
+import 'announcement_provider.dart';
+import 'quiz_provider.dart';
+import 'material_provider.dart';
 import 'message_provider.dart';
+import 'forum_provider.dart';
 import 'in_app_notification_provider.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AppUser?>((ref) {
@@ -21,11 +26,13 @@ class AuthNotifier extends StateNotifier<AppUser?> {
   final Ref ref;
   
   AuthNotifier(this.ref) : super(null) {
-    // ✅ Load saved session when provider is created
     _loadSavedSession();
   }
 
-  // ✅ Load saved session from cache
+  // ══════════════════════════════════════════════
+  // SESSION MANAGEMENT
+  // ══════════════════════════════════════════════
+
   Future<void> _loadSavedSession() async {
     try {
       final cached = await CacheService.getCachedCategoryData('auth_session');
@@ -34,8 +41,7 @@ class AuthNotifier extends StateNotifier<AppUser?> {
         state = AppUser.fromMap(userMap);
         print('✅ Restored user session: ${state?.fullName}');
         
-        // Load all data after restoring session
-        await _loadAllData();
+        await _loadAllData(skipCacheClear: true);
       }
     } catch (e) {
       print('⚠️ Failed to restore session: $e');
@@ -43,7 +49,6 @@ class AuthNotifier extends StateNotifier<AppUser?> {
     }
   }
 
-  // ✅ Save session to cache
   Future<void> _saveSession(AppUser user) async {
     try {
       final userMap = {
@@ -52,9 +57,14 @@ class AuthNotifier extends StateNotifier<AppUser?> {
         'email': user.email,
         'role': user.role.name,
         if (user.avatarUrl != null) 'avatar_url': user.avatarUrl,
+        if (user.avatarBase64 != null) 'avatar_base64': user.avatarBase64,
         'created_at': user.createdAt.toIso8601String(),
         'updated_at': user.updatedAt.toIso8601String(),
         if (user.code != null) 'code': user.code,
+        if (user.phone != null) 'phone': user.phone,
+        if (user.dateOfBirth != null) 'date_of_birth': user.dateOfBirth!.toIso8601String(),
+        if (user.address != null) 'address': user.address,
+        if (user.bio != null) 'bio': user.bio,
       };
       
       await CacheService.cacheCategoryData(
@@ -69,7 +79,6 @@ class AuthNotifier extends StateNotifier<AppUser?> {
     }
   }
 
-  // ✅ Clear session from cache
   Future<void> _clearSession() async {
     try {
       await CacheService.clearCache('auth_session');
@@ -78,6 +87,10 @@ class AuthNotifier extends StateNotifier<AppUser?> {
       print('⚠️ Failed to clear session: $e');
     }
   }
+
+  // ══════════════════════════════════════════════
+  // PASSWORD UTILITIES
+  // ══════════════════════════════════════════════
 
   String _hashPassword(String password) {
     final bytes = utf8.encode(password);
@@ -89,8 +102,11 @@ class AuthNotifier extends StateNotifier<AppUser?> {
     return _hashPassword(password) == hash;
   }
 
-  /// ✅ ENHANCED: Load ALL data after successful login
-  Future<void> _loadAllData() async {
+  // ══════════════════════════════════════════════
+  // DATA LOADING
+  // ══════════════════════════════════════════════
+
+  Future<void> _loadAllData({bool skipCacheClear = false}) async {
     if (state == null) return;
     
     try {
@@ -98,32 +114,86 @@ class AuthNotifier extends StateNotifier<AppUser?> {
       
       final user = state!;
       final isInstructor = user.role == UserRole.instructor;
+
+      if (!skipCacheClear && NetworkService().isOnline) {
+        print('🗑️ Clearing all cache for fresh data...');
+        await CacheService.clearAllCache();
+        await _saveSession(user);
+        print('✅ Cache cleared, fetching fresh data from server');
+      }
       
-      // ✅ 1. Load core shared data first (parallel)
+      // 1. Load core shared data
       await Future.wait([
         ref.read(semesterProvider.notifier).loadSemesters(),
         ref.read(courseProvider.notifier).loadCourses(),
         ref.read(groupProvider.notifier).loadGroups(),
-        // Only instructors need full student list
         if (isInstructor) ref.read(studentProvider.notifier).loadStudents(),
       ]);
       
       print('✅ Core data loaded (semesters, courses, groups)');
       
-      // ✅ 2. Load user-specific data (conversations, notifications)
+      // 2. Load user-specific data
       await Future.wait([
         ref.read(conversationProvider.notifier).loadConversations(user.id, isInstructor),
         ref.read(inAppNotificationProvider.notifier).loadNotifications(user.id),
       ]);
       
       print('✅ User-specific data loaded (conversations, notifications)');
+
+      // 3. Load messages for all conversations
+      final conversations = ref.read(conversationProvider);
+      if (conversations.isNotEmpty) {
+        print('💬 Loading messages for ${conversations.length} conversations...');
+        
+        for (final conversation in conversations) {
+          try {
+            await ref.read(messageProvider.notifier).loadMessages(conversation.id);
+          } catch (e) {
+            print('⚠️ Failed to load messages for conversation ${conversation.id}: $e');
+          }
+        }
+        
+        print('✅ Messages loaded for all conversations');
+      }
+
+      // 4. Load course-specific data
+      final courses = ref.read(courseProvider);
+      if (courses.isNotEmpty) {
+        print('📚 Loading data for ${courses.length} courses...');
+        
+        for (final course in courses) {
+          await Future.wait([
+            ref.read(assignmentProvider.notifier).loadAssignments(course.id),
+            ref.read(announcementProvider.notifier).loadAnnouncements(course.id),
+            ref.read(quizProvider.notifier).loadQuizzes(courseId: course.id),
+            ref.read(questionProvider.notifier).loadQuestions(courseId: course.id),
+            ref.read(materialProvider.notifier).loadMaterials(courseId: course.id),
+            ref.read(forumTopicProvider.notifier).loadTopics(course.id),
+          ]);
+        }
+        
+        print('✅ Course-specific data loaded for ${courses.length} courses');
+      }
+
+      // 5. Load quiz submissions
+      await ref.read(quizSubmissionProvider.notifier).loadSubmissions(
+        studentId: isInstructor ? null : user.id,
+      );
+      print('✅ Quiz submissions loaded');
+
+      // 6. Load material views
+      await ref.read(materialViewProvider.notifier).loadViews();
+      print('✅ Material views loaded');
       
       print('✅ All data loaded successfully for ${user.fullName}');
     } catch (e) {
       print('⚠️ Error loading data: $e');
-      // Don't throw - allow login to proceed even if some data fails to load
     }
   }
+
+  // ══════════════════════════════════════════════
+  // AUTHENTICATION
+  // ══════════════════════════════════════════════
 
   Future<void> login({
     required String email,
@@ -139,13 +209,11 @@ class AuthNotifier extends StateNotifier<AppUser?> {
         throw Exception("Sai email hoặc mật khẩu");
       }
 
-      // Check password
       final storedPassword = userMap['password_hash'] ?? userMap['password'];
       if (storedPassword == null) {
         throw Exception("Sai email hoặc mật khẩu");
       }
 
-      // Verify password (hash or plain text for backward compatibility)
       final bool passwordValid = storedPassword.toString().length == 64
           ? _verifyPassword(password, storedPassword.toString())
           : password == storedPassword.toString();
@@ -154,17 +222,14 @@ class AuthNotifier extends StateNotifier<AppUser?> {
         throw Exception("Sai email hoặc mật khẩu");
       }
 
-      // Create user object
       final user = AppUser.fromMap(userMap);
       state = user;
 
-      // ✅ Save session to cache
       await _saveSession(user);
 
       print('✅ Login successful: ${user.fullName} (${user.role.name})');
 
-      // ✅ Load all data
-      await _loadAllData();
+      await _loadAllData(skipCacheClear: false);
     } catch (e) {
       print('❌ Login error: $e');
       rethrow;
@@ -182,7 +247,6 @@ class AuthNotifier extends StateNotifier<AppUser?> {
       await DatabaseService.connect();
       await DatabaseService.ensureCollectionExists('users');
 
-      // Check if email already exists
       final existingUser = await DatabaseService.findOne(
         collection: 'users',
         filter: {'email': email},
@@ -219,13 +283,11 @@ class AuthNotifier extends StateNotifier<AppUser?> {
         final user = AppUser.fromMap(insertedUser);
         state = user;
 
-        // ✅ Save session to cache
         await _saveSession(user);
 
         print('✅ Registration successful: ${user.fullName}');
 
-        // ✅ Load all data
-        await _loadAllData();
+        await _loadAllData(skipCacheClear: false);
       } else {
         throw Exception("Không thể tìm thấy người dùng sau khi tạo");
       }
@@ -237,9 +299,7 @@ class AuthNotifier extends StateNotifier<AppUser?> {
 
   Future<void> logout() async {
     try {
-      // ✅ Clear session from cache
       await _clearSession();
-      
       state = null;
       print('✅ Logout successful');
     } catch (e) {
@@ -248,20 +308,173 @@ class AuthNotifier extends StateNotifier<AppUser?> {
     }
   }
 
-  // ✅ Manual refresh all data (pull to refresh)
-  Future<void> refreshAllData() async {
-    await _loadAllData();
+  // ══════════════════════════════════════════════
+  // ✅ NEW: PROFILE UPDATE METHODS
+  // ══════════════════════════════════════════════
+
+  /// Update user profile (editable fields only)
+  /// This method handles null-safe updates for existing users
+  Future<void> updateProfile({
+    String? phone,
+    DateTime? dateOfBirth,
+    String? address,
+    String? bio,
+    String? avatarBase64,
+    // Flags to explicitly clear fields
+    bool clearPhone = false,
+    bool clearDateOfBirth = false,
+    bool clearAddress = false,
+    bool clearBio = false,
+    bool clearAvatar = false,
+  }) async {
+    if (state == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+
+    // ✅ Check network connectivity
+    if (NetworkService().isOffline) {
+      throw Exception('Không có kết nối mạng. Vui lòng thử lại sau.');
+    }
+
+    try {
+      final now = DateTime.now();
+      final updates = <String, dynamic>{
+        'updated_at': now.toIso8601String(),
+      };
+
+      // ✅ Handle each field - support both update and clear
+      if (clearPhone) {
+        updates['phone'] = null;
+      } else if (phone != null) {
+        updates['phone'] = phone;
+      }
+
+      if (clearDateOfBirth) {
+        updates['date_of_birth'] = null;
+      } else if (dateOfBirth != null) {
+        updates['date_of_birth'] = dateOfBirth.toIso8601String();
+      }
+
+      if (clearAddress) {
+        updates['address'] = null;
+      } else if (address != null) {
+        updates['address'] = address;
+      }
+
+      if (clearBio) {
+        updates['bio'] = null;
+      } else if (bio != null) {
+        updates['bio'] = bio;
+      }
+
+      if (clearAvatar) {
+        updates['avatar_base64'] = null;
+      } else if (avatarBase64 != null) {
+        updates['avatar_base64'] = avatarBase64;
+      }
+
+      // ✅ Update database
+      await DatabaseService.updateOne(
+        collection: 'users',
+        id: state!.id,
+        update: updates,
+      );
+
+      // ✅ Update local state with copyWith
+      state = state!.copyWith(
+        phone: clearPhone ? null : (phone ?? state!.phone),
+        dateOfBirth: clearDateOfBirth ? null : (dateOfBirth ?? state!.dateOfBirth),
+        address: clearAddress ? null : (address ?? state!.address),
+        bio: clearBio ? null : (bio ?? state!.bio),
+        avatarBase64: clearAvatar ? null : (avatarBase64 ?? state!.avatarBase64),
+        updatedAt: now,
+        clearPhone: clearPhone,
+        clearDateOfBirth: clearDateOfBirth,
+        clearAddress: clearAddress,
+        clearBio: clearBio,
+        clearAvatarBase64: clearAvatar,
+      );
+
+      // ✅ Update cached session
+      await _saveSession(state!);
+
+      print('✅ Profile updated successfully');
+    } catch (e) {
+      print('❌ Error updating profile: $e');
+      rethrow;
+    }
   }
 
-  // ✅ Check if user is logged in
+  /// Change user password
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (state == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+
+    if (NetworkService().isOffline) {
+      throw Exception('Không có kết nối mạng. Vui lòng thử lại sau.');
+    }
+
+    try {
+      // ✅ Fetch fresh user data to verify current password
+      final userMap = await DatabaseService.findOne(
+        collection: 'users',
+        filter: {'_id': state!.id},
+      );
+
+      if (userMap == null) {
+        throw Exception('Không tìm thấy người dùng');
+      }
+
+      final storedHash = userMap['password_hash'] ?? userMap['password'];
+      
+      // ✅ Verify current password
+      bool passwordValid;
+      if (storedHash.toString().length == 64) {
+        // Hashed password
+        passwordValid = _verifyPassword(currentPassword, storedHash.toString());
+      } else {
+        // Plain text (legacy)
+        passwordValid = currentPassword == storedHash.toString();
+      }
+
+      if (!passwordValid) {
+        print('❌ Current password incorrect');
+        return false;
+      }
+
+      // ✅ Hash and update new password
+      final newHash = _hashPassword(newPassword);
+      await DatabaseService.updateOne(
+        collection: 'users',
+        id: state!.id,
+        update: {
+          'password_hash': newHash,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      );
+
+      print('✅ Password changed successfully');
+      return true;
+    } catch (e) {
+      print('❌ Error changing password: $e');
+      rethrow;
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  // UTILITY METHODS
+  // ══════════════════════════════════════════════
+
+  Future<void> refreshAllData() async {
+    await _loadAllData(skipCacheClear: false);
+  }
+
   bool get isLoggedIn => state != null;
-
-  // ✅ Get current user
   AppUser? get currentUser => state;
-
-  // ✅ Check if user is instructor
   bool get isInstructor => state?.role == UserRole.instructor;
-
-  // ✅ Check if user is student
   bool get isStudent => state?.role == UserRole.student;
 }

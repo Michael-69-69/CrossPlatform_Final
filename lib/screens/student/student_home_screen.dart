@@ -1,4 +1,5 @@
 // screens/student/student_home_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -85,6 +86,47 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     await ref.read(quizSubmissionProvider.notifier).loadSubmissions();
     
     print('✅ Loaded dashboard data for ${enrolledCourseIds.length} courses');
+  }
+
+  // ✅ NEW: Build user avatar widget
+  Widget _buildUserAvatar(dynamic user) {
+    if (user == null) {
+      return const Icon(Icons.account_circle);
+    }
+
+    // Check for base64 avatar first
+    if (user.avatarBase64 != null && user.avatarBase64!.isNotEmpty) {
+      try {
+        return CircleAvatar(
+          radius: 14,
+          backgroundImage: MemoryImage(base64Decode(user.avatarBase64!)),
+        );
+      } catch (e) {
+        print('Error decoding avatar: $e');
+      }
+    }
+
+    // Check for URL avatar
+    if (user.avatarUrl != null && user.avatarUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 14,
+        backgroundImage: NetworkImage(user.avatarUrl!),
+      );
+    }
+
+    // Fallback: Show initial letter
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: Colors.blue[100],
+      child: Text(
+        user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.blue[800],
+        ),
+      ),
+    );
   }
 
   @override
@@ -206,18 +248,22 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                       ),
                   ],
                 ),
-                // Profile
-                IconButton(
-                  icon: const Icon(Icons.account_circle),
-                  onPressed: () => context.push('/student/profile'),
+                // ✅ UPDATED: Profile button with actual avatar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: IconButton(
+                    icon: _buildUserAvatar(user),
+                    onPressed: () => context.push('/student/profile'),
+                    tooltip: 'Hồ sơ cá nhân',
+                  ),
                 ),
                 // Logout
                 IconButton(
                   icon: const Icon(Icons.logout),
                   onPressed: () {
-                    ref.read(authProvider.notifier).logout();
-                    context.go('/');
+                    _showLogoutConfirmDialog(context, ref);
                   },
+                  tooltip: 'Đăng xuất',
                 ),
               ],
             )
@@ -272,6 +318,41 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     );
   }
 
+  // ✅ NEW: Logout confirmation dialog
+  void _showLogoutConfirmDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Đăng xuất'),
+          ],
+        ),
+        content: const Text('Bạn có chắc muốn đăng xuất?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(authProvider.notifier).logout();
+              context.go('/');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHomeTab(
     List<Semester> semesters,
     Semester selectedSemester,
@@ -301,15 +382,14 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                     return DropdownMenuItem(
                       value: s.id,
                       child: Row(
-                        mainAxisSize: MainAxisSize.min, // ✅ FIX: Prevent overflow
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Flexible( // ✅ FIX: Wrap text in Flexible
+                          Flexible(
                             child: Text(
                               '${s.code}: ${s.name}',
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          // ✅ UPDATED: Show green badge for active semester
                           if (s.isActive) ...[
                             const SizedBox(width: 6),
                             Container(
@@ -339,7 +419,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           ),
         ),
         
-        // ✅ UPDATED: Warning for non-active semesters
+        // Warning for non-active semesters
         if (isPastSemester)
           Container(
             padding: const EdgeInsets.all(12),
@@ -503,7 +583,7 @@ class _CourseCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // ✅ UPDATED: Show "Cũ" badge for non-active semesters
+                  // Show "Cũ" badge for non-active semesters
                   if (isPastSemester)
                     Positioned(
                       top: 8,
@@ -563,7 +643,7 @@ class _CourseCard extends StatelessWidget {
                       children: [
                         const Icon(Icons.group, size: 14, color: Colors.grey),
                         const SizedBox(width: 4),
-                        Expanded( // ✅ FIX: Wrap in Expanded
+                        Expanded(
                           child: Text(
                             groupName,
                             style: const TextStyle(fontSize: 11, color: Colors.grey),

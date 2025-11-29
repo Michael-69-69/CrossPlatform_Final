@@ -5,6 +5,7 @@ import '../../models/course.dart';
 import '../../models/semester.dart';
 import '../../providers/group_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../services/network_service.dart';
 import 'tabs/student_stream_tab.dart';
 import 'tabs/student_classwork_tab.dart';
 import 'tabs/student_people_tab.dart';
@@ -32,6 +33,7 @@ class _StudentCourseDetailScreenState
     with SingleTickerProviderStateMixin {
   
   late TabController _tabController;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -39,9 +41,26 @@ class _StudentCourseDetailScreenState
     _tabController = TabController(length: 4, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(groupProvider.notifier).loadGroups();
-      ref.read(studentProvider.notifier).loadStudents();
+      _loadData();
     });
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      // Load both groups and students
+      await Future.wait([
+        ref.read(groupProvider.notifier).loadGroups(),
+        ref.read(studentProvider.notifier).loadStudents(),
+      ]);
+    } catch (e) {
+      print('Error loading data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -52,20 +71,56 @@ class _StudentCourseDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final groups = ref
-        .watch(groupProvider)
-        .where((g) => g.courseId == widget.course.id)
-        .toList();
-
+    // ✅ Watch providers for real-time updates
+    final allGroups = ref.watch(groupProvider);
     final allStudents = ref.watch(studentProvider);
+    
+    // ✅ Filter groups for this course
+    final groups = allGroups.where((g) => g.courseId == widget.course.id).toList();
 
+    // ✅ Get all student IDs from groups
     final studentIds = groups.expand((g) => g.studentIds).toSet();
-    final students =
-        allStudents.where((s) => studentIds.contains(s.id)).toList();
+    
+    // ✅ Filter students that belong to these groups
+    final students = allStudents.where((s) => studentIds.contains(s.id)).toList();
+
+    // ✅ Debug logging
+    print('═══════════════════════════════════════');
+    print('📱 StudentCourseDetailScreen Build');
+    print('🌐 Network: ${NetworkService().isOnline ? "ONLINE" : "OFFLINE"}');
+    print('📚 Course: ${widget.course.name}');
+    print('👥 Groups in course: ${groups.length}');
+    for (var g in groups) {
+      print('   - ${g.name}: ${g.studentIds.length} studentIds');
+    }
+    print('🎓 Total studentIds: ${studentIds.length}');
+    print('👤 Matched students: ${students.length}');
+    print('📦 All students in provider: ${allStudents.length}');
+    print('═══════════════════════════════════════');
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.course.name),
+        actions: [
+          // ✅ Show offline indicator
+          if (NetworkService().isOffline)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: Chip(
+                avatar: Icon(Icons.cloud_off, size: 16, color: Colors.white),
+                label: Text('Offline', style: TextStyle(color: Colors.white, fontSize: 12)),
+                backgroundColor: Colors.orange,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          // ✅ Refresh button
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: 'Làm mới dữ liệu',
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -76,112 +131,136 @@ class _StudentCourseDetailScreenState
           ],
         ),
       ),
-      body: Column(
-        children: [
-          // Course info header
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Theme.of(context).colorScheme.surface,
-            child: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.school, color: Colors.indigo),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Row(
+                // Course info header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Theme.of(context).colorScheme.surface,
+                  child: Column(
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            widget.semester.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                          const Icon(Icons.school, color: Colors.indigo),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Text(
+                                  widget.semester.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (widget.semester.isActive) ...[
+                                  const SizedBox(width: 8),
+                                  const Chip(
+                                    label: Text(
+                                      'Đang hoạt động',
+                                      style: TextStyle(fontSize: 9, color: Colors.white),
+                                    ),
+                                    backgroundColor: Colors.green,
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          // ✅ ADD: Show active badge
-                          if (widget.semester.isActive) ...[
-                            const SizedBox(width: 8),
-                            const Chip(
-                              label: Text(
-                                'Đang hoạt động',
-                                style: TextStyle(fontSize: 9, color: Colors.white),
-                              ),
-                              backgroundColor: Colors.green,
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
+                          Text('${widget.course.sessions} buổi'),
                         ],
                       ),
-                    ),
-                    Text('${widget.course.sessions} buổi'),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.person, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text('GV: ${widget.course.instructorName}'),
-                    ),
-                    Text('${students.length} học sinh'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // ✅ UPDATED: Warning for non-active semesters
-          if (widget.isPastSemester)
-            Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.orange.withOpacity(0.1),
-              child: Row(
-                children: [
-                  const Icon(Icons.lock, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Học kỳ cũ - Chỉ xem và tải tài liệu, không thể nộp bài hoặc làm quiz',
-                      style: TextStyle(
-                        color: Colors.orange[800],
-                        fontSize: 12,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.person, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text('GV: ${widget.course.instructorName}'),
+                          ),
+                          // ✅ Show student count from groups (works offline)
+                          Text('${studentIds.length} học sinh'),
+                        ],
                       ),
+                      // ✅ Show offline warning if students not loaded
+                      if (NetworkService().isOffline && students.isEmpty && studentIds.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.orange[700], size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Chi tiết học sinh chưa được cache. Kết nối mạng để xem.',
+                                  style: TextStyle(color: Colors.orange[700], fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                // Warning for non-active semesters
+                if (widget.isPastSemester)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    color: Colors.orange[100],
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.orange[800]),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Đây là học kỳ đã kết thúc. Bạn chỉ có thể xem nội dung.',
+                            style: TextStyle(color: Colors.orange[800]),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
 
-          // Tab content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                StudentStreamTab(
-                  courseId: widget.course.id,
-                  groups: groups,
-                  isPastSemester: widget.isPastSemester,
-                ),
-                StudentClassworkTab(
-                  courseId: widget.course.id,
-                  courseName: widget.course.name,
-                  isPastSemester: widget.isPastSemester,
-                ),
-                StudentPeopleTab(
-                  groups: groups,
-                  students: students,
-                ),
-                ForumListWidget(
-                  courseId: widget.course.id,
-                  courseName: widget.course.name,
-                  isInstructor: false,
+                // Tab content
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      StudentStreamTab(
+                        courseId: widget.course.id,
+                        groups: groups,
+                        isPastSemester: widget.isPastSemester,
+                      ),
+                      // ✅ FIXED: StudentClassworkTab doesn't take groups parameter
+                      StudentClassworkTab(
+                        courseId: widget.course.id,
+                        courseName: widget.course.name,
+                        isPastSemester: widget.isPastSemester,
+                      ),
+                      // ✅ Pass groups with studentIds count for offline display
+                      StudentPeopleTab(
+                        groups: groups,
+                        students: students,
+                      ),
+                      ForumListWidget(
+                        courseId: widget.course.id,
+                        courseName: widget.course.name,
+                        isInstructor: false,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

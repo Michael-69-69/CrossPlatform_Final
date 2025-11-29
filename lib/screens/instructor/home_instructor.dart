@@ -14,11 +14,13 @@ import '../../models/user.dart';
 import '../shared/inbox_screen.dart';
 import 'csv_preview_screen.dart';
 import 'test_screen.dart';
-import 'cache_management_screen.dart'; // ✅ ADD THIS
+import 'cache_management_screen.dart';
+import 'instructor_dashboard_widget.dart'; // ✅ Import the dashboard widget
 
 class HomeInstructor extends ConsumerStatefulWidget {
   const HomeInstructor({super.key});
-  @override ConsumerState<HomeInstructor> createState() => _HomeInstructorState();
+  @override
+  ConsumerState<HomeInstructor> createState() => _HomeInstructorState();
 }
 
 class _HomeInstructorState extends ConsumerState<HomeInstructor>
@@ -27,15 +29,15 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   bool _isLoading = false;
   late TabController _tabController;
   int _currentBottomNavIndex = 0;
-  
-  // ✅ Secret test button tracking
+
+  // Secret test button tracking
   int _secretTapCount = 0;
   DateTime? _lastTapTime;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this); // ✅ 3 tabs now
     _refreshData();
   }
 
@@ -46,9 +48,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   }
 
   Future<void> _refreshData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       await Future.wait([
@@ -58,7 +58,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
         ref.read(groupProvider.notifier).loadGroups(),
         _loadConversations(),
       ]);
-      
+
       print('✅ All data refreshed');
       print('  - Semesters: ${ref.read(semesterProvider).length}');
       print('  - Courses: ${ref.read(courseProvider).length}');
@@ -81,29 +81,24 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     }
   }
 
-  // ✅ UPDATED: Handle secret code - now supports "tester" and "cache"
   void _handleSecretCode(BuildContext dialogContext, String code) {
     Navigator.pop(dialogContext);
-    
+
     switch (code.toLowerCase().trim()) {
       case 'tester':
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const TestScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const TestScreen()),
         );
         break;
-        
+
       case 'cache':
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const CacheManagementScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const CacheManagementScreen()),
         );
         break;
-        
+
       default:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -114,10 +109,9 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     }
   }
 
-  // ✅ UPDATED: Secret dialog now shows hint for both codes
   void _showSecretDialog() {
     final codeController = TextEditingController();
-    
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -157,9 +151,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
           ),
           ElevatedButton(
             onPressed: () => _handleSecretCode(ctx, codeController.text),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
             child: const Text('Enter'),
           ),
         ],
@@ -177,7 +169,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
 
     final filteredCourses = _selectedSemesterId == null
         ? courses.where((c) => c.instructorId == user.id).toList()
-        : courses.where((c) => c.instructorId == user.id && c.semesterId == _selectedSemesterId).toList();
+        : courses
+            .where((c) =>
+                c.instructorId == user.id && c.semesterId == _selectedSemesterId)
+            .toList();
 
     final unreadCount = conversations.fold<int>(
       0,
@@ -200,7 +195,8 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                   tooltip: 'Test Dashboard',
                   onPressed: () {
                     final now = DateTime.now();
-                    if (_lastTapTime != null && now.difference(_lastTapTime!).inSeconds > 2) {
+                    if (_lastTapTime != null &&
+                        now.difference(_lastTapTime!).inSeconds > 2) {
                       _secretTapCount = 0;
                     }
                     _lastTapTime = now;
@@ -224,9 +220,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                   children: [
                     IconButton(
                       icon: const Icon(Icons.message),
-                      onPressed: () {
-                        setState(() => _currentBottomNavIndex = 1);
-                      },
+                      onPressed: () => setState(() => _currentBottomNavIndex = 1),
                     ),
                     if (unreadCount > 0)
                       Positioned(
@@ -267,9 +261,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
           : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentBottomNavIndex,
-        onTap: (index) {
-          setState(() => _currentBottomNavIndex = index);
-        },
+        onTap: (index) => setState(() => _currentBottomNavIndex = index),
         items: [
           const BottomNavigationBarItem(
             icon: Icon(Icons.home),
@@ -322,191 +314,18 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   ) {
     return Column(
       children: [
+        // Semester Selector
         Container(
           color: Theme.of(context).colorScheme.surface,
           padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              // ✅ FIXED: Semester Row with Active Button
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedSemesterId,
-                      decoration: InputDecoration(
-                        labelText: 'Chọn học kỳ',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.school),
-                        // ✅ Show checkmark if active
-                        suffixIcon: _selectedSemesterId != null &&
-                                semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
-                            ? const Icon(Icons.check_circle, color: Colors.green)
-                            : null,
-                      ),
-                      items: [
-                        const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
-                        ...semesters.map((s) => DropdownMenuItem(
-                              value: s.id,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min, // ✅ FIX: Prevent overflow
-                                children: [
-                                  Flexible( // ✅ FIX: Wrap text in Flexible
-                                    child: Text(
-                                      '${s.code}: ${s.name}',
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  // ✅ Active badge
-                                  if (s.isActive) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Text(
-                                        'ACTIVE',
-                                        style: TextStyle(
-                                          fontSize: 8,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            )),
-                      ],
-                      onChanged: (v) => setState(() => _selectedSemesterId = v),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // ✅ Set Active Button
-                  Tooltip(
-                    message: 'Kích hoạt học kỳ',
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.play_arrow, size: 16),
-                      label: const Text('Kích hoạt', style: TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      onPressed: _selectedSemesterId != null &&
-                              !semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
-                          ? () async {
-                              final selectedSemester = semesters.firstWhere(
-                                (s) => s.id == _selectedSemesterId,
-                              );
-
-                              final confirm = await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  title: const Text('Kích hoạt học kỳ'),
-                                  content: Text(
-                                    'Đặt "${selectedSemester.name}" làm học kỳ hiện tại?\n\n'
-                                    '• Sinh viên chỉ có thể nộp bài/làm quiz trong học kỳ này\n'
-                                    '• Các học kỳ khác sẽ chuyển sang chế độ chỉ xem',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx, false),
-                                      child: const Text('Hủy'),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green,
-                                      ),
-                                      onPressed: () => Navigator.pop(ctx, true),
-                                      child: const Text('Kích hoạt'),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (confirm == true && _selectedSemesterId != null) {
-                                try {
-                                  await ref.read(semesterProvider.notifier).setActiveSemester(_selectedSemesterId!);
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('✅ Đã kích hoạt: ${selectedSemester.name}'),
-                                        backgroundColor: Colors.green,
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('❌ Lỗi: $e'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                }
-                              }
-                            }
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Add semester button
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: Colors.green),
-                    tooltip: 'Thêm học kỳ',
-                    onPressed: () => context.push('/instructor/semester/create'),
-                  ),
-                  // Delete semester button (only if selected and not active)
-                  if (_selectedSemesterId != null &&
-                      !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      tooltip: 'Xóa học kỳ',
-                      onPressed: () async {
-                        final semesterToDelete = semesters.firstWhere(
-                          (s) => s.id == _selectedSemesterId,
-                        );
-
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Xóa học kỳ'),
-                            content: Text('Xóa "${semesterToDelete.name}"?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Hủy'),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Xóa'),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (confirm == true) {
-                          await ref.read(semesterProvider.notifier).deleteSemester(_selectedSemesterId!);
-                          setState(() => _selectedSemesterId = null);
-                        }
-                      },
-                    ),
-                ],
-              ),
-            ],
-          ),
+          child: _buildSemesterSelector(semesters),
         ),
 
+        // ✅ 3 Tabs: Tổng quan (Dashboard), Môn học, Sinh viên
         TabBar(
           controller: _tabController,
           tabs: const [
+            Tab(icon: Icon(Icons.dashboard), text: 'Tổng quan'),
             Tab(icon: Icon(Icons.book), text: 'Môn học'),
             Tab(icon: Icon(Icons.people), text: 'Sinh viên'),
           ],
@@ -517,6 +336,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
               : TabBarView(
                   controller: _tabController,
                   children: [
+                    // ✅ USE THE SEPARATE DASHBOARD WIDGET
+                    InstructorDashboardWidget(
+                      semesterId: _selectedSemesterId,
+                    ),
                     _buildCoursesTab(filteredCourses, semesters, user),
                     _buildStudentsTab(students),
                   ],
@@ -526,7 +349,184 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
-  Widget _buildCoursesTab(List<Course> courses, List<Semester> semesters, AppUser user) {
+  Widget _buildSemesterSelector(List<Semester> semesters) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: DropdownButtonFormField<String>(
+            value: _selectedSemesterId,
+            decoration: InputDecoration(
+              labelText: 'Chọn học kỳ',
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.school),
+              suffixIcon: _selectedSemesterId != null &&
+                      semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
+                  ? const Icon(Icons.check_circle, color: Colors.green)
+                  : null,
+            ),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
+              ...semesters.map((s) => DropdownMenuItem(
+                    value: s.id,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '${s.code}: ${s.name}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (s.isActive) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'ACTIVE',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  )),
+            ],
+            onChanged: (v) => setState(() => _selectedSemesterId = v),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Activate Button
+        Tooltip(
+          message: 'Kích hoạt học kỳ',
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.play_arrow, size: 16),
+            label: const Text('Kích hoạt', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            ),
+            onPressed: _selectedSemesterId != null &&
+                    !semesters.any((s) => s.id == _selectedSemesterId && s.isActive)
+                ? () => _activateSemester(semesters)
+                : null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Add semester button
+        IconButton(
+          icon: const Icon(Icons.add_circle, color: Colors.green),
+          tooltip: 'Thêm học kỳ',
+          onPressed: () => context.push('/instructor/semester/create'),
+        ),
+        // Delete semester button
+        if (_selectedSemesterId != null &&
+            !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            tooltip: 'Xóa học kỳ',
+            onPressed: () => _deleteSemester(semesters),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _activateSemester(List<Semester> semesters) async {
+    final selectedSemester =
+        semesters.firstWhere((s) => s.id == _selectedSemesterId);
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kích hoạt học kỳ'),
+        content: Text(
+          'Đặt "${selectedSemester.name}" làm học kỳ hiện tại?\n\n'
+          '• Sinh viên chỉ có thể nộp bài/làm quiz trong học kỳ này\n'
+          '• Các học kỳ khác sẽ chuyển sang chế độ chỉ xem',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Kích hoạt'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && _selectedSemesterId != null) {
+      try {
+        await ref
+            .read(semesterProvider.notifier)
+            .setActiveSemester(_selectedSemesterId!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Đã kích hoạt: ${selectedSemester.name}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('❌ Lỗi: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteSemester(List<Semester> semesters) async {
+    final semesterToDelete =
+        semesters.firstWhere((s) => s.id == _selectedSemesterId);
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa học kỳ'),
+        content: Text('Xóa "${semesterToDelete.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await ref
+          .read(semesterProvider.notifier)
+          .deleteSemester(_selectedSemesterId!);
+      setState(() => _selectedSemesterId = null);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COURSES TAB
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildCoursesTab(
+      List<Course> courses, List<Semester> semesters, AppUser user) {
     return RefreshIndicator(
       onRefresh: _refreshData,
       child: courses.isEmpty
@@ -541,7 +541,8 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text('Thêm môn học'),
-                    onPressed: () => _showCreateCourseDialog(context, semesters, user),
+                    onPressed: () =>
+                        _showCreateCourseDialog(context, semesters, user),
                   ),
                 ],
               ),
@@ -553,9 +554,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                 final course = courses[i];
                 final semester = semesters.firstWhere(
                   (s) => s.id == course.semesterId,
-                  orElse: () => Semester(id: '', code: 'N/A', name: 'Không xác định'),
+                  orElse: () =>
+                      Semester(id: '', code: 'N/A', name: 'Không xác định'),
                 );
-                
+
                 return Card(
                   child: ListTile(
                     leading: const Icon(Icons.book, color: Colors.green),
@@ -568,11 +570,11 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        // ✅ Show if course is in active semester
                         if (semester.isActive) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.green,
                               borderRadius: BorderRadius.circular(8),
@@ -591,25 +593,20 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                     ),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () async {
-                      print('🔄 Loading groups for course: ${course.name}');
-                      
                       final currentGroups = ref.read(groupProvider);
                       if (currentGroups.isEmpty) {
-                        print('⚠️ Group provider empty, loading...');
                         await ref.read(groupProvider.notifier).loadGroups();
                       }
-                      
+
                       final allGroups = ref.read(groupProvider);
-                      final groups = allGroups.where((g) => g.courseId == course.id).toList();
-                      
-                      print('✅ Found ${groups.length} groups for course ${course.id}');
-                      
+                      final groups =
+                          allGroups.where((g) => g.courseId == course.id).toList();
+
                       final allStudents = ref.read(studentProvider);
-                      final courseStudents = allStudents.where((s) {
-                        return groups.any((g) => g.studentIds.contains(s.id));
-                      }).toList();
-                      
-                      print('✅ Found ${courseStudents.length} students in these groups');
+                      final courseStudents = allStudents
+                          .where(
+                              (s) => groups.any((g) => g.studentIds.contains(s.id)))
+                          .toList();
 
                       if (mounted) {
                         context.push(
@@ -630,6 +627,9 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STUDENTS TAB
+  // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildStudentsTab(List<AppUser> students) {
     return Column(
       children: [
@@ -654,11 +654,14 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                   itemBuilder: (context, i) {
                     final s = students[i];
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      margin:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       child: ListTile(
                         leading: CircleAvatar(
                           child: Text(
-                            s.code != null && s.code!.isNotEmpty ? s.code![0] : '?',
+                            s.code != null && s.code!.isNotEmpty
+                                ? s.code![0]
+                                : '?',
                           ),
                         ),
                         title: Text(s.fullName),
@@ -667,7 +670,9 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                           icon: const Icon(Icons.message),
                           onPressed: () async {
                             final user = ref.read(authProvider)!;
-                            await ref.read(conversationProvider.notifier).getOrCreateConversation(
+                            await ref
+                                .read(conversationProvider.notifier)
+                                .getOrCreateConversation(
                                   instructorId: user.id,
                                   instructorName: user.fullName,
                                   studentId: s.id,
@@ -688,7 +693,11 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
-  void _showCreateCourseDialog(BuildContext context, List<Semester> semesters, AppUser user) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DIALOGS
+  // ═══════════════════════════════════════════════════════════════════════════
+  void _showCreateCourseDialog(
+      BuildContext context, List<Semester> semesters, AppUser user) {
     final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
     final sessionsCtrl = TextEditingController(text: '10');
@@ -713,7 +722,8 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                       hintText: 'VD: WEB101',
                       prefixIcon: Icon(Icons.code),
                     ),
-                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                    validator: (v) =>
+                        v?.trim().isEmpty == true ? 'Bắt buộc' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -723,7 +733,8 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                       hintText: 'VD: Lập trình Web',
                       prefixIcon: Icon(Icons.book),
                     ),
-                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                    validator: (v) =>
+                        v?.trim().isEmpty == true ? 'Bắt buộc' : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -749,9 +760,13 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                       prefixIcon: Icon(Icons.school),
                     ),
                     items: semesters.isEmpty
-                        ? [const DropdownMenuItem(value: null, child: Text('Chưa có học kỳ'))]
+                        ? [
+                            const DropdownMenuItem(
+                                value: null, child: Text('Chưa có học kỳ'))
+                          ]
                         : [
-                            const DropdownMenuItem(value: null, child: Text('Chọn học kỳ')),
+                            const DropdownMenuItem(
+                                value: null, child: Text('Chọn học kỳ')),
                             ...semesters.map((s) => DropdownMenuItem(
                                   value: s.id,
                                   child: Text('${s.code}: ${s.name}'),
@@ -792,7 +807,9 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                       );
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Đã thêm môn học: ${nameCtrl.text.trim()}')),
+                    SnackBar(
+                        content:
+                            Text('Đã thêm môn học: ${nameCtrl.text.trim()}')),
                   );
                   await _refreshData();
                 } catch (e) {
@@ -860,8 +877,30 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     final quickBaseCodeCtrl = TextEditingController(text: '2023001');
     final quickFormKey = GlobalKey<FormState>();
 
-    final firstNames = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Vũ', 'Đặng', 'Bùi', 'Đỗ'];
-    final lastNames = ['An', 'Bình', 'Cường', 'Dũng', 'Hà', 'Khoa', 'Lan', 'Minh', 'Nam', 'Oanh'];
+    final firstNames = [
+      'Nguyễn',
+      'Trần',
+      'Lê',
+      'Phạm',
+      'Hoàng',
+      'Huỳnh',
+      'Vũ',
+      'Đặng',
+      'Bùi',
+      'Đỗ'
+    ];
+    final lastNames = [
+      'An',
+      'Bình',
+      'Cường',
+      'Dũng',
+      'Hà',
+      'Khoa',
+      'Lan',
+      'Minh',
+      'Nam',
+      'Oanh'
+    ];
 
     showDialog(
       context: context,
@@ -871,7 +910,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
           child: Builder(
             builder: (tabContext) {
               final tabController = DefaultTabController.of(tabContext);
-              
+
               return AlertDialog(
                 title: const Text('Thêm sinh viên'),
                 content: SizedBox(
@@ -890,6 +929,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                         height: 280,
                         child: TabBarView(
                           children: [
+                            // Manual Tab
                             Form(
                               key: formKey,
                               child: SingleChildScrollView(
@@ -904,7 +944,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                                         prefixIcon: Icon(Icons.badge),
                                         helperText: 'Mã sinh viên (bắt buộc)',
                                       ),
-                                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                                      validator: (v) =>
+                                          v?.trim().isEmpty == true
+                                              ? 'Bắt buộc'
+                                              : null,
                                     ),
                                     const SizedBox(height: 8),
                                     TextFormField(
@@ -915,7 +958,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                                         prefixIcon: Icon(Icons.person),
                                         helperText: 'Tên đầy đủ (bắt buộc)',
                                       ),
-                                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                                      validator: (v) =>
+                                          v?.trim().isEmpty == true
+                                              ? 'Bắt buộc'
+                                              : null,
                                     ),
                                     const SizedBox(height: 8),
                                     TextFormField(
@@ -924,12 +970,15 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                                         labelText: 'Email',
                                         hintText: 'VD: an@school.com',
                                         prefixIcon: Icon(Icons.email),
-                                        helperText: 'Email (tùy chọn, mặc định: mãSV@school.com)',
+                                        helperText: 'Email (tùy chọn)',
                                       ),
                                       keyboardType: TextInputType.emailAddress,
                                       validator: (v) {
-                                        if (v?.trim().isEmpty == true) return null;
-                                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!)) {
+                                        if (v?.trim().isEmpty == true)
+                                          return null;
+                                        if (!RegExp(
+                                                r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                            .hasMatch(v!)) {
                                           return 'Email không hợp lệ';
                                         }
                                         return null;
@@ -939,47 +988,58 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                                     const Divider(),
                                     const Text(
                                       'Thông tin tài khoản:',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12),
                                     ),
                                     const SizedBox(height: 4),
                                     const Text(
-                                      '• Mật khẩu mặc định: Mã SV\n• Vai trò: Sinh viên\n• Tài khoản sẽ được tạo tự động',
-                                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                                      '• Mật khẩu mặc định: Mã SV\n• Vai trò: Sinh viên',
+                                      style: TextStyle(
+                                          fontSize: 11, color: Colors.grey),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
+                            // Quick Create Tab
                             Form(
                               key: quickFormKey,
                               child: Column(
                                 children: [
                                   TextFormField(
                                     controller: quickBaseCodeCtrl,
-                                    decoration: const InputDecoration(labelText: 'Mã SV bắt đầu *'),
+                                    decoration: const InputDecoration(
+                                        labelText: 'Mã SV bắt đầu *'),
                                     keyboardType: TextInputType.number,
                                     validator: (v) {
-                                      if (v?.trim().isEmpty == true) return 'Bắt buộc';
-                                      if (int.tryParse(v!) == null) return 'Phải là số';
+                                      if (v?.trim().isEmpty == true)
+                                        return 'Bắt buộc';
+                                      if (int.tryParse(v!) == null)
+                                        return 'Phải là số';
                                       return null;
                                     },
                                   ),
                                   const SizedBox(height: 8),
                                   TextFormField(
                                     controller: quickCountCtrl,
-                                    decoration: const InputDecoration(labelText: 'Số lượng *'),
+                                    decoration: const InputDecoration(
+                                        labelText: 'Số lượng *'),
                                     keyboardType: TextInputType.number,
                                     validator: (v) {
-                                      if (v?.trim().isEmpty == true) return 'Bắt buộc';
+                                      if (v?.trim().isEmpty == true)
+                                        return 'Bắt buộc';
                                       final n = int.tryParse(v!);
-                                      if (n == null || n < 1 || n > 50) return '1-50';
+                                      if (n == null || n < 1 || n > 50)
+                                        return '1-50';
                                       return null;
                                     },
                                   ),
                                   const SizedBox(height: 12),
                                   const Text(
                                     'Tên & email sẽ được tạo tự động\nVD: Nguyễn An → an2023001@school.com',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey),
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
@@ -992,18 +1052,23 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                   ),
                 ),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Hủy')),
                   ElevatedButton(
                     onPressed: () async {
                       final tabIndex = tabController.index;
 
                       if (tabIndex == 0) {
+                        // Manual creation
                         if (!formKey.currentState!.validate()) return;
                         final code = codeCtrl.text.trim();
                         final name = nameCtrl.text.trim();
                         final email = emailCtrl.text.trim();
 
-                        final exists = ref.read(studentProvider).any((s) => s.code == code);
+                        final exists = ref
+                            .read(studentProvider)
+                            .any((s) => s.code == code);
                         if (exists) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Mã SV đã tồn tại')),
@@ -1013,44 +1078,59 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
 
                         try {
                           await ref.read(studentProvider.notifier).createStudent(
-                            code: code,
-                            fullName: name,
-                            email: email,
-                          );
-                          await ref.read(studentProvider.notifier).loadStudents();
+                                code: code,
+                                fullName: name,
+                                email: email,
+                              );
+                          await ref
+                              .read(studentProvider.notifier)
+                              .loadStudents();
                           Navigator.pop(ctx);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Đã thêm: $name (Mật khẩu: $code)')),
+                              SnackBar(
+                                  content: Text(
+                                      'Đã thêm: $name (Mật khẩu: $code)')),
                             );
                           }
                         } catch (e) {
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text('Lỗi: $e')));
                           }
                         }
                       } else {
+                        // Quick creation
                         if (!quickFormKey.currentState!.validate()) return;
-                        final baseCode = int.parse(quickBaseCodeCtrl.text.trim());
+                        final baseCode =
+                            int.parse(quickBaseCodeCtrl.text.trim());
                         final count = int.parse(quickCountCtrl.text.trim());
-                        final existingCodes = ref.read(studentProvider).map((s) => s.code).toSet();
+                        final existingCodes = ref
+                            .read(studentProvider)
+                            .map((s) => s.code)
+                            .toSet();
                         final created = <AppUser>[];
 
                         for (int i = 0; i < count; i++) {
                           final code = '${baseCode + i}';
                           if (existingCodes.contains(code)) continue;
 
-                          final first = firstNames[DateTime.now().millisecond % firstNames.length];
-                          final last = lastNames[(baseCode + i) % lastNames.length];
+                          final first = firstNames[
+                              DateTime.now().millisecond % firstNames.length];
+                          final last =
+                              lastNames[(baseCode + i) % lastNames.length];
                           final name = '$first $last';
-                          final email = '${last.toLowerCase()}$code@school.com';
+                          final email =
+                              '${last.toLowerCase()}$code@school.com';
 
                           try {
-                            await ref.read(studentProvider.notifier).createStudent(
-                              code: code,
-                              fullName: name,
-                              email: email,
-                            );
+                            await ref
+                                .read(studentProvider.notifier)
+                                .createStudent(
+                                  code: code,
+                                  fullName: name,
+                                  email: email,
+                                );
                             final now = DateTime.now();
                             created.add(AppUser(
                               id: '',
@@ -1070,7 +1150,9 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                         Navigator.pop(ctx);
                         if (mounted && created.isNotEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Đã tạo ${created.length} sinh viên mẫu (Mật khẩu = Mã SV)')),
+                            SnackBar(
+                                content: Text(
+                                    'Đã tạo ${created.length} sinh viên mẫu (Mật khẩu = Mã SV)')),
                           );
                         }
                       }
