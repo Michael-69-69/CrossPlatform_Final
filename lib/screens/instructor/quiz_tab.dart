@@ -1,6 +1,7 @@
 // screens/instructor/quiz_tab.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../main.dart'; // for localeProvider
 import '../../models/question.dart';
 import '../../models/quiz.dart';
 import '../../providers/quiz_provider.dart';
@@ -40,13 +41,15 @@ class _QuizTabState extends ConsumerState<QuizTab> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Column(
       children: [
         TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.question_answer), text: 'Ngân hàng câu hỏi'),
-            Tab(icon: Icon(Icons.quiz), text: 'Danh sách Quiz'),
+          tabs: [
+            Tab(icon: const Icon(Icons.question_answer), text: isVietnamese ? 'Ngân hàng câu hỏi' : 'Question Bank'),
+            Tab(icon: const Icon(Icons.quiz), text: isVietnamese ? 'Danh sách Quiz' : 'Quiz List'),
           ],
         ),
         Expanded(
@@ -82,6 +85,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final allQuestions = ref.watch(questionProvider)
         .where((q) => q.courseId == widget.courseId)
         .toList();
@@ -109,7 +113,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Thêm câu hỏi'),
+            label: Text(isVietnamese ? 'Thêm câu hỏi' : 'Add Question'),
             onPressed: () => _showAddQuestionDialog(context),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
@@ -126,7 +130,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                 flex: 2,
                 child: TextField(
                   decoration: InputDecoration(
-                    hintText: 'Tìm kiếm câu hỏi...',
+                    hintText: isVietnamese ? 'Tìm kiếm câu hỏi...' : 'Search questions...',
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -140,20 +144,20 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
               Expanded(
                 child: DropdownButtonFormField<QuestionDifficulty?>(
                   value: _filterDifficulty,
-                  decoration: const InputDecoration(
-                    labelText: 'Độ khó',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isVietnamese ? 'Độ khó' : 'Difficulty',
+                    border: const OutlineInputBorder(),
                     isDense: true,
                   ),
                   items: [
-                    const DropdownMenuItem(value: null, child: Text('Tất cả')),
+                    DropdownMenuItem(value: null, child: Text(isVietnamese ? 'Tất cả' : 'All')),
                     DropdownMenuItem(
                       value: QuestionDifficulty.easy,
                       child: Row(
                         children: [
                           _buildDifficultyDot(QuestionDifficulty.easy),
                           const SizedBox(width: 8),
-                          const Text('Dễ'),
+                          Text(isVietnamese ? 'Dễ' : 'Easy'),
                         ],
                       ),
                     ),
@@ -163,7 +167,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                         children: [
                           _buildDifficultyDot(QuestionDifficulty.medium),
                           const SizedBox(width: 8),
-                          const Text('Trung bình'),
+                          Text(isVietnamese ? 'Trung bình' : 'Medium'),
                         ],
                       ),
                     ),
@@ -173,7 +177,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                         children: [
                           _buildDifficultyDot(QuestionDifficulty.hard),
                           const SizedBox(width: 8),
-                          const Text('Khó'),
+                          Text(isVietnamese ? 'Khó' : 'Hard'),
                         ],
                       ),
                     ),
@@ -193,19 +197,19 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatChip('Tổng', allQuestions.length, Colors.blue),
+              _buildStatChip(isVietnamese ? 'Tổng' : 'Total', allQuestions.length, Colors.blue),
               _buildStatChip(
-                'Dễ',
+                isVietnamese ? 'Dễ' : 'Easy',
                 allQuestions.where((q) => q.difficulty == QuestionDifficulty.easy).length,
                 Colors.green,
               ),
               _buildStatChip(
-                'TB',
+                isVietnamese ? 'TB' : 'Med',
                 allQuestions.where((q) => q.difficulty == QuestionDifficulty.medium).length,
                 Colors.orange,
               ),
               _buildStatChip(
-                'Khó',
+                isVietnamese ? 'Khó' : 'Hard',
                 allQuestions.where((q) => q.difficulty == QuestionDifficulty.hard).length,
                 Colors.red,
               ),
@@ -226,8 +230,8 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                       const SizedBox(height: 16),
                       Text(
                         _searchQuery.isNotEmpty || _filterDifficulty != null
-                            ? 'Không tìm thấy câu hỏi'
-                            : 'Chưa có câu hỏi nào',
+                            ? (isVietnamese ? 'Không tìm thấy câu hỏi' : 'No questions found')
+                            : (isVietnamese ? 'Chưa có câu hỏi nào' : 'No questions yet'),
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     ],
@@ -288,6 +292,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
   }
 
   void _showAddQuestionDialog(BuildContext context) {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final questionCtrl = TextEditingController();
     final choiceCtrls = List.generate(4, (_) => TextEditingController());
     int correctIndex = 0;
@@ -298,7 +303,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Thêm câu hỏi'),
+          title: Text(isVietnamese ? 'Thêm câu hỏi' : 'Add Question'),
           content: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -308,15 +313,15 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                 children: [
                   TextFormField(
                     controller: questionCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Câu hỏi *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Câu hỏi *' : 'Question *',
+                      border: const OutlineInputBorder(),
                     ),
                     maxLines: 3,
-                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                    validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                   ),
                   const SizedBox(height: 16),
-                  const Text('Đáp án:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(isVietnamese ? 'Đáp án:' : 'Answers:', style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   ...List.generate(4, (i) {
                     return Padding(
@@ -332,10 +337,10 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                             child: TextFormField(
                               controller: choiceCtrls[i],
                               decoration: InputDecoration(
-                                labelText: 'Đáp án ${String.fromCharCode(65 + i)} *',
+                                labelText: isVietnamese ? 'Đáp án ${String.fromCharCode(65 + i)} *' : 'Answer ${String.fromCharCode(65 + i)} *',
                                 border: const OutlineInputBorder(),
                               ),
-                              validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                              validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                             ),
                           ),
                         ],
@@ -345,21 +350,21 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<QuestionDifficulty>(
                     value: difficulty,
-                    decoration: const InputDecoration(
-                      labelText: 'Độ khó *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Độ khó *' : 'Difficulty *',
+                      border: const OutlineInputBorder(),
                     ),
                     items: QuestionDifficulty.values.map((d) {
                       String label;
                       switch (d) {
                         case QuestionDifficulty.easy:
-                          label = 'Dễ';
+                          label = isVietnamese ? 'Dễ' : 'Easy';
                           break;
                         case QuestionDifficulty.medium:
-                          label = 'Trung bình';
+                          label = isVietnamese ? 'Trung bình' : 'Medium';
                           break;
                         case QuestionDifficulty.hard:
-                          label = 'Khó';
+                          label = isVietnamese ? 'Khó' : 'Hard';
                           break;
                       }
                       return DropdownMenuItem(
@@ -382,7 +387,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Hủy'),
+              child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -398,18 +403,18 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                   Navigator.pop(ctx);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Đã thêm câu hỏi')),
+                      SnackBar(content: Text(isVietnamese ? 'Đã thêm câu hỏi' : 'Question added')),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e')),
+                      SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                     );
                   }
                 }
               },
-              child: const Text('Thêm'),
+              child: Text(isVietnamese ? 'Thêm' : 'Add'),
             ),
           ],
         ),
@@ -418,6 +423,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
   }
 
   void _showEditQuestionDialog(BuildContext context, Question question) {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final questionCtrl = TextEditingController(text: question.questionText);
     final choiceCtrls = question.choices.map((c) => TextEditingController(text: c)).toList();
     int correctIndex = question.correctAnswerIndex;
@@ -428,7 +434,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Sửa câu hỏi'),
+          title: Text(isVietnamese ? 'Sửa câu hỏi' : 'Edit Question'),
           content: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -438,15 +444,15 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                 children: [
                   TextFormField(
                     controller: questionCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Câu hỏi *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Câu hỏi *' : 'Question *',
+                      border: const OutlineInputBorder(),
                     ),
                     maxLines: 3,
-                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                    validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                   ),
                   const SizedBox(height: 16),
-                  const Text('Đáp án:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(isVietnamese ? 'Đáp án:' : 'Answers:', style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   ...List.generate(choiceCtrls.length, (i) {
                     return Padding(
@@ -462,10 +468,10 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                             child: TextFormField(
                               controller: choiceCtrls[i],
                               decoration: InputDecoration(
-                                labelText: 'Đáp án ${String.fromCharCode(65 + i)} *',
+                                labelText: isVietnamese ? 'Đáp án ${String.fromCharCode(65 + i)} *' : 'Answer ${String.fromCharCode(65 + i)} *',
                                 border: const OutlineInputBorder(),
                               ),
-                              validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                              validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                             ),
                           ),
                         ],
@@ -475,21 +481,21 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<QuestionDifficulty>(
                     value: difficulty,
-                    decoration: const InputDecoration(
-                      labelText: 'Độ khó *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Độ khó *' : 'Difficulty *',
+                      border: const OutlineInputBorder(),
                     ),
                     items: QuestionDifficulty.values.map((d) {
                       String label;
                       switch (d) {
                         case QuestionDifficulty.easy:
-                          label = 'Dễ';
+                          label = isVietnamese ? 'Dễ' : 'Easy';
                           break;
                         case QuestionDifficulty.medium:
-                          label = 'Trung bình';
+                          label = isVietnamese ? 'Trung bình' : 'Medium';
                           break;
                         case QuestionDifficulty.hard:
-                          label = 'Khó';
+                          label = isVietnamese ? 'Khó' : 'Hard';
                           break;
                       }
                       return DropdownMenuItem(
@@ -512,7 +518,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Hủy'),
+              child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -524,23 +530,23 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
                     correctAnswerIndex: correctIndex,
                     difficulty: difficulty,
                   );
-                  
+
                   await ref.read(questionProvider.notifier).updateQuestion(updatedQuestion);
                   Navigator.pop(ctx);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Đã cập nhật câu hỏi')),
+                      SnackBar(content: Text(isVietnamese ? 'Đã cập nhật câu hỏi' : 'Question updated')),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e')),
+                      SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                     );
                   }
                 }
               },
-              child: const Text('Lưu'),
+              child: Text(isVietnamese ? 'Lưu' : 'Save'),
             ),
           ],
         ),
@@ -549,20 +555,21 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
   }
 
   Future<void> _deleteQuestion(String questionId) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa câu hỏi?'),
-        content: const Text('Bạn có chắc muốn xóa câu hỏi này?'),
+        title: Text(isVietnamese ? 'Xóa câu hỏi?' : 'Delete Question?'),
+        content: Text(isVietnamese ? 'Bạn có chắc muốn xóa câu hỏi này?' : 'Are you sure you want to delete this question?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -573,13 +580,13 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
         await ref.read(questionProvider.notifier).deleteQuestion(questionId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa câu hỏi')),
+            SnackBar(content: Text(isVietnamese ? 'Đã xóa câu hỏi' : 'Question deleted')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e')),
+            SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
           );
         }
       }
@@ -588,7 +595,7 @@ class _QuestionBankTabState extends ConsumerState<_QuestionBankTab> {
 }
 
 // Question Card Widget
-class _QuestionCard extends StatelessWidget {
+class _QuestionCard extends ConsumerWidget {
   final Question question;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -600,21 +607,22 @@ class _QuestionCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     Color difficultyColor;
     String difficultyLabel;
     switch (question.difficulty) {
       case QuestionDifficulty.easy:
         difficultyColor = Colors.green;
-        difficultyLabel = 'Dễ';
+        difficultyLabel = isVietnamese ? 'Dễ' : 'Easy';
         break;
       case QuestionDifficulty.medium:
         difficultyColor = Colors.orange;
-        difficultyLabel = 'Trung bình';
+        difficultyLabel = isVietnamese ? 'Trung bình' : 'Medium';
         break;
       case QuestionDifficulty.hard:
         difficultyColor = Colors.red;
-        difficultyLabel = 'Khó';
+        difficultyLabel = isVietnamese ? 'Khó' : 'Hard';
         break;
     }
 
@@ -654,9 +662,9 @@ class _QuestionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Đáp án:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  isVietnamese ? 'Đáp án:' : 'Answers:',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 ...List.generate(question.choices.length, (index) {
@@ -726,6 +734,7 @@ class _QuizListTab extends ConsumerStatefulWidget {
 class _QuizListTabState extends ConsumerState<_QuizListTab> {
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final quizzes = ref.watch(quizProvider)
         .where((q) => q.courseId == widget.courseId)
         .toList();
@@ -740,7 +749,7 @@ class _QuizListTabState extends ConsumerState<_QuizListTab> {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Tạo Quiz'),
+            label: Text(isVietnamese ? 'Tạo Quiz' : 'Create Quiz'),
             onPressed: questions.isEmpty
                 ? null
                 : () => _showCreateQuizDialog(context, questions),
@@ -753,7 +762,7 @@ class _QuizListTabState extends ConsumerState<_QuizListTab> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Vui lòng thêm câu hỏi vào ngân hàng trước',
+              isVietnamese ? 'Vui lòng thêm câu hỏi vào ngân hàng trước' : 'Please add questions to the bank first',
               style: TextStyle(color: Colors.grey[600]),
             ),
           ),
@@ -766,7 +775,7 @@ class _QuizListTabState extends ConsumerState<_QuizListTab> {
                       Icon(Icons.quiz, size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
-                        'Chưa có quiz nào',
+                        isVietnamese ? 'Chưa có quiz nào' : 'No quizzes yet',
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     ],
@@ -789,21 +798,22 @@ class _QuizListTabState extends ConsumerState<_QuizListTab> {
   }
 
 void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
+  final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
   final titleCtrl = TextEditingController();
   final descCtrl = TextEditingController();
   final maxAttemptsCtrl = TextEditingController(text: '1');
   final durationCtrl = TextEditingController(text: '60');
-  
+
   // Automatic mode controllers
   final easyCountCtrl = TextEditingController();
   final mediumCountCtrl = TextEditingController();
   final hardCountCtrl = TextEditingController();
-  
+
   DateTime openTime = DateTime.now();
   DateTime closeTime = DateTime.now().add(const Duration(days: 7));
   final selectedQuestionIds = <String>{};
   final formKey = GlobalKey<FormState>();
-  
+
   // Selection mode: 'manual' or 'auto'
   String selectionMode = 'manual';
 
@@ -817,7 +827,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
         final hardQuestions = questions.where((q) => q.difficulty == QuestionDifficulty.hard).toList();
 
         return AlertDialog(
-          title: const Text('Tạo Quiz'),
+          title: Text(isVietnamese ? 'Tạo Quiz' : 'Create Quiz'),
           content: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -827,18 +837,18 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                 children: [
                   TextFormField(
                     controller: titleCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Tiêu đề *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Tiêu đề *' : 'Title *',
+                      border: const OutlineInputBorder(),
                     ),
-                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                    validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: descCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Mô tả',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Mô tả' : 'Description',
+                      border: const OutlineInputBorder(),
                     ),
                     maxLines: 3,
                   ),
@@ -848,14 +858,14 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                       Expanded(
                         child: TextFormField(
                           controller: maxAttemptsCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Số lần làm *',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: isVietnamese ? 'Số lần làm *' : 'Max Attempts *',
+                            border: const OutlineInputBorder(),
                           ),
                           keyboardType: TextInputType.number,
                           validator: (v) {
-                            if (v?.isEmpty == true) return 'Bắt buộc';
-                            if (int.tryParse(v!) == null) return 'Số không hợp lệ';
+                            if (v?.isEmpty == true) return isVietnamese ? 'Bắt buộc' : 'Required';
+                            if (int.tryParse(v!) == null) return isVietnamese ? 'Số không hợp lệ' : 'Invalid number';
                             return null;
                           },
                         ),
@@ -864,14 +874,14 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                       Expanded(
                         child: TextFormField(
                           controller: durationCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Thời gian (phút) *',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: isVietnamese ? 'Thời gian (phút) *' : 'Duration (min) *',
+                            border: const OutlineInputBorder(),
                           ),
                           keyboardType: TextInputType.number,
                           validator: (v) {
-                            if (v?.isEmpty == true) return 'Bắt buộc';
-                            if (int.tryParse(v!) == null) return 'Số không hợp lệ';
+                            if (v?.isEmpty == true) return isVietnamese ? 'Bắt buộc' : 'Required';
+                            if (int.tryParse(v!) == null) return isVietnamese ? 'Số không hợp lệ' : 'Invalid number';
                             return null;
                           },
                         ),
@@ -880,7 +890,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                   ),
                   const SizedBox(height: 16),
                   ListTile(
-                    title: const Text('Thời gian mở'),
+                    title: Text(isVietnamese ? 'Thời gian mở' : 'Open Time'),
                     subtitle: Text('${openTime.day}/${openTime.month}/${openTime.year} ${openTime.hour}:${openTime.minute.toString().padLeft(2, '0')}'),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: () async {
@@ -904,7 +914,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                     },
                   ),
                   ListTile(
-                    title: const Text('Thời gian đóng'),
+                    title: Text(isVietnamese ? 'Thời gian đóng' : 'Close Time'),
                     subtitle: Text('${closeTime.day}/${closeTime.month}/${closeTime.year} ${closeTime.hour}:${closeTime.minute.toString().padLeft(2, '0')}'),
                     trailing: const Icon(Icons.calendar_today),
                     onTap: () async {
@@ -929,24 +939,24 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                   ),
                   const SizedBox(height: 16),
                   const Divider(),
-                  
+
                   // ✅ NEW: Mode Selection
-                  const Text(
-                    'Chế độ chọn câu hỏi:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Text(
+                    isVietnamese ? 'Chế độ chọn câu hỏi:' : 'Question Selection Mode:',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   SegmentedButton<String>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: 'manual',
-                        label: Text('Chọn thủ công'),
-                        icon: Icon(Icons.touch_app),
+                        label: Text(isVietnamese ? 'Chọn thủ công' : 'Manual'),
+                        icon: const Icon(Icons.touch_app),
                       ),
                       ButtonSegment(
                         value: 'auto',
-                        label: Text('Tự động'),
-                        icon: Icon(Icons.auto_awesome),
+                        label: Text(isVietnamese ? 'Tự động' : 'Auto'),
+                        icon: const Icon(Icons.auto_awesome),
                       ),
                     ],
                     selected: {selectionMode},
@@ -968,9 +978,9 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Câu hỏi đã chọn:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        Text(
+                          isVietnamese ? 'Câu hỏi đã chọn:' : 'Selected Questions:',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         Text(
                           '${selectedQuestionIds.length}/${questions.length}',
@@ -981,7 +991,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.question_answer),
-                      label: const Text('Chọn câu hỏi'),
+                      label: Text(isVietnamese ? 'Chọn câu hỏi' : 'Select Questions'),
                       onPressed: () {
                         _showSelectQuestionsDialog(
                           context,
@@ -1047,7 +1057,9 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Hệ thống sẽ tự động chọn ngẫu nhiên câu hỏi theo số lượng bạn nhập',
+                                  isVietnamese
+                                    ? 'Hệ thống sẽ tự động chọn ngẫu nhiên câu hỏi theo số lượng bạn nhập'
+                                    : 'System will randomly select questions based on the quantity you enter',
                                   style: TextStyle(
                                     color: Colors.green[800],
                                     fontSize: 12,
@@ -1058,7 +1070,9 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            'Ngân hàng câu hỏi: ${easyQuestions.length} dễ, ${mediumQuestions.length} TB, ${hardQuestions.length} khó',
+                            isVietnamese
+                              ? 'Ngân hàng câu hỏi: ${easyQuestions.length} dễ, ${mediumQuestions.length} TB, ${hardQuestions.length} khó'
+                              : 'Question bank: ${easyQuestions.length} easy, ${mediumQuestions.length} med, ${hardQuestions.length} hard',
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -1071,18 +1085,18 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                           child: TextFormField(
                             controller: easyCountCtrl,
                             decoration: InputDecoration(
-                              labelText: 'Câu dễ',
+                              labelText: isVietnamese ? 'Câu dễ' : 'Easy',
                               border: const OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.circle, color: Colors.green, size: 16),
-                              helperText: 'Tối đa: ${easyQuestions.length}',
+                              prefixIcon: const Icon(Icons.circle, color: Colors.green, size: 16),
+                              helperText: '${isVietnamese ? 'Tối đa' : 'Max'}: ${easyQuestions.length}',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
                               if (v != null && v.isNotEmpty) {
                                 final num = int.tryParse(v);
-                                if (num == null) return 'Số không hợp lệ';
-                                if (num > easyQuestions.length) return 'Vượt quá ${easyQuestions.length}';
-                                if (num < 0) return 'Phải >= 0';
+                                if (num == null) return isVietnamese ? 'Số không hợp lệ' : 'Invalid';
+                                if (num > easyQuestions.length) return '${isVietnamese ? 'Vượt quá' : 'Max'} ${easyQuestions.length}';
+                                if (num < 0) return '>= 0';
                               }
                               return null;
                             },
@@ -1093,18 +1107,18 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                           child: TextFormField(
                             controller: mediumCountCtrl,
                             decoration: InputDecoration(
-                              labelText: 'Câu TB',
+                              labelText: isVietnamese ? 'Câu TB' : 'Medium',
                               border: const OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.circle, color: Colors.orange, size: 16),
-                              helperText: 'Tối đa: ${mediumQuestions.length}',
+                              prefixIcon: const Icon(Icons.circle, color: Colors.orange, size: 16),
+                              helperText: '${isVietnamese ? 'Tối đa' : 'Max'}: ${mediumQuestions.length}',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
                               if (v != null && v.isNotEmpty) {
                                 final num = int.tryParse(v);
-                                if (num == null) return 'Số không hợp lệ';
-                                if (num > mediumQuestions.length) return 'Vượt quá ${mediumQuestions.length}';
-                                if (num < 0) return 'Phải >= 0';
+                                if (num == null) return isVietnamese ? 'Số không hợp lệ' : 'Invalid';
+                                if (num > mediumQuestions.length) return '${isVietnamese ? 'Vượt quá' : 'Max'} ${mediumQuestions.length}';
+                                if (num < 0) return '>= 0';
                               }
                               return null;
                             },
@@ -1115,18 +1129,18 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                           child: TextFormField(
                             controller: hardCountCtrl,
                             decoration: InputDecoration(
-                              labelText: 'Câu khó',
+                              labelText: isVietnamese ? 'Câu khó' : 'Hard',
                               border: const OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.circle, color: Colors.red, size: 16),
-                              helperText: 'Tối đa: ${hardQuestions.length}',
+                              prefixIcon: const Icon(Icons.circle, color: Colors.red, size: 16),
+                              helperText: '${isVietnamese ? 'Tối đa' : 'Max'}: ${hardQuestions.length}',
                             ),
                             keyboardType: TextInputType.number,
                             validator: (v) {
                               if (v != null && v.isNotEmpty) {
                                 final num = int.tryParse(v);
-                                if (num == null) return 'Số không hợp lệ';
-                                if (num > hardQuestions.length) return 'Vượt quá ${hardQuestions.length}';
-                                if (num < 0) return 'Phải >= 0';
+                                if (num == null) return isVietnamese ? 'Số không hợp lệ' : 'Invalid';
+                                if (num > hardQuestions.length) return '${isVietnamese ? 'Vượt quá' : 'Max'} ${hardQuestions.length}';
+                                if (num < 0) return '>= 0';
                               }
                               return null;
                             },
@@ -1151,7 +1165,9 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                             const Icon(Icons.check_circle, color: Colors.blue, size: 16),
                             const SizedBox(width: 8),
                             Text(
-                              'Tổng: ${(int.tryParse(easyCountCtrl.text) ?? 0) + (int.tryParse(mediumCountCtrl.text) ?? 0) + (int.tryParse(hardCountCtrl.text) ?? 0)} câu hỏi',
+                              isVietnamese
+                                ? 'Tổng: ${(int.tryParse(easyCountCtrl.text) ?? 0) + (int.tryParse(mediumCountCtrl.text) ?? 0) + (int.tryParse(hardCountCtrl.text) ?? 0)} câu hỏi'
+                                : 'Total: ${(int.tryParse(easyCountCtrl.text) ?? 0) + (int.tryParse(mediumCountCtrl.text) ?? 0) + (int.tryParse(hardCountCtrl.text) ?? 0)} questions',
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -1166,7 +1182,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Hủy'),
+              child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1182,7 +1198,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                   // Manual mode: must have selected questions
                   if (selectedQuestionIds.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng chọn ít nhất 1 câu hỏi')),
+                      SnackBar(content: Text(isVietnamese ? 'Vui lòng chọn ít nhất 1 câu hỏi' : 'Please select at least 1 question')),
                     );
                     return;
                   }
@@ -1195,7 +1211,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
 
                   if (easy + medium + hard == 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng nhập số lượng câu hỏi')),
+                      SnackBar(content: Text(isVietnamese ? 'Vui lòng nhập số lượng câu hỏi' : 'Please enter question quantity')),
                     );
                     return;
                   }
@@ -1238,8 +1254,8 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                       SnackBar(
                         content: Text(
                           selectionMode == 'manual'
-                              ? 'Đã tạo quiz với ${finalQuestionIds.length} câu hỏi'
-                              : 'Đã tạo quiz tự động với ${finalQuestionIds.length} câu hỏi',
+                              ? (isVietnamese ? 'Đã tạo quiz với ${finalQuestionIds.length} câu hỏi' : 'Created quiz with ${finalQuestionIds.length} questions')
+                              : (isVietnamese ? 'Đã tạo quiz tự động với ${finalQuestionIds.length} câu hỏi' : 'Auto-created quiz with ${finalQuestionIds.length} questions'),
                         ),
                       ),
                     );
@@ -1247,12 +1263,12 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e')),
+                      SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                     );
                   }
                 }
               },
-              child: const Text('Tạo'),
+              child: Text(isVietnamese ? 'Tạo' : 'Create'),
             ),
           ],
         );
@@ -1267,6 +1283,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
     Set<String> currentSelected,
     Function(Set<String>) onConfirm,
   ) {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final selected = Set<String>.from(currentSelected);
     String searchQuery = '';
     QuestionDifficulty? filterDifficulty;
@@ -1291,7 +1308,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
           }
 
           return AlertDialog(
-            title: const Text('Chọn câu hỏi'),
+            title: Text(isVietnamese ? 'Chọn câu hỏi' : 'Select Questions'),
             content: SizedBox(
               width: double.maxFinite,
               height: 500,
@@ -1300,7 +1317,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                   // Search
                   TextField(
                     decoration: InputDecoration(
-                      hintText: 'Tìm kiếm...',
+                      hintText: isVietnamese ? 'Tìm kiếm...' : 'Search...',
                       prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -1313,16 +1330,16 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                   // Filter
                   DropdownButtonFormField<QuestionDifficulty?>(
                     value: filterDifficulty,
-                    decoration: const InputDecoration(
-                      labelText: 'Lọc theo độ khó',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Lọc theo độ khó' : 'Filter by difficulty',
+                      border: const OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: const [
-                      DropdownMenuItem(value: null, child: Text('Tất cả')),
-                      DropdownMenuItem(value: QuestionDifficulty.easy, child: Text('Dễ')),
-                      DropdownMenuItem(value: QuestionDifficulty.medium, child: Text('Trung bình')),
-                      DropdownMenuItem(value: QuestionDifficulty.hard, child: Text('Khó')),
+                    items: [
+                      DropdownMenuItem(value: null, child: Text(isVietnamese ? 'Tất cả' : 'All')),
+                      DropdownMenuItem(value: QuestionDifficulty.easy, child: Text(isVietnamese ? 'Dễ' : 'Easy')),
+                      DropdownMenuItem(value: QuestionDifficulty.medium, child: Text(isVietnamese ? 'Trung bình' : 'Medium')),
+                      DropdownMenuItem(value: QuestionDifficulty.hard, child: Text(isVietnamese ? 'Khó' : 'Hard')),
                     ],
                     onChanged: (value) => setDialogState(() => filterDifficulty = value),
                   ),
@@ -1331,7 +1348,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Đã chọn: ${selected.length}'),
+                      Text(isVietnamese ? 'Đã chọn: ${selected.length}' : 'Selected: ${selected.length}'),
                       TextButton(
                         onPressed: () {
                           setDialogState(() {
@@ -1344,8 +1361,8 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                         },
                         child: Text(
                           selected.length == filteredQuestions.length
-                              ? 'Bỏ chọn tất cả'
-                              : 'Chọn tất cả',
+                              ? (isVietnamese ? 'Bỏ chọn tất cả' : 'Deselect All')
+                              : (isVietnamese ? 'Chọn tất cả' : 'Select All'),
                         ),
                       ),
                     ],
@@ -1364,15 +1381,15 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
                         switch (q.difficulty) {
                           case QuestionDifficulty.easy:
                             difficultyColor = Colors.green;
-                            difficultyLabel = 'Dễ';
+                            difficultyLabel = isVietnamese ? 'Dễ' : 'Easy';
                             break;
                           case QuestionDifficulty.medium:
                             difficultyColor = Colors.orange;
-                            difficultyLabel = 'Trung bình';
+                            difficultyLabel = isVietnamese ? 'Trung bình' : 'Medium';
                             break;
                           case QuestionDifficulty.hard:
                             difficultyColor = Colors.red;
-                            difficultyLabel = 'Khó';
+                            difficultyLabel = isVietnamese ? 'Khó' : 'Hard';
                             break;
                         }
 
@@ -1412,14 +1429,14 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Hủy'),
+                child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
               ),
               ElevatedButton(
                 onPressed: () {
                   onConfirm(selected);
                   Navigator.pop(ctx);
                 },
-                child: Text('Xác nhận (${selected.length})'),
+                child: Text(isVietnamese ? 'Xác nhận (${selected.length})' : 'Confirm (${selected.length})'),
               ),
             ],
           );
@@ -1429,20 +1446,21 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
   }
 
   Future<void> _deleteQuiz(String quizId) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa quiz?'),
-        content: const Text('Bạn có chắc muốn xóa quiz này?'),
+        title: Text(isVietnamese ? 'Xóa quiz?' : 'Delete Quiz?'),
+        content: Text(isVietnamese ? 'Bạn có chắc muốn xóa quiz này?' : 'Are you sure you want to delete this quiz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -1453,13 +1471,13 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
         await ref.read(quizProvider.notifier).deleteQuiz(quizId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa quiz')),
+            SnackBar(content: Text(isVietnamese ? 'Đã xóa quiz' : 'Quiz deleted')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e')),
+            SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
           );
         }
       }
@@ -1468,7 +1486,7 @@ void _showCreateQuizDialog(BuildContext context, List<Question> questions) {
 }
 
 // Quiz Card Widget
-class _QuizCard extends StatelessWidget {
+class _QuizCard extends ConsumerWidget {
   final Quiz quiz;
   final VoidCallback onDelete;
 
@@ -1478,7 +1496,8 @@ class _QuizCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final now = DateTime.now();
     final isOpen = now.isAfter(quiz.openTime) && now.isBefore(quiz.closeTime);
     final isClosed = now.isAfter(quiz.closeTime);
@@ -1487,13 +1506,13 @@ class _QuizCard extends StatelessWidget {
     String statusText;
     if (isClosed) {
       statusColor = Colors.red;
-      statusText = 'Đã đóng';
+      statusText = isVietnamese ? 'Đã đóng' : 'Closed';
     } else if (isOpen) {
       statusColor = Colors.green;
-      statusText = 'Đang mở';
+      statusText = isVietnamese ? 'Đang mở' : 'Open';
     } else {
       statusColor = Colors.orange;
-      statusText = 'Sắp mở';
+      statusText = isVietnamese ? 'Sắp mở' : 'Coming Soon';
     }
 
     return Card(
@@ -1537,9 +1556,9 @@ class _QuizCard extends StatelessWidget {
               spacing: 16,
               runSpacing: 8,
               children: [
-                _buildInfoChip(Icons.question_answer, '${quiz.questionIds.length} câu hỏi'),
-                _buildInfoChip(Icons.timer, '${quiz.durationMinutes} phút'),
-                _buildInfoChip(Icons.repeat, '${quiz.maxAttempts} lần làm'),
+                _buildInfoChip(Icons.question_answer, '${quiz.questionIds.length} ${isVietnamese ? 'câu hỏi' : 'questions'}'),
+                _buildInfoChip(Icons.timer, '${quiz.durationMinutes} ${isVietnamese ? 'phút' : 'min'}'),
+                _buildInfoChip(Icons.repeat, '${quiz.maxAttempts} ${isVietnamese ? 'lần làm' : 'attempts'}'),
               ],
             ),
             const SizedBox(height: 8),
@@ -1548,14 +1567,14 @@ class _QuizCard extends StatelessWidget {
                 Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(
-                  'Mở: ${quiz.openTime.day}/${quiz.openTime.month} ${quiz.openTime.hour}:${quiz.openTime.minute.toString().padLeft(2, '0')}',
+                  '${isVietnamese ? 'Mở' : 'Open'}: ${quiz.openTime.day}/${quiz.openTime.month} ${quiz.openTime.hour}:${quiz.openTime.minute.toString().padLeft(2, '0')}',
                   style: TextStyle(color: Colors.grey[600], fontSize: 12),
                 ),
                 const SizedBox(width: 16),
                 Icon(Icons.lock_clock, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(
-                  'Đóng: ${quiz.closeTime.day}/${quiz.closeTime.month} ${quiz.closeTime.hour}:${quiz.closeTime.minute.toString().padLeft(2, '0')}',
+                  '${isVietnamese ? 'Đóng' : 'Close'}: ${quiz.closeTime.day}/${quiz.closeTime.month} ${quiz.closeTime.hour}:${quiz.closeTime.minute.toString().padLeft(2, '0')}',
                   style: TextStyle(color: Colors.grey[600], fontSize: 12),
                 ),
               ],

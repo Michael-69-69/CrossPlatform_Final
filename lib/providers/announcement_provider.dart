@@ -249,7 +249,7 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
 
         await ref.read(inAppNotificationProvider.notifier).createBatchNotifications(
           userIds: studentUserIds,
-          title: 'Thông báo mới: $title',
+          title: title, // Store just the title, UI will add localized prefix
           body: notificationBody,
           type: InAppNotificationType.announcement,
           relatedId: insertedId,

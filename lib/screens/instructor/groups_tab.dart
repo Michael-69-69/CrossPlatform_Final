@@ -5,6 +5,7 @@ import '../../models/group.dart';
 import '../../models/user.dart';
 import '../../providers/group_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../main.dart'; // for localeProvider
 
 class GroupsTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -30,11 +31,17 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
     });
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final allGroups = ref.watch(groupProvider);
     final allStudents = ref.watch(studentProvider);
     final courseGroups = allGroups.where((g) => g.courseId == widget.courseId).toList();
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     return Column(
       children: [
@@ -43,7 +50,7 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Tạo nhóm mới'),
+            label: Text(isVietnamese ? 'Tạo nhóm mới' : 'Create new group'),
             onPressed: () => _showCreateGroupDialog(context),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
@@ -53,13 +60,13 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
         // Groups List
         Expanded(
           child: courseGroups.isEmpty
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.group, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('Chưa có nhóm nào'),
+                      const Icon(Icons.group, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text(isVietnamese ? 'Chưa có nhóm nào' : 'No groups yet'),
                     ],
                   ),
                 )
@@ -99,28 +106,29 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
   void _showCreateGroupDialog(BuildContext context) {
     final nameCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    final isVietnamese = _isVietnamese();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tạo nhóm mới'),
+        title: Text(isVietnamese ? 'Tạo nhóm mới' : 'Create new group'),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: nameCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Tên nhóm *',
-              hintText: 'VD: Nhóm 1',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: isVietnamese ? 'Tên nhóm *' : 'Group name *',
+              hintText: isVietnamese ? 'VD: Nhóm 1' : 'E.g.: Group 1',
+              border: const OutlineInputBorder(),
             ),
-            validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+            validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
             autofocus: true,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -134,18 +142,18 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
                 Navigator.pop(ctx);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã tạo nhóm')),
+                    SnackBar(content: Text(isVietnamese ? 'Đã tạo nhóm' : 'Group created')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi: $e')),
+                    SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                   );
                 }
               }
             },
-            child: const Text('Tạo'),
+            child: Text(isVietnamese ? 'Tạo' : 'Create'),
           ),
         ],
       ),
@@ -155,27 +163,28 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
   void _showEditGroupDialog(BuildContext context, Group group) {
     final nameCtrl = TextEditingController(text: group.name);
     final formKey = GlobalKey<FormState>();
+    final isVietnamese = _isVietnamese();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Chỉnh sửa nhóm'),
+        title: Text(isVietnamese ? 'Chỉnh sửa nhóm' : 'Edit group'),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: nameCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Tên nhóm *',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: isVietnamese ? 'Tên nhóm *' : 'Group name *',
+              border: const OutlineInputBorder(),
             ),
-            validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+            validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
             autofocus: true,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -189,18 +198,18 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
                 Navigator.pop(ctx);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã cập nhật nhóm')),
+                    SnackBar(content: Text(isVietnamese ? 'Đã cập nhật nhóm' : 'Group updated')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi: $e')),
+                    SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                   );
                 }
               }
             },
-            child: const Text('Lưu'),
+            child: Text(isVietnamese ? 'Lưu' : 'Save'),
           ),
         ],
       ),
@@ -229,20 +238,23 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
   }
 
   void _deleteGroup(String groupId) async {
+    final isVietnamese = _isVietnamese();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa nhóm'),
-        content: const Text('Bạn có chắc muốn xóa nhóm này? Tất cả sinh viên sẽ bị xóa khỏi nhóm.'),
+        title: Text(isVietnamese ? 'Xóa nhóm' : 'Delete group'),
+        content: Text(isVietnamese
+            ? 'Bạn có chắc muốn xóa nhóm này? Tất cả sinh viên sẽ bị xóa khỏi nhóm.'
+            : 'Are you sure you want to delete this group? All students will be removed from the group.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -253,13 +265,13 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
         await ref.read(groupProvider.notifier).deleteGroup(groupId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa nhóm')),
+            SnackBar(content: Text(isVietnamese ? 'Đã xóa nhóm' : 'Group deleted')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e')),
+            SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
           );
         }
       }
@@ -271,7 +283,7 @@ class _GroupsTabState extends ConsumerState<GroupsTab> {
 // GROUP CARD
 // ══════════════════════════════════════════════════════════════
 
-class _GroupCard extends StatelessWidget {
+class _GroupCard extends ConsumerWidget {
   final Group group;
   final int studentCount;
   final VoidCallback onTap;
@@ -287,7 +299,9 @@ class _GroupCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -311,7 +325,7 @@ class _GroupCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$studentCount sinh viên',
+                      isVietnamese ? '$studentCount sinh viên' : '$studentCount students',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
@@ -320,21 +334,21 @@ class _GroupCard extends StatelessWidget {
               PopupMenuButton(
                 itemBuilder: (context) => [
                   PopupMenuItem(
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.edit),
-                        SizedBox(width: 8),
-                        Text('Chỉnh sửa'),
+                        const Icon(Icons.edit),
+                        const SizedBox(width: 8),
+                        Text(isVietnamese ? 'Chỉnh sửa' : 'Edit'),
                       ],
                     ),
                     onTap: onEdit,
                   ),
                   PopupMenuItem(
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.delete, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Xóa', style: TextStyle(color: Colors.red)),
+                        const Icon(Icons.delete, color: Colors.red),
+                        const SizedBox(width: 8),
+                        Text(isVietnamese ? 'Xóa' : 'Delete', style: const TextStyle(color: Colors.red)),
                       ],
                     ),
                     onTap: onDelete,
@@ -382,6 +396,11 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
     _groupStudents = List.from(widget.initialGroupStudents);
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   // Find which group a student belongs to in this course
   Group? _findStudentGroup(String studentId) {
     for (final group in widget.courseGroups) {
@@ -394,6 +413,8 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
       minChildSize: 0.5,
@@ -438,7 +459,9 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             ),
                           ),
                           Text(
-                            '${_groupStudents.length} sinh viên',
+                            isVietnamese
+                                ? '${_groupStudents.length} sinh viên'
+                                : '${_groupStudents.length} students',
                             style: TextStyle(color: Colors.grey[600]),
                           ),
                         ],
@@ -466,7 +489,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                 padding: const EdgeInsets.all(16),
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.person_add),
-                  label: const Text('Thêm sinh viên'),
+                  label: Text(isVietnamese ? 'Thêm sinh viên' : 'Add student'),
                   onPressed: _isLoading ? null : () => _showAddStudentDialog(context),
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 48),
@@ -484,7 +507,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
                             Icon(Icons.person_off, size: 48, color: Colors.grey[400]),
                             const SizedBox(height: 8),
                             Text(
-                              'Chưa có sinh viên trong nhóm',
+                              isVietnamese ? 'Chưa có sinh viên trong nhóm' : 'No students in group',
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
@@ -531,6 +554,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
   // ══════════════════════════════════════════════════════════════
 
   void _showAddStudentDialog(BuildContext context) {
+    final isVietnamese = _isVietnamese();
     // Get students NOT in this group
     final groupStudentIds = _groupStudents.map((s) => s.id).toSet();
     final availableStudents = widget.allStudents
@@ -539,7 +563,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
 
     if (availableStudents.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tất cả sinh viên đã có trong nhóm này')),
+        SnackBar(content: Text(isVietnamese ? 'Tất cả sinh viên đã có trong nhóm này' : 'All students are already in this group')),
       );
       return;
     }
@@ -574,14 +598,16 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
       });
 
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã thêm ${students.length} sinh viên')),
+          SnackBar(content: Text(isVietnamese ? 'Đã thêm ${students.length} sinh viên' : 'Added ${students.length} students')),
         );
       }
     } catch (e) {
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     } finally {
@@ -590,20 +616,21 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
   }
 
   Future<void> _removeStudent(AppUser student) async {
+    final isVietnamese = _isVietnamese();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: Text('Xóa ${student.fullName} khỏi nhóm?'),
+        title: Text(isVietnamese ? 'Xác nhận' : 'Confirm'),
+        content: Text(isVietnamese ? 'Xóa ${student.fullName} khỏi nhóm?' : 'Remove ${student.fullName} from group?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Remove'),
           ),
         ],
       ),
@@ -622,13 +649,13 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã xóa ${student.fullName}')),
+          SnackBar(content: Text(isVietnamese ? 'Đã xóa ${student.fullName}' : 'Removed ${student.fullName}')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     } finally {
@@ -641,7 +668,7 @@ class _GroupDetailSheetState extends ConsumerState<_GroupDetailSheet> {
 // ADD STUDENT DIALOG - MULTI-SELECT WITH GROUP STATUS
 // ══════════════════════════════════════════════════════════════
 
-class _AddStudentDialog extends StatefulWidget {
+class _AddStudentDialog extends ConsumerStatefulWidget {
   final List<AppUser> availableStudents;
   final Group currentGroup;
   final Group? Function(String studentId) findStudentGroup;
@@ -655,10 +682,10 @@ class _AddStudentDialog extends StatefulWidget {
   });
 
   @override
-  State<_AddStudentDialog> createState() => _AddStudentDialogState();
+  ConsumerState<_AddStudentDialog> createState() => _AddStudentDialogState();
 }
 
-class _AddStudentDialogState extends State<_AddStudentDialog> {
+class _AddStudentDialogState extends ConsumerState<_AddStudentDialog> {
   final Set<String> _selectedIds = {};
   String _searchQuery = '';
   bool _isAdding = false;
@@ -675,6 +702,8 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Dialog(
       child: Container(
         width: double.maxFinite,
@@ -690,9 +719,9 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
               ),
               child: Row(
                 children: [
-                  const Text(
-                    'Thêm sinh viên',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    isVietnamese ? 'Thêm sinh viên' : 'Add students',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const Spacer(),
                   if (_selectedIds.isNotEmpty)
@@ -703,7 +732,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        'Đã chọn: ${_selectedIds.length}',
+                        isVietnamese ? 'Đã chọn: ${_selectedIds.length}' : 'Selected: ${_selectedIds.length}',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.blue[700],
@@ -722,7 +751,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
                 children: [
                   TextField(
                     decoration: InputDecoration(
-                      hintText: 'Tìm theo tên, mã SV, email...',
+                      hintText: isVietnamese ? 'Tìm theo tên, mã SV, email...' : 'Search by name, ID, email...',
                       prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -736,9 +765,9 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
                   // Legend
                   Row(
                     children: [
-                      _buildLegendItem(Colors.grey, 'Chưa có nhóm'),
+                      _buildLegendItem(Colors.grey, isVietnamese ? 'Chưa có nhóm' : 'No group'),
                       const SizedBox(width: 16),
-                      _buildLegendItem(Colors.blue, 'Đã có nhóm khác'),
+                      _buildLegendItem(Colors.blue, isVietnamese ? 'Đã có nhóm khác' : 'In another group'),
                     ],
                   ),
                 ],
@@ -750,7 +779,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
               child: _filteredStudents.isEmpty
                   ? Center(
                       child: Text(
-                        'Không tìm thấy sinh viên',
+                        isVietnamese ? 'Không tìm thấy sinh viên' : 'No students found',
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     )
@@ -828,7 +857,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
                                               child: Text(
                                                 hasOtherGroup
                                                     ? existingGroup.name
-                                                    : 'Chưa có nhóm',
+                                                    : (isVietnamese ? 'Chưa có nhóm' : 'No group'),
                                                 style: TextStyle(
                                                   fontSize: 10,
                                                   color: hasOtherGroup
@@ -890,7 +919,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _isAdding ? null : () => Navigator.pop(context),
-                      child: const Text('Hủy'),
+                      child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -908,7 +937,9 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
                                 color: Colors.white,
                               ),
                             )
-                          : Text('Thêm${_selectedIds.isEmpty ? '' : ' (${_selectedIds.length})'}'),
+                          : Text(isVietnamese
+                              ? 'Thêm${_selectedIds.isEmpty ? '' : ' (${_selectedIds.length})'}'
+                              : 'Add${_selectedIds.isEmpty ? '' : ' (${_selectedIds.length})'}'),
                     ),
                   ),
                 ],
@@ -940,6 +971,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
   }
 
   Future<void> _handleConfirm() async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final selectedStudents = widget.availableStudents
         .where((s) => _selectedIds.contains(s.id))
         .toList();
@@ -958,14 +990,14 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Xác nhận chuyển nhóm'),
+          title: Text(isVietnamese ? 'Xác nhận chuyển nhóm' : 'Confirm group transfer'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Các sinh viên sau đã có nhóm khác:',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              Text(
+                isVietnamese ? 'Các sinh viên sau đã có nhóm khác:' : 'The following students are in other groups:',
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
               ...studentsWithGroup.map((s) {
@@ -994,19 +1026,21 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
               }),
               const SizedBox(height: 12),
               Text(
-                'Họ sẽ được chuyển sang nhóm "${widget.currentGroup.name}".\nBạn có chắc chắn?',
+                isVietnamese
+                    ? 'Họ sẽ được chuyển sang nhóm "${widget.currentGroup.name}".\nBạn có chắc chắn?'
+                    : 'They will be moved to group "${widget.currentGroup.name}".\nAre you sure?',
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy'),
+              child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: const Text('Chuyển nhóm'),
+              child: Text(isVietnamese ? 'Chuyển nhóm' : 'Transfer'),
             ),
           ],
         ),
@@ -1023,7 +1057,7 @@ class _AddStudentDialogState extends State<_AddStudentDialog> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     } finally {

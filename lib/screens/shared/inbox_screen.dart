@@ -8,6 +8,7 @@ import '../../providers/message_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/course_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../main.dart'; // for localeProvider
 import 'chat_screen.dart';
 
 class InboxScreen extends ConsumerStatefulWidget {
@@ -20,6 +21,11 @@ class InboxScreen extends ConsumerStatefulWidget {
 class _InboxScreenState extends ConsumerState<InboxScreen> {
   String _searchQuery = '';
   bool _isLoading = false;
+
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
 
   @override
   void initState() {
@@ -59,10 +65,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
     final conversations = ref.watch(conversationProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Vui lòng đăng nhập')),
+      return Scaffold(
+        body: Center(child: Text(isVietnamese ? 'Vui lòng đăng nhập' : 'Please log in')),
       );
     }
 
@@ -90,7 +97,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Text('Tin nhắn'),
+            Text(isVietnamese ? 'Tin nhắn' : 'Messages'),
             if (unreadCount > 0) ...[
               const SizedBox(width: 8),
               Container(
@@ -114,8 +121,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            tooltip: 'Tin nhắn mới',
-            onPressed: () => _showNewMessageDialog(context, user, isInstructor),
+            tooltip: isVietnamese ? 'Tin nhắn mới' : 'New message',
+            onPressed: () => _showNewMessageDialog(context, user, isInstructor, isVietnamese),
           ),
         ],
       ),
@@ -126,7 +133,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Tìm kiếm...',
+                hintText: isVietnamese ? 'Tìm kiếm...' : 'Search...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -160,16 +167,16 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         const SizedBox(height: 16),
                         Text(
                           _searchQuery.isEmpty
-                              ? 'Chưa có tin nhắn nào'
-                              : 'Không tìm thấy kết quả',
+                              ? (isVietnamese ? 'Chưa có tin nhắn nào' : 'No messages yet')
+                              : (isVietnamese ? 'Không tìm thấy kết quả' : 'No results found'),
                           style: TextStyle(color: Colors.grey[600]),
                         ),
                         if (_searchQuery.isEmpty) ...[
                           const SizedBox(height: 16),
                           ElevatedButton.icon(
                             icon: const Icon(Icons.add),
-                            label: const Text('Bắt đầu trò chuyện'),
-                            onPressed: () => _showNewMessageDialog(context, user, isInstructor),
+                            label: Text(isVietnamese ? 'Bắt đầu trò chuyện' : 'Start a conversation'),
+                            onPressed: () => _showNewMessageDialog(context, user, isInstructor, isVietnamese),
                           ),
                         ],
                       ],
@@ -197,6 +204,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                           otherPersonId: otherPersonId,
                           unreadCount: unreadCount,
                           isInstructor: isInstructor,
+                          isVietnamese: isVietnamese,
                           onTap: () async {
                             await Navigator.of(context).push(
                               MaterialPageRoute(
@@ -221,15 +229,16 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   }
 
   // ✅ NEW: Show dialog to select who to message
-  void _showNewMessageDialog(BuildContext context, AppUser user, bool isInstructor) {
+  void _showNewMessageDialog(BuildContext context, AppUser user, bool isInstructor, bool isVietnamese) {
     showDialog(
       context: context,
       builder: (ctx) => _NewMessageDialog(
         user: user,
         isInstructor: isInstructor,
+        isVietnamese: isVietnamese,
         onSelected: (otherPerson) async {
           Navigator.pop(ctx);
-          
+
           // Create or get conversation
           try {
             final conversation = await ref.read(conversationProvider.notifier).getOrCreateConversation(
@@ -254,7 +263,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi: $e')),
+                SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
               );
             }
           }
@@ -267,11 +276,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
 class _NewMessageDialog extends ConsumerWidget {
   final AppUser user;
   final bool isInstructor;
+  final bool isVietnamese;
   final Function(AppUser) onSelected;
 
   const _NewMessageDialog({
     required this.user,
     required this.isInstructor,
+    required this.isVietnamese,
     required this.onSelected,
   });
 
@@ -283,11 +294,11 @@ class _NewMessageDialog extends ConsumerWidget {
     if (isInstructor) {
       // Instructor: show list of students
       return AlertDialog(
-        title: const Text('Chọn học sinh'),
+        title: Text(isVietnamese ? 'Chọn học sinh' : 'Select student'),
         content: SizedBox(
           width: double.maxFinite,
           child: students.isEmpty
-              ? const Center(child: Text('Chưa có học sinh nào'))
+              ? Center(child: Text(isVietnamese ? 'Chưa có học sinh nào' : 'No students yet'))
               : ListView.builder(
                   shrinkWrap: true,
                   itemCount: students.length,
@@ -307,7 +318,7 @@ class _NewMessageDialog extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
         ],
       );
@@ -320,12 +331,12 @@ class _NewMessageDialog extends ConsumerWidget {
 
       if (instructorIds.isEmpty) {
         return AlertDialog(
-          title: const Text('Tin nhắn mới'),
-          content: const Text('Bạn chưa có giảng viên nào'),
+          title: Text(isVietnamese ? 'Tin nhắn mới' : 'New message'),
+          content: Text(isVietnamese ? 'Bạn chưa có giảng viên nào' : 'You have no instructors'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Đóng'),
+              child: Text(isVietnamese ? 'Đóng' : 'Close'),
             ),
           ],
         );
@@ -347,11 +358,11 @@ class _NewMessageDialog extends ConsumerWidget {
       }
 
       return AlertDialog(
-        title: const Text('Chọn giảng viên'),
+        title: Text(isVietnamese ? 'Chọn giảng viên' : 'Select instructor'),
         content: SizedBox(
           width: double.maxFinite,
           child: uniqueInstructors.isEmpty
-              ? const Center(child: Text('Chưa có giảng viên nào'))
+              ? Center(child: Text(isVietnamese ? 'Chưa có giảng viên nào' : 'No instructors available'))
               : ListView.builder(
                   shrinkWrap: true,
                   itemCount: uniqueInstructors.length,
@@ -381,7 +392,7 @@ class _NewMessageDialog extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
         ],
       );
@@ -395,6 +406,7 @@ class _ConversationTile extends StatelessWidget {
   final String otherPersonId;
   final int unreadCount;
   final bool isInstructor;
+  final bool isVietnamese;
   final VoidCallback onTap;
 
   const _ConversationTile({
@@ -403,6 +415,7 @@ class _ConversationTile extends StatelessWidget {
     required this.otherPersonId,
     required this.unreadCount,
     required this.isInstructor,
+    required this.isVietnamese,
     required this.onTap,
   });
 
@@ -479,7 +492,7 @@ class _ConversationTile extends StatelessWidget {
     if (messageDate == today) {
       return '${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
     } else if (messageDate == today.subtract(const Duration(days: 1))) {
-      return 'Hôm qua';
+      return isVietnamese ? 'Hôm qua' : 'Yesterday';
     } else {
       return '${dateTime.day}/${dateTime.month}';
     }

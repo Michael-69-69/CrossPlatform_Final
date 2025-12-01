@@ -5,6 +5,7 @@ import '../../models/forum.dart';
 import '../../models/user.dart';
 import '../../providers/forum_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../main.dart'; // for localeProvider
 import 'forum_thread_screen.dart';
 
 class ForumListWidget extends ConsumerStatefulWidget {
@@ -35,9 +36,15 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
     });
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     var topics = ref.watch(forumTopicProvider);
 
     // Apply search
@@ -55,7 +62,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Tạo chủ đề mới'),
+            label: Text(isVietnamese ? 'Tạo chủ đề mới' : 'Create new topic'),
             onPressed: () => _showCreateTopicDialog(context, user),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
@@ -71,7 +78,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
               Expanded(
                 child: TextField(
                   decoration: InputDecoration(
-                    hintText: 'Tìm kiếm chủ đề...',
+                    hintText: isVietnamese ? 'Tìm kiếm chủ đề...' : 'Search topics...',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -100,7 +107,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
                           color: _sortBy == 'recent' ? Colors.blue : null,
                         ),
                         const SizedBox(width: 8),
-                        const Text('Mới nhất'),
+                        Text(isVietnamese ? 'Mới nhất' : 'Most recent'),
                       ],
                     ),
                   ),
@@ -113,7 +120,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
                           color: _sortBy == 'oldest' ? Colors.blue : null,
                         ),
                         const SizedBox(width: 8),
-                        const Text('Cũ nhất'),
+                        Text(isVietnamese ? 'Cũ nhất' : 'Oldest'),
                       ],
                     ),
                   ),
@@ -126,7 +133,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
                           color: _sortBy == 'replies' ? Colors.blue : null,
                         ),
                         const SizedBox(width: 8),
-                        const Text('Nhiều trả lời nhất'),
+                        Text(isVietnamese ? 'Nhiều trả lời nhất' : 'Most replies'),
                       ],
                     ),
                   ),
@@ -149,8 +156,8 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
                       const SizedBox(height: 16),
                       Text(
                         _searchQuery.isEmpty
-                            ? 'Chưa có chủ đề nào'
-                            : 'Không tìm thấy chủ đề phù hợp',
+                            ? (isVietnamese ? 'Chưa có chủ đề nào' : 'No topics yet')
+                            : (isVietnamese ? 'Không tìm thấy chủ đề phù hợp' : 'No matching topics found'),
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     ],
@@ -205,6 +212,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
 
   void _showCreateTopicDialog(BuildContext context, AppUser? user) {
     if (user == null) return;
+    final isVietnamese = _isVietnamese();
 
     final titleCtrl = TextEditingController();
     final contentCtrl = TextEditingController();
@@ -214,7 +222,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tạo chủ đề mới'),
+        title: Text(isVietnamese ? 'Tạo chủ đề mới' : 'Create new topic'),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -223,37 +231,37 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
               children: [
                 TextFormField(
                   controller: titleCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Tiêu đề *',
-                    hintText: 'Nhập tiêu đề chủ đề',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isVietnamese ? 'Tiêu đề *' : 'Title *',
+                    hintText: isVietnamese ? 'Nhập tiêu đề chủ đề' : 'Enter topic title',
+                    border: const OutlineInputBorder(),
                   ),
-                  validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                  validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: contentCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nội dung *',
-                    hintText: 'Nhập nội dung thảo luận',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isVietnamese ? 'Nội dung *' : 'Content *',
+                    hintText: isVietnamese ? 'Nhập nội dung thảo luận' : 'Enter discussion content',
+                    border: const OutlineInputBorder(),
                   ),
                   maxLines: 5,
-                  validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                  validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: tagsCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Thẻ (tùy chọn)',
-                    hintText: 'Nhập các thẻ, phân cách bằng dấu phẩy',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isVietnamese ? 'Thẻ (tùy chọn)' : 'Tags (optional)',
+                    hintText: isVietnamese ? 'Nhập các thẻ, phân cách bằng dấu phẩy' : 'Enter tags, separated by commas',
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Ví dụ: bài tập, câu hỏi, thảo luận',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                Text(
+                  isVietnamese ? 'Ví dụ: bài tập, câu hỏi, thảo luận' : 'Example: assignment, question, discussion',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
@@ -262,7 +270,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -288,18 +296,18 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
                 Navigator.pop(ctx);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã tạo chủ đề mới')),
+                    SnackBar(content: Text(isVietnamese ? 'Đã tạo chủ đề mới' : 'Topic created')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi: $e')),
+                    SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                   );
                 }
               }
             },
-            child: const Text('Tạo'),
+            child: Text(isVietnamese ? 'Tạo' : 'Create'),
           ),
         ],
       ),
@@ -307,7 +315,7 @@ class _ForumListWidgetState extends ConsumerState<ForumListWidget> {
   }
 }
 
-class _TopicCard extends StatelessWidget {
+class _TopicCard extends ConsumerWidget {
   final ForumTopic topic;
   final VoidCallback onTap;
 
@@ -317,7 +325,9 @@ class _TopicCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -339,9 +349,9 @@ class _TopicCard extends StatelessWidget {
                         color: Colors.orange,
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text(
-                        'Đã ghim',
-                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      child: Text(
+                        isVietnamese ? 'Đã ghim' : 'Pinned',
+                        style: const TextStyle(color: Colors.white, fontSize: 10),
                       ),
                     ),
                   if (topic.isClosed)
@@ -352,9 +362,9 @@ class _TopicCard extends StatelessWidget {
                         color: Colors.red,
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text(
-                        'Đã đóng',
-                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      child: Text(
+                        isVietnamese ? 'Đã đóng' : 'Closed',
+                        style: const TextStyle(color: Colors.white, fontSize: 10),
                       ),
                     ),
                   Expanded(

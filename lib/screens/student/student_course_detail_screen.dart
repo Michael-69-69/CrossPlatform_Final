@@ -6,6 +6,7 @@ import '../../models/semester.dart';
 import '../../providers/group_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../services/network_service.dart';
+import '../../main.dart'; // for localeProvider
 import 'tabs/student_stream_tab.dart';
 import 'tabs/student_classwork_tab.dart';
 import 'tabs/student_people_tab.dart';
@@ -74,13 +75,14 @@ class _StudentCourseDetailScreenState
     // ✅ Watch providers for real-time updates
     final allGroups = ref.watch(groupProvider);
     final allStudents = ref.watch(studentProvider);
-    
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     // ✅ Filter groups for this course
     final groups = allGroups.where((g) => g.courseId == widget.course.id).toList();
 
     // ✅ Get all student IDs from groups
     final studentIds = groups.expand((g) => g.studentIds).toSet();
-    
+
     // ✅ Filter students that belong to these groups
     final students = allStudents.where((s) => studentIds.contains(s.id)).toList();
 
@@ -118,16 +120,16 @@ class _StudentCourseDetailScreenState
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadData,
-            tooltip: 'Làm mới dữ liệu',
+            tooltip: isVietnamese ? 'Làm mới dữ liệu' : 'Refresh data',
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.stream), text: 'Bảng tin'),
-            Tab(icon: Icon(Icons.assignment), text: 'Bài tập'),
-            Tab(icon: Icon(Icons.people), text: 'Mọi người'),
-            Tab(icon: Icon(Icons.forum), text: 'Diễn đàn'),
+          tabs: [
+            Tab(icon: const Icon(Icons.stream), text: isVietnamese ? 'Bảng tin' : 'Stream'),
+            Tab(icon: const Icon(Icons.assignment), text: isVietnamese ? 'Bài tập' : 'Classwork'),
+            Tab(icon: const Icon(Icons.people), text: isVietnamese ? 'Mọi người' : 'People'),
+            Tab(icon: const Icon(Icons.forum), text: isVietnamese ? 'Diễn đàn' : 'Forum'),
           ],
         ),
       ),
@@ -156,10 +158,10 @@ class _StudentCourseDetailScreenState
                                 ),
                                 if (widget.semester.isActive) ...[
                                   const SizedBox(width: 8),
-                                  const Chip(
+                                  Chip(
                                     label: Text(
-                                      'Đang hoạt động',
-                                      style: TextStyle(fontSize: 9, color: Colors.white),
+                                      isVietnamese ? 'Đang hoạt động' : 'Active',
+                                      style: const TextStyle(fontSize: 9, color: Colors.white),
                                     ),
                                     backgroundColor: Colors.green,
                                     padding: EdgeInsets.zero,
@@ -169,7 +171,7 @@ class _StudentCourseDetailScreenState
                               ],
                             ),
                           ),
-                          Text('${widget.course.sessions} buổi'),
+                          Text(isVietnamese ? '${widget.course.sessions} buổi' : '${widget.course.sessions} sessions'),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -178,10 +180,10 @@ class _StudentCourseDetailScreenState
                           const Icon(Icons.person, color: Colors.green),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text('GV: ${widget.course.instructorName}'),
+                            child: Text(isVietnamese ? 'GV: ${widget.course.instructorName}' : 'Instructor: ${widget.course.instructorName}'),
                           ),
                           // ✅ Show student count from groups (works offline)
-                          Text('${studentIds.length} học sinh'),
+                          Text(isVietnamese ? '${studentIds.length} học sinh' : '${studentIds.length} students'),
                         ],
                       ),
                       // ✅ Show offline warning if students not loaded
@@ -200,7 +202,9 @@ class _StudentCourseDetailScreenState
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Chi tiết học sinh chưa được cache. Kết nối mạng để xem.',
+                                  isVietnamese
+                                      ? 'Chi tiết học sinh chưa được cache. Kết nối mạng để xem.'
+                                      : 'Student details not cached. Connect to network to view.',
                                   style: TextStyle(color: Colors.orange[700], fontSize: 12),
                                 ),
                               ),
@@ -222,7 +226,9 @@ class _StudentCourseDetailScreenState
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Đây là học kỳ đã kết thúc. Bạn chỉ có thể xem nội dung.',
+                            isVietnamese
+                                ? 'Đây là học kỳ đã kết thúc. Bạn chỉ có thể xem nội dung.'
+                                : 'This semester has ended. You can only view content.',
                             style: TextStyle(color: Colors.orange[800]),
                           ),
                         ),

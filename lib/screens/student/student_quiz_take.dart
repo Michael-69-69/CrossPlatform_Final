@@ -2,10 +2,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../models/quiz.dart';
-import '../../../models/question.dart';
-import '../../../providers/quiz_provider.dart';
-import '../../../providers/auth_provider.dart';
+import '../../models/quiz.dart';
+import '../../models/question.dart';
+import '../../providers/quiz_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../main.dart'; // for localeProvider
 
 class StudentQuizTake extends ConsumerStatefulWidget {
   final Quiz quiz;
@@ -71,18 +72,26 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
     });
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   Future<void> _autoSubmit() async {
     if (!mounted) return;
-    
+
+    final isVietnamese = _isVietnamese();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Hết giờ! Tự động nộp bài...')),
+      SnackBar(content: Text(isVietnamese ? 'Hết giờ! Tự động nộp bài...' : 'Time\'s up! Auto-submitting...')),
     );
-    
+
     await _submitQuiz();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     // ✅ Show loading indicator while loading questions
     if (_isLoadingQuestions) {
       return Scaffold(
@@ -91,13 +100,13 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
         ),
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Đang tải câu hỏi...'),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(isVietnamese ? 'Đang tải câu hỏi...' : 'Loading questions...'),
             ],
           ),
         ),
@@ -134,13 +143,15 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
             children: [
               const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
-              const Text(
-                'Không tìm thấy câu hỏi',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                isVietnamese ? 'Không tìm thấy câu hỏi' : 'Questions not found',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
-                'Quiz có ${widget.quiz.questionIds.length} câu hỏi nhưng không tìm thấy trong hệ thống',
+                isVietnamese
+                    ? 'Quiz có ${widget.quiz.questionIds.length} câu hỏi nhưng không tìm thấy trong hệ thống'
+                    : 'Quiz has ${widget.quiz.questionIds.length} questions but they were not found in the system',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600]),
               ),
@@ -148,7 +159,7 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
               ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.arrow_back),
-                label: const Text('Quay lại'),
+                label: Text(isVietnamese ? 'Quay lại' : 'Go back'),
               ),
               const SizedBox(height: 8),
               TextButton.icon(
@@ -157,7 +168,7 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                   await _loadQuestionsAndStartTimer();
                 },
                 icon: const Icon(Icons.refresh),
-                label: const Text('Thử lại'),
+                label: Text(isVietnamese ? 'Thử lại' : 'Try again'),
               ),
             ],
           ),
@@ -172,7 +183,9 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '⚠️ Chỉ tìm thấy ${questions.length}/${widget.quiz.questionIds.length} câu hỏi',
+                isVietnamese
+                    ? '⚠️ Chỉ tìm thấy ${questions.length}/${widget.quiz.questionIds.length} câu hỏi'
+                    : '⚠️ Only found ${questions.length}/${widget.quiz.questionIds.length} questions',
               ),
               backgroundColor: Colors.orange,
             ),
@@ -189,17 +202,19 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Thoát quiz?'),
-            content: const Text('Bài làm của bạn sẽ không được lưu nếu thoát.'),
+            title: Text(isVietnamese ? 'Thoát quiz?' : 'Exit quiz?'),
+            content: Text(isVietnamese
+                ? 'Bài làm của bạn sẽ không được lưu nếu thoát.'
+                : 'Your answers will not be saved if you exit.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Hủy'),
+                child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Thoát'),
+                child: Text(isVietnamese ? 'Thoát' : 'Exit'),
               ),
             ],
           ),
@@ -253,7 +268,9 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                         children: [
                           // Question Text
                           Text(
-                            'Câu $questionNumber: ${question.questionText}',
+                            isVietnamese
+                                ? 'Câu $questionNumber: ${question.questionText}'
+                                : 'Question $questionNumber: ${question.questionText}',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -330,7 +347,9 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
               child: Column(
                 children: [
                   Text(
-                    'Đã trả lời: ${_answers.length}/${questions.length}',
+                    isVietnamese
+                        ? 'Đã trả lời: ${_answers.length}/${questions.length}'
+                        : 'Answered: ${_answers.length}/${questions.length}',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 8),
@@ -344,21 +363,23 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                                 showDialog(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
-                                    title: const Text('Chưa hoàn thành'),
+                                    title: Text(isVietnamese ? 'Chưa hoàn thành' : 'Not complete'),
                                     content: Text(
-                                      'Bạn chỉ trả lời ${_answers.length}/${questions.length} câu hỏi. Bạn có chắc muốn nộp bài?',
+                                      isVietnamese
+                                          ? 'Bạn chỉ trả lời ${_answers.length}/${questions.length} câu hỏi. Bạn có chắc muốn nộp bài?'
+                                          : 'You only answered ${_answers.length}/${questions.length} questions. Are you sure you want to submit?',
                                     ),
                                     actions: [
                                       TextButton(
                                         onPressed: () => Navigator.pop(ctx),
-                                        child: const Text('Hủy'),
+                                        child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
                                       ),
                                       ElevatedButton(
                                         onPressed: () {
                                           Navigator.pop(ctx);
                                           _submitQuiz();
                                         },
-                                        child: const Text('Nộp bài'),
+                                        child: Text(isVietnamese ? 'Nộp bài' : 'Submit'),
                                       ),
                                     ],
                                   ),
@@ -376,7 +397,7 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Nộp bài'),
+                          : Text(isVietnamese ? 'Nộp bài' : 'Submit'),
                     ),
                   ),
                 ],
@@ -438,12 +459,13 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
           );
 
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         // Show result dialog
         await showDialog(
           context: context,
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            title: const Text('Kết quả'),
+            title: Text(isVietnamese ? 'Kết quả' : 'Result'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -476,7 +498,7 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
                   Navigator.pop(ctx);
                   Navigator.pop(context);
                 },
-                child: const Text('Đóng'),
+                child: Text(isVietnamese ? 'Đóng' : 'Close'),
               ),
             ],
           ),
@@ -484,8 +506,9 @@ class _StudentQuizTakeState extends ConsumerState<StudentQuizTake> {
       }
     } catch (e) {
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     } finally {

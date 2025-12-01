@@ -1,11 +1,12 @@
-// screens/student/tabs/student_announcement_detail.dart
+// screens/student/student_announcement_detail.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../models/announcement.dart';
-import '../../../models/user.dart';
-import '../../../providers/announcement_provider.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../utils/file_download_helper.dart';
+import '../../models/announcement.dart';
+import '../../models/user.dart';
+import '../../providers/announcement_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/file_download_helper.dart';
+import '../../main.dart'; // for localeProvider
 
 class StudentAnnouncementDetail extends ConsumerStatefulWidget {
   final Announcement announcement;
@@ -45,15 +46,21 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
     super.dispose();
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final announcement = ref.watch(announcementProvider)
         .firstWhere((a) => a.id == widget.announcement.id, orElse: () => widget.announcement);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thông báo'),
+        title: Text(isVietnamese ? 'Thông báo' : 'Announcement'),
       ),
       body: Column(
         children: [
@@ -113,9 +120,9 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
                   // Attachments
                   if (announcement.attachments.isNotEmpty) ...[
                     const Divider(),
-                    const Text(
-                      'Tệp đính kèm:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text(
+                      isVietnamese ? 'Tệp đính kèm:' : 'Attachments:',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     ...announcement.attachments.map((attachment) {
@@ -145,20 +152,22 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
                   
                   // Comments Section
                   Text(
-                    'Bình luận (${announcement.comments.length})',
+                    isVietnamese
+                        ? 'Bình luận (${announcement.comments.length})'
+                        : 'Comments (${announcement.comments.length})',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   if (announcement.comments.isEmpty)
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.all(32),
                         child: Text(
-                          'Chưa có bình luận nào',
+                          isVietnamese ? 'Chưa có bình luận nào' : 'No comments yet',
                           style: TextStyle(color: Colors.grey[600]),
                         ),
                       ),
@@ -233,9 +242,9 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
                   Expanded(
                     child: TextField(
                       controller: _commentController,
-                      decoration: const InputDecoration(
-                        hintText: 'Viết bình luận...',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        hintText: isVietnamese ? 'Viết bình luận...' : 'Write a comment...',
+                        border: const OutlineInputBorder(),
                         isDense: true,
                       ),
                       maxLines: null,
@@ -255,11 +264,12 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
   }
 
   Future<void> _downloadFile(AnnouncementAttachment attachment) async {
+    final isVietnamese = _isVietnamese();
     try {
       // ✅ FIX: Check if it's a link
-      final isLink = attachment.fileUrl.startsWith('http://') || 
+      final isLink = attachment.fileUrl.startsWith('http://') ||
                      attachment.fileUrl.startsWith('https://');
-      
+
       if (isLink) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -278,17 +288,19 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
             url: attachment.fileUrl,
             fileName: attachment.fileName,
           );
-          result = 'Đã tải: $path';
+          result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
         } else {
           // Local file path
           final path = await FileDownloadHelper.downloadFromLocalPath(
             localPath: attachment.fileUrl,
             fileName: attachment.fileName,
           );
-          result = path != null ? 'Đã tải: $path' : 'Không thể tải file';
+          result = path != null
+              ? (isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path')
+              : (isVietnamese ? 'Không thể tải file' : 'Cannot download file');
         }
       } else {
-        throw Exception('No valid file source');
+        throw Exception(isVietnamese ? 'Không có nguồn file hợp lệ' : 'No valid file source');
       }
 
       // Track download
@@ -309,7 +321,7 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }
@@ -318,6 +330,7 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
   Future<void> _addComment(AppUser? user) async {
     if (_commentController.text.trim().isEmpty || user == null) return;
 
+    final isVietnamese = _isVietnamese();
     try {
       await ref.read(announcementProvider.notifier).addComment(
             widget.announcement.id,
@@ -325,18 +338,18 @@ class _StudentAnnouncementDetailState extends ConsumerState<StudentAnnouncementD
             user.fullName,
             _commentController.text.trim(),
           );
-      
+
       _commentController.clear();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã thêm bình luận')),
+          SnackBar(content: Text(isVietnamese ? 'Đã thêm bình luận' : 'Comment added')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }

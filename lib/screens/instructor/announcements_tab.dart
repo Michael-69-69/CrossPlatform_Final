@@ -7,6 +7,7 @@ import '../../models/user.dart';
 import '../../providers/announcement_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/course_provider.dart';
+import '../../main.dart'; // for localeProvider
 
 class AnnouncementsTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -33,10 +34,16 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
     });
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final announcements = ref.watch(announcementProvider);
     final user = ref.watch(authProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     return Column(
       children: [
@@ -45,7 +52,7 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Tạo thông báo'),
+            label: Text(isVietnamese ? 'Tạo thông báo' : 'Create announcement'),
             onPressed: () => _showCreateAnnouncementDialog(context),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
@@ -55,13 +62,13 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
         // Announcements List
         Expanded(
           child: announcements.isEmpty
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.announcement, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('Chưa có thông báo nào'),
+                      const Icon(Icons.announcement, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text(isVietnamese ? 'Chưa có thông báo nào' : 'No announcements yet'),
                     ],
                   ),
                 )
@@ -94,13 +101,14 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
     final formKey = GlobalKey<FormState>();
     AnnouncementScope selectedScope = AnnouncementScope.allGroups;
     final selectedGroupIds = <String>[];
+    final isVietnamese = _isVietnamese();
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
           return AlertDialog(
-            title: const Text('Tạo thông báo'),
+            title: Text(isVietnamese ? 'Tạo thông báo' : 'Create announcement'),
             content: SingleChildScrollView(
               child: Form(
                 key: formKey,
@@ -110,26 +118,26 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
                   children: [
                     TextFormField(
                       controller: titleCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Tiêu đề *',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: isVietnamese ? 'Tiêu đề *' : 'Title *',
+                        border: const OutlineInputBorder(),
                       ),
-                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                      validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: contentCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Nội dung *',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: isVietnamese ? 'Nội dung *' : 'Content *',
+                        border: const OutlineInputBorder(),
                       ),
                       maxLines: 5,
-                      validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                      validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                     ),
                     const SizedBox(height: 16),
-                    const Text('Phạm vi:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(isVietnamese ? 'Phạm vi:' : 'Scope:', style: const TextStyle(fontWeight: FontWeight.bold)),
                     RadioListTile<AnnouncementScope>(
-                      title: const Text('Tất cả nhóm'),
+                      title: Text(isVietnamese ? 'Tất cả nhóm' : 'All groups'),
                       value: AnnouncementScope.allGroups,
                       groupValue: selectedScope,
                       onChanged: (v) => setDialogState(() {
@@ -138,7 +146,7 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
                       }),
                     ),
                     RadioListTile<AnnouncementScope>(
-                      title: const Text('Một nhóm'),
+                      title: Text(isVietnamese ? 'Một nhóm' : 'One group'),
                       value: AnnouncementScope.oneGroup,
                       groupValue: selectedScope,
                       onChanged: (v) => setDialogState(() {
@@ -147,7 +155,7 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
                       }),
                     ),
                     RadioListTile<AnnouncementScope>(
-                      title: const Text('Nhiều nhóm'),
+                      title: Text(isVietnamese ? 'Nhiều nhóm' : 'Multiple groups'),
                       value: AnnouncementScope.multipleGroups,
                       groupValue: selectedScope,
                       onChanged: (v) => setDialogState(() {
@@ -183,14 +191,14 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Hủy'),
+                child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
               ),
               ElevatedButton(
                 onPressed: () async {
                   if (!formKey.currentState!.validate()) return;
                   if (selectedScope != AnnouncementScope.allGroups && selectedGroupIds.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng chọn ít nhất một nhóm')),
+                      SnackBar(content: Text(isVietnamese ? 'Vui lòng chọn ít nhất một nhóm' : 'Please select at least one group')),
                     );
                     return;
                   }
@@ -235,17 +243,19 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          'Đã tạo thông báo và gửi email đến ${recipientStudents.length} học sinh'
+                          isVietnamese
+                              ? 'Đã tạo thông báo và gửi email đến ${recipientStudents.length} học sinh'
+                              : 'Created announcement and sent email to ${recipientStudents.length} students'
                         ),
                       ),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e')),
+                      SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                     );
                   }
                 },
-                child: const Text('Đăng'),
+                child: Text(isVietnamese ? 'Đăng' : 'Post'),
               ),
             ],
           );
@@ -277,20 +287,21 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
   }
 
   void _deleteAnnouncement(String id) async {
+    final isVietnamese = _isVietnamese();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa thông báo'),
-        content: const Text('Bạn có chắc muốn xóa thông báo này?'),
+        title: Text(isVietnamese ? 'Xóa thông báo' : 'Delete announcement'),
+        content: Text(isVietnamese ? 'Bạn có chắc muốn xóa thông báo này?' : 'Are you sure you want to delete this announcement?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -300,15 +311,14 @@ class _AnnouncementsTabState extends ConsumerState<AnnouncementsTab> {
       await ref.read(announcementProvider.notifier).deleteAnnouncement(id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa thông báo')),
+          SnackBar(content: Text(isVietnamese ? 'Đã xóa thông báo' : 'Announcement deleted')),
         );
       }
     }
   }
 }
 
-// ... (keep all the existing _AnnouncementCard, _AnnouncementDetailSheet classes unchanged)
-class _AnnouncementCard extends StatelessWidget {
+class _AnnouncementCard extends ConsumerWidget {
   final Announcement announcement;
   final List<Group> groups;
   final VoidCallback onTap;
@@ -321,10 +331,10 @@ class _AnnouncementCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  String _getScopeText() {
+  String _getScopeText(bool isVietnamese) {
     switch (announcement.scope) {
       case AnnouncementScope.allGroups:
-        return 'Tất cả nhóm';
+        return isVietnamese ? 'Tất cả nhóm' : 'All groups';
       case AnnouncementScope.oneGroup:
         if (announcement.groupIds.isNotEmpty) {
           final group = groups.firstWhere(
@@ -333,14 +343,16 @@ class _AnnouncementCard extends StatelessWidget {
           );
           return group.name;
         }
-        return 'Một nhóm';
+        return isVietnamese ? 'Một nhóm' : 'One group';
       case AnnouncementScope.multipleGroups:
-        return '${announcement.groupIds.length} nhóm';
+        return isVietnamese ? '${announcement.groupIds.length} nhóm' : '${announcement.groupIds.length} groups';
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -378,7 +390,7 @@ class _AnnouncementCard extends StatelessWidget {
                 children: [
                   Icon(Icons.group, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
-                  Text(_getScopeText(), style: TextStyle(color: Colors.grey[600])),
+                  Text(_getScopeText(isVietnamese), style: TextStyle(color: Colors.grey[600])),
                   const SizedBox(width: 16),
                   Icon(Icons.visibility, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
@@ -391,7 +403,9 @@ class _AnnouncementCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Đăng bởi ${announcement.instructorName} • ${_formatDate(announcement.publishedAt)}',
+                isVietnamese
+                    ? 'Đăng bởi ${announcement.instructorName} • ${_formatDate(announcement.publishedAt, isVietnamese)}'
+                    : 'Posted by ${announcement.instructorName} • ${_formatDate(announcement.publishedAt, isVietnamese)}',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ],
@@ -401,17 +415,17 @@ class _AnnouncementCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime date, bool isVietnamese) {
     final now = DateTime.now();
     final diff = now.difference(date);
     if (diff.inDays > 0) {
-      return '${diff.inDays} ngày trước';
+      return isVietnamese ? '${diff.inDays} ngày trước' : '${diff.inDays}d ago';
     } else if (diff.inHours > 0) {
-      return '${diff.inHours} giờ trước';
+      return isVietnamese ? '${diff.inHours} giờ trước' : '${diff.inHours}h ago';
     } else if (diff.inMinutes > 0) {
-      return '${diff.inMinutes} phút trước';
+      return isVietnamese ? '${diff.inMinutes} phút trước' : '${diff.inMinutes}m ago';
     }
-    return 'Vừa xong';
+    return isVietnamese ? 'Vừa xong' : 'Just now';
   }
 }
 
@@ -445,6 +459,7 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
   Widget build(BuildContext context) {
     final announcement = ref.watch(announcementProvider)
         .firstWhere((a) => a.id == widget.announcement.id, orElse: () => widget.announcement);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
@@ -492,9 +507,9 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
                     ),
                     if (announcement.attachments.isNotEmpty) ...[
                       const SizedBox(height: 16),
-                      const Text(
-                        'Tệp đính kèm:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                      Text(
+                        isVietnamese ? 'Tệp đính kèm:' : 'Attachments:',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       ...announcement.attachments.map((attachment) {
@@ -517,9 +532,9 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
                     ],
                     const SizedBox(height: 16),
                     const Divider(),
-                    const Text(
-                      'Bình luận',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    Text(
+                      isVietnamese ? 'Bình luận' : 'Comments',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     ...announcement.comments.map((comment) {
@@ -532,7 +547,7 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
                           title: Text(comment.userName),
                           subtitle: Text(comment.content),
                           trailing: Text(
-                            _formatDate(comment.createdAt),
+                            _formatDate(comment.createdAt, isVietnamese),
                             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                           ),
                         ),
@@ -544,9 +559,9 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
                         Expanded(
                           child: TextField(
                             controller: _commentController,
-                            decoration: const InputDecoration(
-                              hintText: 'Viết bình luận...',
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              hintText: isVietnamese ? 'Viết bình luận...' : 'Write a comment...',
+                              border: const OutlineInputBorder(),
                             ),
                           ),
                         ),
@@ -565,13 +580,17 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
                     const SizedBox(height: 16),
                     if (widget.currentUser.role.toString().contains('instructor')) ...[
                       const Divider(),
-                      const Text(
-                        'Thống kê',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      Text(
+                        isVietnamese ? 'Thống kê' : 'Statistics',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Text('Đã xem: ${announcement.viewedBy.length} người'),
-                      Text('Đã tải: ${announcement.downloadTracking.length} lượt'),
+                      Text(isVietnamese
+                          ? 'Đã xem: ${announcement.viewedBy.length} người'
+                          : 'Viewed by: ${announcement.viewedBy.length} people'),
+                      Text(isVietnamese
+                          ? 'Đã tải: ${announcement.downloadTracking.length} lượt'
+                          : 'Downloaded: ${announcement.downloadTracking.length} times'),
                     ],
                   ],
                 ),
@@ -583,16 +602,16 @@ class _AnnouncementDetailSheetState extends ConsumerState<_AnnouncementDetailShe
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime date, bool isVietnamese) {
     final now = DateTime.now();
     final diff = now.difference(date);
     if (diff.inDays > 0) {
-      return '${diff.inDays} ngày trước';
+      return isVietnamese ? '${diff.inDays} ngày trước' : '${diff.inDays}d ago';
     } else if (diff.inHours > 0) {
-      return '${diff.inHours} giờ trước';
+      return isVietnamese ? '${diff.inHours} giờ trước' : '${diff.inHours}h ago';
     } else if (diff.inMinutes > 0) {
-      return '${diff.inMinutes} phút trước';
+      return isVietnamese ? '${diff.inMinutes} phút trước' : '${diff.inMinutes}m ago';
     }
-    return 'Vừa xong';
+    return isVietnamese ? 'Vừa xong' : 'Just now';
   }
 }

@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
 import '../../providers/auth_provider.dart';
 import '../../models/user.dart';
+import '../../widgets/language_switcher.dart';
+import '../../main.dart'; // for localeProvider
 
 class StudentProfileScreen extends ConsumerStatefulWidget {
   const StudentProfileScreen({super.key});
@@ -73,7 +75,9 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
           if (file.bytes!.length > 2 * 1024 * 1024) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 2MB')),
+                SnackBar(content: Text(_isVietnamese()
+                    ? 'Ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 2MB'
+                    : 'Image too large. Please choose an image smaller than 2MB')),
               );
             }
             return;
@@ -93,7 +97,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi chọn ảnh: $e')),
+          SnackBar(content: Text(_isVietnamese() ? 'Lỗi chọn ảnh: $e' : 'Error selecting image: $e')),
         );
       }
     }
@@ -145,14 +149,15 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
 
   Future<void> _selectDateOfBirth() async {
     final now = DateTime.now();
+    final isVietnamese = _isVietnamese();
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDateOfBirth ?? DateTime(now.year - 20),
       firstDate: DateTime(1950),
       lastDate: DateTime(now.year - 10), // At least 10 years old
-      helpText: 'Chọn ngày sinh',
-      cancelText: 'Hủy',
-      confirmText: 'Chọn',
+      helpText: isVietnamese ? 'Chọn ngày sinh' : 'Select date of birth',
+      cancelText: isVietnamese ? 'Hủy' : 'Cancel',
+      confirmText: isVietnamese ? 'Chọn' : 'Select',
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -198,12 +203,12 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
           _removeAvatar = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Đã cập nhật hồ sơ thành công'),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(_isVietnamese() ? 'Đã cập nhật hồ sơ thành công' : 'Profile updated successfully'),
               ],
             ),
             backgroundColor: Colors.green,
@@ -218,7 +223,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Lỗi: $e')),
+                Expanded(child: Text('${_isVietnamese() ? 'Lỗi' : 'Error'}: $e')),
               ],
             ),
             backgroundColor: Colors.red,
@@ -258,6 +263,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
     bool obscureNew = true;
     bool obscureConfirm = true;
     bool isChanging = false;
+    final isVietnamese = _isVietnamese();
 
     showDialog(
       context: context,
@@ -265,11 +271,11 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Row(
+            title: Row(
               children: [
-                Icon(Icons.lock_outline),
-                SizedBox(width: 8),
-                Text('Đổi mật khẩu'),
+                const Icon(Icons.lock_outline),
+                const SizedBox(width: 8),
+                Text(isVietnamese ? 'Đổi mật khẩu' : 'Change Password'),
               ],
             ),
             content: SingleChildScrollView(
@@ -280,7 +286,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                     controller: currentPasswordController,
                     obscureText: obscureCurrent,
                     decoration: InputDecoration(
-                      labelText: 'Mật khẩu hiện tại',
+                      labelText: isVietnamese ? 'Mật khẩu hiện tại' : 'Current password',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
@@ -294,10 +300,10 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                     controller: newPasswordController,
                     obscureText: obscureNew,
                     decoration: InputDecoration(
-                      labelText: 'Mật khẩu mới',
+                      labelText: isVietnamese ? 'Mật khẩu mới' : 'New password',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.lock_outline),
-                      helperText: 'Tối thiểu 6 ký tự',
+                      helperText: isVietnamese ? 'Tối thiểu 6 ký tự' : 'Minimum 6 characters',
                       suffixIcon: IconButton(
                         icon: Icon(obscureNew ? Icons.visibility : Icons.visibility_off),
                         onPressed: () => setDialogState(() => obscureNew = !obscureNew),
@@ -309,7 +315,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                     controller: confirmPasswordController,
                     obscureText: obscureConfirm,
                     decoration: InputDecoration(
-                      labelText: 'Xác nhận mật khẩu mới',
+                      labelText: isVietnamese ? 'Xác nhận mật khẩu mới' : 'Confirm new password',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
@@ -324,7 +330,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
             actions: [
               TextButton(
                 onPressed: isChanging ? null : () => Navigator.pop(ctx),
-                child: const Text('Hủy'),
+                child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
               ),
               ElevatedButton(
                 onPressed: isChanging
@@ -333,21 +339,27 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                         // Validation
                         if (currentPasswordController.text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Vui lòng nhập mật khẩu hiện tại')),
+                            SnackBar(content: Text(isVietnamese
+                                ? 'Vui lòng nhập mật khẩu hiện tại'
+                                : 'Please enter current password')),
                           );
                           return;
                         }
 
                         if (newPasswordController.text.length < 6) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Mật khẩu mới phải có ít nhất 6 ký tự')),
+                            SnackBar(content: Text(isVietnamese
+                                ? 'Mật khẩu mới phải có ít nhất 6 ký tự'
+                                : 'New password must be at least 6 characters')),
                           );
                           return;
                         }
 
                         if (newPasswordController.text != confirmPasswordController.text) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Mật khẩu xác nhận không khớp')),
+                            SnackBar(content: Text(isVietnamese
+                                ? 'Mật khẩu xác nhận không khớp'
+                                : 'Passwords do not match')),
                           );
                           return;
                         }
@@ -372,8 +384,8 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                                     ),
                                     const SizedBox(width: 8),
                                     Text(success
-                                        ? 'Đã đổi mật khẩu thành công'
-                                        : 'Mật khẩu hiện tại không đúng'),
+                                        ? (isVietnamese ? 'Đã đổi mật khẩu thành công' : 'Password changed successfully')
+                                        : (isVietnamese ? 'Mật khẩu hiện tại không đúng' : 'Current password is incorrect')),
                                   ],
                                 ),
                                 backgroundColor: success ? Colors.green : Colors.red,
@@ -384,7 +396,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                           setDialogState(() => isChanging = false);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Lỗi: $e')),
+                              SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                             );
                           }
                         }
@@ -395,7 +407,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Đổi mật khẩu'),
+                    : Text(isVietnamese ? 'Đổi mật khẩu' : 'Change Password'),
               ),
             ],
           );
@@ -414,14 +426,14 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Hồ sơ')),
-        body: const Center(
+        appBar: AppBar(title: Text(_isVietnamese() ? 'Hồ sơ' : 'Profile')),
+        body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.person_off, size: 64, color: Colors.grey),
-              SizedBox(height: 16),
-              Text('Vui lòng đăng nhập'),
+              const Icon(Icons.person_off, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(_isVietnamese() ? 'Vui lòng đăng nhập' : 'Please log in'),
             ],
           ),
         ),
@@ -430,13 +442,13 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hồ sơ cá nhân'),
+        title: Text(_isVietnamese() ? 'Hồ sơ cá nhân' : 'My Profile'),
         actions: [
           if (!_isEditing)
             IconButton(
               icon: const Icon(Icons.edit),
               onPressed: () => setState(() => _isEditing = true),
-              tooltip: 'Chỉnh sửa hồ sơ',
+              tooltip: _isVietnamese() ? 'Chỉnh sửa hồ sơ' : 'Edit profile',
             )
           else ...[
             if (_isSaving)
@@ -452,12 +464,12 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
               IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: _cancelEdit,
-                tooltip: 'Hủy thay đổi',
+                tooltip: _isVietnamese() ? 'Hủy thay đổi' : 'Cancel',
               ),
               IconButton(
                 icon: const Icon(Icons.check),
                 onPressed: _saveProfile,
-                tooltip: 'Lưu thay đổi',
+                tooltip: _isVietnamese() ? 'Lưu thay đổi' : 'Save',
               ),
             ],
           ],
@@ -483,21 +495,21 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
             // NON-EDITABLE INFO (Locked)
             // ══════════════════════════════════════
             _buildSectionCard(
-              title: 'Thông tin cơ bản',
+              title: _isVietnamese() ? 'Thông tin cơ bản' : 'Basic Information',
               icon: Icons.person,
               iconColor: Colors.blue,
               children: [
                 _buildInfoTile(
                   icon: Icons.badge,
-                  label: 'Họ và tên',
+                  label: _isVietnamese() ? 'Họ và tên' : 'Full name',
                   value: user.fullName,
                   locked: true,
                 ),
                 const Divider(height: 1),
                 _buildInfoTile(
                   icon: Icons.numbers,
-                  label: 'Mã số sinh viên',
-                  value: user.code ?? 'Chưa có',
+                  label: _isVietnamese() ? 'Mã số sinh viên' : 'Student ID',
+                  value: user.code ?? (_isVietnamese() ? 'Chưa có' : 'Not set'),
                   locked: true,
                 ),
                 const Divider(height: 1),
@@ -515,32 +527,32 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
             // EDITABLE INFO
             // ══════════════════════════════════════
             _buildSectionCard(
-              title: 'Thông tin liên hệ',
+              title: _isVietnamese() ? 'Thông tin liên hệ' : 'Contact Information',
               icon: Icons.contact_phone,
               iconColor: Colors.green,
               children: [
                 _buildEditableField(
                   icon: Icons.phone,
-                  label: 'Số điện thoại',
+                  label: _isVietnamese() ? 'Số điện thoại' : 'Phone number',
                   controller: _phoneController,
                   value: user.phone,
                   keyboardType: TextInputType.phone,
-                  hintText: 'Nhập số điện thoại',
+                  hintText: _isVietnamese() ? 'Nhập số điện thoại' : 'Enter phone number',
                 ),
                 const Divider(height: 1),
                 _buildDateField(
                   icon: Icons.cake,
-                  label: 'Ngày sinh',
+                  label: _isVietnamese() ? 'Ngày sinh' : 'Date of birth',
                   value: _selectedDateOfBirth,
                   displayValue: user.dateOfBirth,
                 ),
                 const Divider(height: 1),
                 _buildEditableField(
                   icon: Icons.home,
-                  label: 'Địa chỉ',
+                  label: _isVietnamese() ? 'Địa chỉ' : 'Address',
                   controller: _addressController,
                   value: user.address,
-                  hintText: 'Nhập địa chỉ',
+                  hintText: _isVietnamese() ? 'Nhập địa chỉ' : 'Enter address',
                   maxLines: 2,
                 ),
               ],
@@ -551,21 +563,28 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
             // BIO SECTION
             // ══════════════════════════════════════
             _buildSectionCard(
-              title: 'Giới thiệu bản thân',
+              title: _isVietnamese() ? 'Giới thiệu bản thân' : 'About Me',
               icon: Icons.info_outline,
               iconColor: Colors.purple,
               children: [
                 _buildEditableField(
                   icon: Icons.description,
-                  label: 'Tiểu sử',
+                  label: _isVietnamese() ? 'Tiểu sử' : 'Bio',
                   controller: _bioController,
                   value: user.bio,
-                  hintText: 'Viết vài dòng giới thiệu về bản thân...',
+                  hintText: _isVietnamese() ? 'Viết vài dòng giới thiệu về bản thân...' : 'Write a few lines about yourself...',
                   maxLines: 4,
                 ),
               ],
             ),
             const SizedBox(height: 24),
+
+            // ══════════════════════════════════════
+            // LANGUAGE SETTINGS
+            // ══════════════════════════════════════
+            if (!_isEditing)
+              _buildLanguageSection(),
+            const SizedBox(height: 16),
 
             // ══════════════════════════════════════
             // ACTION BUTTONS
@@ -574,7 +593,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
               // Change Password Button
               OutlinedButton.icon(
                 icon: const Icon(Icons.lock_outline),
-                label: const Text('Đổi mật khẩu'),
+                label: Text(_isVietnamese() ? 'Đổi mật khẩu' : 'Change Password'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48),
                 ),
@@ -585,7 +604,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
               // Logout Button
               ElevatedButton.icon(
                 icon: const Icon(Icons.logout),
-                label: const Text('Đăng xuất'),
+                label: Text(_isVietnamese() ? 'Đăng xuất' : 'Logout'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48),
                   backgroundColor: Colors.red,
@@ -595,12 +614,12 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                   showDialog(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      title: const Text('Đăng xuất'),
-                      content: const Text('Bạn có chắc muốn đăng xuất?'),
+                      title: Text(_isVietnamese() ? 'Đăng xuất' : 'Logout'),
+                      content: Text(_isVietnamese() ? 'Bạn có chắc muốn đăng xuất?' : 'Are you sure you want to logout?'),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Hủy'),
+                          child: Text(_isVietnamese() ? 'Hủy' : 'Cancel'),
                         ),
                         ElevatedButton(
                           onPressed: () {
@@ -609,7 +628,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                             context.go('/');
                           },
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                          child: const Text('Đăng xuất'),
+                          child: Text(_isVietnamese() ? 'Đăng xuất' : 'Logout'),
                         ),
                       ],
                     ),
@@ -626,8 +645,58 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
   }
 
   // ══════════════════════════════════════════════
+  // HELPER METHODS
+  // ══════════════════════════════════════════════
+
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
+  // ══════════════════════════════════════════════
   // WIDGET BUILDERS
   // ══════════════════════════════════════════════
+
+  Widget _buildLanguageSection() {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF667eea).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.language, color: Color(0xFF667eea), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  isVietnamese ? 'Ngôn ngữ' : 'Language',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: const LanguageToggle(),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildAvatarSection(AppUser user) {
     // Determine what avatar to show
@@ -687,24 +756,24 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                       }
                     },
                     itemBuilder: (context) => [
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'pick',
                         child: Row(
                           children: [
-                            Icon(Icons.photo_library),
-                            SizedBox(width: 8),
-                            Text('Chọn ảnh mới'),
+                            const Icon(Icons.photo_library),
+                            const SizedBox(width: 8),
+                            Text(_isVietnamese() ? 'Chọn ảnh mới' : 'Choose new photo'),
                           ],
                         ),
                       ),
                       if (user.hasAvatar || _avatarPreview != null)
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'remove',
                           child: Row(
                             children: [
-                              Icon(Icons.delete, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('Xóa ảnh', style: TextStyle(color: Colors.red)),
+                              const Icon(Icons.delete, color: Colors.red),
+                              const SizedBox(width: 8),
+                              Text(_isVietnamese() ? 'Xóa ảnh' : 'Remove photo', style: const TextStyle(color: Colors.red)),
                             ],
                           ),
                         ),
@@ -730,7 +799,9 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            user.role == UserRole.instructor ? 'Giảng viên' : 'Sinh viên',
+            user.role == UserRole.instructor
+                ? (_isVietnamese() ? 'Giảng viên' : 'Instructor')
+                : (_isVietnamese() ? 'Sinh viên' : 'Student'),
             style: TextStyle(
               color: user.role == UserRole.instructor ? Colors.orange[800] : Colors.blue[800],
               fontWeight: FontWeight.w500,
@@ -760,7 +831,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hoàn thành hồ sơ: $percent%',
+                  _isVietnamese() ? 'Hoàn thành hồ sơ: $percent%' : 'Profile completion: $percent%',
                   style: TextStyle(
                     fontWeight: FontWeight.w500,
                     color: Colors.amber[900],
@@ -837,7 +908,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
       ),
       subtitle: Text(
-        value.isEmpty ? 'Chưa có' : value,
+        value.isEmpty ? (_isVietnamese() ? 'Chưa có' : 'Not set') : value,
         style: TextStyle(
           fontSize: 16,
           color: value.isEmpty ? Colors.grey : Colors.black87,
@@ -845,7 +916,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
       ),
       trailing: locked
           ? Tooltip(
-              message: 'Không thể thay đổi',
+              message: _isVietnamese() ? 'Không thể thay đổi' : 'Cannot be changed',
               child: Icon(Icons.lock, size: 16, color: Colors.grey[400]),
             )
           : null,
@@ -886,7 +957,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
         subtitle: Text(
-          value?.isNotEmpty == true ? value! : 'Chưa cập nhật',
+          value?.isNotEmpty == true ? value! : (_isVietnamese() ? 'Chưa cập nhật' : 'Not updated'),
           style: TextStyle(
             fontSize: 16,
             color: value?.isNotEmpty == true ? Colors.black87 : Colors.grey,
@@ -916,7 +987,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
         subtitle: Text(
-          formattedDate ?? 'Chưa chọn',
+          formattedDate ?? (_isVietnamese() ? 'Chưa chọn' : 'Not selected'),
           style: TextStyle(
             fontSize: 16,
             color: formattedDate != null ? Colors.black87 : Colors.grey,
@@ -925,7 +996,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
         ),
         trailing: ElevatedButton.icon(
           icon: const Icon(Icons.calendar_today, size: 16),
-          label: const Text('Chọn'),
+          label: Text(_isVietnamese() ? 'Chọn' : 'Select'),
           onPressed: _selectDateOfBirth,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -940,7 +1011,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
         subtitle: Text(
-          formattedDate ?? 'Chưa cập nhật',
+          formattedDate ?? (_isVietnamese() ? 'Chưa cập nhật' : 'Not updated'),
           style: TextStyle(
             fontSize: 16,
             color: formattedDate != null ? Colors.black87 : Colors.grey,

@@ -1,14 +1,15 @@
-// screens/student/tabs/student_assignment_detail.dart
+// screens/student/student_assignment_detail.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
-import '../../../models/assignment.dart';
-import '../../../providers/assignment_provider.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../providers/group_provider.dart';
-import '../../../providers/course_provider.dart'; // ✅ ADD
-import '../../../utils/file_upload_helper.dart';
-import '../../../utils/file_download_helper.dart';
+import '../../models/assignment.dart';
+import '../../providers/assignment_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/group_provider.dart';
+import '../../providers/course_provider.dart';
+import '../../utils/file_upload_helper.dart';
+import '../../utils/file_download_helper.dart';
+import '../../main.dart'; // for localeProvider
 
 class StudentAssignmentDetail extends ConsumerStatefulWidget {
   final Assignment assignment;
@@ -28,12 +29,18 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
   final List<Map<String, dynamic>> _selectedFiles = [];
   bool _isSubmitting = false;
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final assignment = ref.watch(assignmentProvider)
         .firstWhere((a) => a.id == widget.assignment.id, orElse: () => widget.assignment);
-    
+
     final mySubmissions = assignment.submissions
         .where((s) => s.studentId == user?.id)
         .toList()
@@ -44,7 +51,7 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bài tập'),
+        title: Text(isVietnamese ? 'Bài tập' : 'Assignment'),
       ),
       body: Column(
         children: [
@@ -82,7 +89,7 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                       Expanded(
                         child: _InfoCard(
                           icon: Icons.calendar_today,
-                          label: 'Hạn nộp',
+                          label: isVietnamese ? 'Hạn nộp' : 'Deadline',
                           value: '${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
                         ),
                       ),
@@ -90,7 +97,7 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                       Expanded(
                         child: _InfoCard(
                           icon: Icons.repeat,
-                          label: 'Số lần nộp',
+                          label: isVietnamese ? 'Số lần nộp' : 'Attempts',
                           value: '$attemptCount/${assignment.maxAttempts}',
                         ),
                       ),
@@ -100,7 +107,7 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                   if (latestSubmission?.grade != null)
                     _InfoCard(
                       icon: Icons.grade,
-                      label: 'Điểm',
+                      label: isVietnamese ? 'Điểm' : 'Grade',
                       value: latestSubmission!.grade!.toString(),
                       color: Colors.green,
                     ),
@@ -109,19 +116,19 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                   const Divider(),
                   
                   // Description
-                  const Text(
-                    'Mô tả:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Text(
+                    isVietnamese ? 'Mô tả:' : 'Description:',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   Text(assignment.description),
                   const SizedBox(height: 16),
-                  
+
                   // Attachments from instructor
                   if (assignment.attachments.isNotEmpty) ...[
-                    const Text(
-                      'Tệp đính kèm từ giáo viên:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    Text(
+                      isVietnamese ? 'Tệp đính kèm từ giáo viên:' : 'Attachments from instructor:',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 8),
                     ...assignment.attachments.map((attachment) {
@@ -141,16 +148,16 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                   ],
                   
                   const Divider(),
-                  
+
                   // Submission History
-                  const Text(
-                    'Lịch sử nộp bài:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  Text(
+                    isVietnamese ? 'Lịch sử nộp bài:' : 'Submission history:',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   if (mySubmissions.isEmpty)
-                    const Text('Chưa nộp bài lần nào')
+                    Text(isVietnamese ? 'Chưa nộp bài lần nào' : 'No submissions yet')
                   else
                     ...mySubmissions.map((submission) {
                       return Card(
@@ -165,17 +172,17 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                               style: const TextStyle(color: Colors.white),
                             ),
                           ),
-                          title: Text('Lần ${submission.attemptNumber}'),
+                          title: Text(isVietnamese ? 'Lần ${submission.attemptNumber}' : 'Attempt ${submission.attemptNumber}'),
                           subtitle: Text(
                             '${submission.submittedAt.day}/${submission.submittedAt.month}/${submission.submittedAt.year} ${submission.submittedAt.hour}:${submission.submittedAt.minute.toString().padLeft(2, '0')}'
-                            '${submission.isLate ? " • Nộp muộn" : ""}',
+                            '${submission.isLate ? (isVietnamese ? " • Nộp muộn" : " • Late") : ""}',
                           ),
                           trailing: submission.grade != null
                               ? Chip(
                                   label: Text('${submission.grade}'),
                                   backgroundColor: Colors.green.withOpacity(0.2),
                                 )
-                              : const Chip(label: Text('Chưa chấm')),
+                              : Chip(label: Text(isVietnamese ? 'Chưa chấm' : 'Not graded')),
                           children: [
                             if (submission.feedback != null)
                               Padding(
@@ -183,9 +190,9 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
-                                      'Nhận xét:',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                    Text(
+                                      isVietnamese ? 'Nhận xét:' : 'Feedback:',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(submission.feedback!),
@@ -198,9 +205,9 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
-                                      'Tệp đã nộp:',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                    Text(
+                                      isVietnamese ? 'Tệp đã nộp:' : 'Submitted files:',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                     const SizedBox(height: 8),
                                     ...submission.files.map((file) {
@@ -228,15 +235,15 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                   
                   // Submit Section
                   if (widget.canSubmit && attemptCount < assignment.maxAttempts) ...[
-                    const Text(
-                      'Nộp bài:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    Text(
+                      isVietnamese ? 'Nộp bài:' : 'Submit:',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 12),
-                    
+
                     ElevatedButton.icon(
                       icon: const Icon(Icons.attach_file),
-                      label: const Text('Chọn tệp'),
+                      label: Text(isVietnamese ? 'Chọn tệp' : 'Select files'),
                       onPressed: _pickFiles,
                     ),
                     
@@ -291,7 +298,7 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Nộp bài'),
+                    : Text(isVietnamese ? 'Nộp bài' : 'Submit'),
               ),
             ),
         ],
@@ -300,6 +307,7 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
   }
 
   Future<void> _pickFiles() async {
+    final isVietnamese = _isVietnamese();
     try {
       final encodedFiles = await FileUploadHelper.pickAndEncodeMultipleFiles();
       if (encodedFiles.isNotEmpty) {
@@ -310,47 +318,50 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }
   }
 
   Future<void> _downloadInstructorFile(AssignmentAttachment attachment) async {
+    final isVietnamese = _isVietnamese();
     try {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đang tải xuống...')),
+          SnackBar(content: Text(isVietnamese ? 'Đang tải xuống...' : 'Downloading...')),
         );
       }
 
       String result;
-      
-      if (attachment.fileUrl.startsWith('http://') || 
+
+      if (attachment.fileUrl.startsWith('http://') ||
           attachment.fileUrl.startsWith('https://')) {
         final path = await FileDownloadHelper.downloadFile(
           url: attachment.fileUrl,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
-      } 
-      else if (attachment.fileUrl.startsWith('/') || 
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
+      }
+      else if (attachment.fileUrl.startsWith('/') ||
                attachment.fileUrl.contains('\\')) {
         final downloaded = await FileDownloadHelper.downloadFromLocalPath(
           localPath: attachment.fileUrl,
           fileName: attachment.fileName,
         );
-        result = downloaded != null ? 'Đã tải: $downloaded' : 'Không thể tải file';
+        result = downloaded != null
+            ? (isVietnamese ? 'Đã tải: $downloaded' : 'Downloaded: $downloaded')
+            : (isVietnamese ? 'Không thể tải file' : 'Cannot download file');
       }
       else if (attachment.fileUrl.isNotEmpty) {
         final path = await FileDownloadHelper.downloadFromBase64(
           base64Data: attachment.fileUrl,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
-      } 
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
+      }
       else {
-        throw Exception('No valid file source');
+        throw Exception(isVietnamese ? 'Không có nguồn file hợp lệ' : 'No valid file source');
       }
 
       if (mounted) {
@@ -361,50 +372,53 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải file: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi tải file' : 'Download error'}: $e')),
         );
       }
     }
   }
 
   Future<void> _downloadSubmittedFile(AssignmentAttachment file) async {
+    final isVietnamese = _isVietnamese();
     try {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đang tải xuống...')),
+          SnackBar(content: Text(isVietnamese ? 'Đang tải xuống...' : 'Downloading...')),
         );
       }
 
       String result;
-      
+
       if (file.fileUrl.isNotEmpty) {
-        final isLikelyBase64 = !file.fileUrl.startsWith('http://') && 
+        final isLikelyBase64 = !file.fileUrl.startsWith('http://') &&
                                !file.fileUrl.startsWith('https://') &&
                                !file.fileUrl.startsWith('/') &&
                                !file.fileUrl.contains('\\');
-        
+
         if (isLikelyBase64) {
           final path = await FileDownloadHelper.downloadFromBase64(
             base64Data: file.fileUrl,
             fileName: file.fileName,
           );
-          result = 'Đã tải: $path';
-        } else if (file.fileUrl.startsWith('http://') || 
+          result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
+        } else if (file.fileUrl.startsWith('http://') ||
                    file.fileUrl.startsWith('https://')) {
           final path = await FileDownloadHelper.downloadFile(
             url: file.fileUrl,
             fileName: file.fileName,
           );
-          result = 'Đã tải: $path';
+          result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
         } else {
           final downloaded = await FileDownloadHelper.downloadFromLocalPath(
             localPath: file.fileUrl,
             fileName: file.fileName,
           );
-          result = downloaded != null ? 'Đã tải: $downloaded' : 'Không thể tải file';
+          result = downloaded != null
+              ? (isVietnamese ? 'Đã tải: $downloaded' : 'Downloaded: $downloaded')
+              : (isVietnamese ? 'Không thể tải file' : 'Cannot download file');
         }
       } else {
-        throw Exception('File không có dữ liệu');
+        throw Exception(isVietnamese ? 'File không có dữ liệu' : 'File has no data');
       }
 
       if (mounted) {
@@ -415,7 +429,7 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải file: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi tải file' : 'Download error'}: $e')),
         );
       }
     }
@@ -468,17 +482,21 @@ class _StudentAssignmentDetailState extends ConsumerState<StudentAssignmentDetai
       });
 
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã nộp bài thành công! Email xác nhận đã được gửi.'), // ✅ UPDATED MESSAGE
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: Text(isVietnamese
+                ? 'Đã nộp bài thành công! Email xác nhận đã được gửi.'
+                : 'Successfully submitted! Confirmation email has been sent.'),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     } finally {

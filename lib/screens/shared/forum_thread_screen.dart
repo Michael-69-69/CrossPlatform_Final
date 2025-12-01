@@ -6,6 +6,7 @@ import '../../models/user.dart';
 import '../../providers/forum_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/file_download_helper.dart';
+import '../../main.dart'; // for localeProvider
 
 class ForumThreadScreen extends ConsumerStatefulWidget {
   final ForumTopic topic;
@@ -56,11 +57,17 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
     super.dispose();
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
     final replies = ref.watch(forumReplyProvider);
     final topics = ref.watch(forumTopicProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final topic = topics.firstWhere(
       (t) => t.id == widget.topic.id,
       orElse: () => widget.topic,
@@ -70,19 +77,23 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thảo luận'),
+        title: Text(isVietnamese ? 'Thảo luận' : 'Discussion'),
         actions: [
           if (widget.isInstructor) ...[
             IconButton(
               icon: Icon(topic.isPinned ? Icons.push_pin : Icons.push_pin_outlined),
-              tooltip: topic.isPinned ? 'Bỏ ghim' : 'Ghim',
+              tooltip: topic.isPinned
+                  ? (isVietnamese ? 'Bỏ ghim' : 'Unpin')
+                  : (isVietnamese ? 'Ghim' : 'Pin'),
               onPressed: () {
                 ref.read(forumTopicProvider.notifier).togglePin(topic.id);
               },
             ),
             IconButton(
               icon: Icon(topic.isClosed ? Icons.lock : Icons.lock_open),
-              tooltip: topic.isClosed ? 'Mở lại' : 'Đóng',
+              tooltip: topic.isClosed
+                  ? (isVietnamese ? 'Mở lại' : 'Reopen')
+                  : (isVietnamese ? 'Đóng' : 'Close'),
               onPressed: () {
                 ref.read(forumTopicProvider.notifier).toggleClose(topic.id);
               },
@@ -91,13 +102,13 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
           if (user?.id == topic.authorId || widget.isInstructor)
             PopupMenuButton(
               itemBuilder: (ctx) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Xóa chủ đề'),
+                      const Icon(Icons.delete, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Text(isVietnamese ? 'Xóa chủ đề' : 'Delete topic'),
                     ],
                   ),
                 ),
@@ -131,9 +142,9 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                           color: Colors.orange,
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text(
-                          'Đã ghim',
-                          style: TextStyle(color: Colors.white, fontSize: 10),
+                        child: Text(
+                          isVietnamese ? 'Đã ghim' : 'Pinned',
+                          style: const TextStyle(color: Colors.white, fontSize: 10),
                         ),
                       ),
                     if (topic.isClosed)
@@ -144,9 +155,9 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                           color: Colors.red,
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text(
-                          'Đã đóng',
-                          style: TextStyle(color: Colors.white, fontSize: 10),
+                        child: Text(
+                          isVietnamese ? 'Đã đóng' : 'Closed',
+                          style: const TextStyle(color: Colors.white, fontSize: 10),
                         ),
                       ),
                     Expanded(
@@ -194,7 +205,9 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                       ),
                     ),
                     Text(
-                      '${topic.replyCount} trả lời',
+                      isVietnamese
+                          ? '${topic.replyCount} trả lời'
+                          : '${topic.replyCount} replies',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
@@ -208,9 +221,9 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                 if (topic.attachments.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Divider(),
-                  const Text(
-                    'Tệp đính kèm:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    isVietnamese ? 'Tệp đính kèm:' : 'Attachments:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   ...topic.attachments.map((attachment) {
@@ -264,12 +277,12 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                           children: [
                             Icon(Icons.forum_outlined, size: 64, color: Colors.grey[400]),
                             const SizedBox(height: 16),
-                            const Text('Chưa có trả lời nào'),
+                            Text(isVietnamese ? 'Chưa có trả lời nào' : 'No replies yet'),
                             const SizedBox(height: 8),
                             if (!topic.isClosed)
-                              const Text(
-                                'Hãy là người đầu tiên trả lời!',
-                                style: TextStyle(color: Colors.grey),
+                              Text(
+                                isVietnamese ? 'Hãy là người đầu tiên trả lời!' : 'Be the first to reply!',
+                                style: const TextStyle(color: Colors.grey),
                               ),
                           ],
                         ),
@@ -338,13 +351,13 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                                           if (user?.id == reply.authorId || widget.isInstructor)
                                             PopupMenuButton(
                                               itemBuilder: (ctx) => [
-                                                const PopupMenuItem(
+                                                PopupMenuItem(
                                                   value: 'delete',
                                                   child: Row(
                                                     children: [
-                                                      Icon(Icons.delete, color: Colors.red),
-                                                      SizedBox(width: 8),
-                                                      Text('Xóa'),
+                                                      const Icon(Icons.delete, color: Colors.red),
+                                                      const SizedBox(width: 8),
+                                                      Text(isVietnamese ? 'Xóa' : 'Delete'),
                                                     ],
                                                   ),
                                                 ),
@@ -390,7 +403,7 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                                       if (!topic.isClosed)
                                         TextButton.icon(
                                           icon: const Icon(Icons.reply, size: 16),
-                                          label: const Text('Trả lời'),
+                                          label: Text(isVietnamese ? 'Trả lời' : 'Reply'),
                                           onPressed: () {
                                             setState(() {
                                               _replyingToId = reply.id;
@@ -435,7 +448,9 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                           Icon(Icons.reply, size: 16, color: Colors.grey[700]),
                           const SizedBox(width: 8),
                           Text(
-                            'Đang trả lời $_replyingToAuthor',
+                            isVietnamese
+                                ? 'Đang trả lời $_replyingToAuthor'
+                                : 'Replying to $_replyingToAuthor',
                             style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                           ),
                           const Spacer(),
@@ -456,9 +471,9 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
                       Expanded(
                         child: TextField(
                           controller: _replyController,
-                          decoration: const InputDecoration(
-                            hintText: 'Viết trả lời...',
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            hintText: isVietnamese ? 'Viết trả lời...' : 'Write a reply...',
+                            border: const OutlineInputBorder(),
                             isDense: true,
                           ),
                           maxLines: null,
@@ -478,10 +493,10 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               color: Colors.grey[200],
-              child: const Center(
+              child: Center(
                 child: Text(
-                  'Chủ đề này đã bị đóng',
-                  style: TextStyle(color: Colors.grey),
+                  isVietnamese ? 'Chủ đề này đã bị đóng' : 'This topic is closed',
+                  style: const TextStyle(color: Colors.grey),
                 ),
               ),
             ),
@@ -514,35 +529,40 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
       });
 
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã gửi trả lời')),
+          SnackBar(content: Text(isVietnamese ? 'Đã gửi trả lời' : 'Reply sent')),
         );
       }
     } catch (e) {
       print('❌ Error sending reply: $e');
       if (mounted) {
+        final isVietnamese = _isVietnamese();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }
   }
 
   Future<void> _deleteReply(String replyId) async {
+    final isVietnamese = _isVietnamese();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa trả lời'),
-        content: const Text('Bạn có chắc muốn xóa trả lời này?'),
+        title: Text(isVietnamese ? 'Xóa trả lời' : 'Delete reply'),
+        content: Text(isVietnamese
+            ? 'Bạn có chắc muốn xóa trả lời này?'
+            : 'Are you sure you want to delete this reply?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -553,13 +573,13 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
         await ref.read(forumReplyProvider.notifier).deleteReply(replyId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa trả lời')),
+            SnackBar(content: Text(isVietnamese ? 'Đã xóa trả lời' : 'Reply deleted')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e')),
+            SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
           );
         }
       }
@@ -567,20 +587,23 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
   }
 
   Future<void> _deleteTopic() async {
+    final isVietnamese = _isVietnamese();
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa chủ đề'),
-        content: const Text('Bạn có chắc muốn xóa chủ đề này? Tất cả các trả lời cũng sẽ bị xóa.'),
+        title: Text(isVietnamese ? 'Xóa chủ đề' : 'Delete topic'),
+        content: Text(isVietnamese
+            ? 'Bạn có chắc muốn xóa chủ đề này? Tất cả các trả lời cũng sẽ bị xóa.'
+            : 'Are you sure you want to delete this topic? All replies will also be deleted.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -592,13 +615,13 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
         if (mounted) {
           Navigator.of(context).pop(); // Go back to forum list
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa chủ đề')),
+            SnackBar(content: Text(isVietnamese ? 'Đã xóa chủ đề' : 'Topic deleted')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e')),
+            SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
           );
         }
       }
@@ -606,6 +629,7 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
   }
 
   Future<void> _downloadFile(ForumAttachment attachment) async {
+    final isVietnamese = _isVietnamese();
     try {
       if (attachment.isLink) {
         if (mounted) {
@@ -622,7 +646,7 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
           base64Data: attachment.fileData!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
       } else if (attachment.fileUrl != null &&
           (attachment.fileUrl!.startsWith('http://') ||
               attachment.fileUrl!.startsWith('https://'))) {
@@ -630,9 +654,9 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
           url: attachment.fileUrl!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
       } else {
-        throw Exception('No valid file source');
+        throw Exception(isVietnamese ? 'Không có nguồn file hợp lệ' : 'No valid file source');
       }
 
       if (mounted) {
@@ -643,7 +667,7 @@ class _ForumThreadScreenState extends ConsumerState<ForumThreadScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }

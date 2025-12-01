@@ -1,10 +1,11 @@
-// screens/student/tabs/student_material_view.dart
+// screens/student/student_material_view.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../models/material.dart' as app;
-import '../../../providers/material_provider.dart';
-import '../../../providers/auth_provider.dart';
-import '../../../utils/file_download_helper.dart';
+import '../../models/material.dart' as app;
+import '../../providers/material_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/file_download_helper.dart';
+import '../../main.dart'; // for localeProvider
 
 class StudentMaterialView extends ConsumerStatefulWidget {
   final app.Material material;
@@ -32,11 +33,18 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
     });
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tài liệu'),
+        title: Text(isVietnamese ? 'Tài liệu' : 'Material'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -55,9 +63,9 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
 
             // Description
             if (widget.material.description != null) ...[
-              const Text(
-                'Mô tả:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              Text(
+                isVietnamese ? 'Mô tả:' : 'Description:',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 8),
               Text(widget.material.description!),
@@ -67,14 +75,14 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
             const Divider(),
 
             // Attachments
-            const Text(
-              'Tệp đính kèm:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Text(
+              isVietnamese ? 'Tệp đính kèm:' : 'Attachments:',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 12),
 
             if (widget.material.attachments.isEmpty)
-              const Text('Không có tệp đính kèm')
+              Text(isVietnamese ? 'Không có tệp đính kèm' : 'No attachments')
             else
               ...widget.material.attachments.map((attachment) {
                 return Card(
@@ -102,6 +110,7 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
   }
 
   Future<void> _downloadFile(app.MaterialAttachment attachment) async {
+    final isVietnamese = _isVietnamese();
     try {
       if (attachment.isLink) {
         if (mounted) {
@@ -114,7 +123,7 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đang tải xuống...')),
+          SnackBar(content: Text(isVietnamese ? 'Đang tải xuống...' : 'Downloading...')),
         );
       }
 
@@ -125,7 +134,7 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
           base64Data: attachment.fileData!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
       } else if (attachment.fileUrl != null &&
           (attachment.fileUrl!.startsWith('http://') ||
               attachment.fileUrl!.startsWith('https://'))) {
@@ -133,16 +142,18 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
           url: attachment.fileUrl!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
       } else if (attachment.fileUrl != null &&
           (attachment.fileUrl!.startsWith('/') || attachment.fileUrl!.contains('\\'))) {
         final downloaded = await FileDownloadHelper.downloadFromLocalPath(
           localPath: attachment.fileUrl!,
           fileName: attachment.fileName,
         );
-        result = downloaded != null ? 'Đã tải: $downloaded' : 'Không thể tải file local trên web';
+        result = downloaded != null
+            ? (isVietnamese ? 'Đã tải: $downloaded' : 'Downloaded: $downloaded')
+            : (isVietnamese ? 'Không thể tải file local trên web' : 'Cannot download local file on web');
       } else {
-        throw Exception('No valid file source available');
+        throw Exception(isVietnamese ? 'Không có nguồn file hợp lệ' : 'No valid file source available');
       }
 
       // Track download
@@ -162,7 +173,7 @@ class _StudentMaterialViewState extends ConsumerState<StudentMaterialView> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }

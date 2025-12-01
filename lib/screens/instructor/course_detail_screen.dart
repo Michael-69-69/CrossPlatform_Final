@@ -6,6 +6,7 @@ import '../../models/course.dart';
 import '../../models/group.dart' as app;
 import '../../models/semester.dart';
 import '../../models/user.dart';
+import '../../main.dart'; // for localeProvider
 import 'announcements_tab.dart';
 import 'assignments_tab.dart';
 import 'groups_tab.dart';
@@ -59,6 +60,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   @override
   Widget build(BuildContext context) {
     final totalStudents = currentStudents.length;
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     return Scaffold(
       appBar: AppBar(
@@ -74,14 +76,14 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           labelPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          tabs: const [
-            Tab(icon: Icon(Icons.announcement), text: 'Thông báo'),
-            Tab(icon: Icon(Icons.assignment), text: 'Bài tập'),
-            Tab(icon: Icon(Icons.quiz), text: 'Quiz'),
-            Tab(icon: Icon(Icons.folder), text: 'Tài liệu'),
-            Tab(icon: Icon(Icons.group), text: 'Nhóm'),
-            Tab(icon: Icon(Icons.forum), text: 'Diễn đàn'), // ✅ ADD THIS
-            Tab(icon: Icon(Icons.analytics), text: 'Thống kê'),
+          tabs: [
+            Tab(icon: const Icon(Icons.announcement), text: isVietnamese ? 'Thông báo' : 'Announcements'),
+            Tab(icon: const Icon(Icons.assignment), text: isVietnamese ? 'Bài tập' : 'Assignments'),
+            Tab(icon: const Icon(Icons.quiz), text: 'Quiz'),
+            Tab(icon: const Icon(Icons.folder), text: isVietnamese ? 'Tài liệu' : 'Materials'),
+            Tab(icon: const Icon(Icons.group), text: isVietnamese ? 'Nhóm' : 'Groups'),
+            Tab(icon: const Icon(Icons.forum), text: isVietnamese ? 'Diễn đàn' : 'Forum'),
+            Tab(icon: const Icon(Icons.analytics), text: isVietnamese ? 'Thống kê' : 'Analytics'),
           ],
         ),
       ),
@@ -103,7 +105,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
-                    Text('${widget.course.sessions} buổi'),
+                    Text(isVietnamese ? '${widget.course.sessions} buổi' : '${widget.course.sessions} sessions'),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -114,7 +116,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
                     Expanded(
                       child: Text('${widget.course.code}: ${widget.course.name}'),
                     ),
-                    Text('$totalStudents học sinh'),
+                    Text(isVietnamese ? '$totalStudents học sinh' : '$totalStudents students'),
                   ],
                 ),
               ],

@@ -5,6 +5,7 @@ import '../../../models/group.dart';
 import '../../../models/user.dart';
 import '../../../providers/group_provider.dart';
 import '../../../services/network_service.dart';
+import '../../../main.dart'; // for localeProvider
 
 class StudentPeopleTab extends ConsumerWidget {
   final List<Group> groups;
@@ -19,7 +20,8 @@ class StudentPeopleTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isOffline = NetworkService().isOffline;
-    
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     if (groups.isEmpty) {
       return Center(
         child: Column(
@@ -28,7 +30,7 @@ class StudentPeopleTab extends ConsumerWidget {
             Icon(Icons.group, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'Chưa có nhóm nào',
+              isVietnamese ? 'Chưa có nhóm nào' : 'No groups yet',
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
@@ -80,7 +82,7 @@ class StudentPeopleTab extends ConsumerWidget {
               ),
               subtitle: Row(
                 children: [
-                  Text('$displayCount học sinh'),
+                  Text(isVietnamese ? '$displayCount học sinh' : '$displayCount students'),
                   if (isOffline && hasCachedDetails && !hasProviderStudents) ...[
                     const SizedBox(width: 8),
                     Container(
@@ -131,6 +133,7 @@ class StudentPeopleTab extends ConsumerWidget {
                 cachedDetails,
                 hasProviderStudents,
                 hasCachedDetails,
+                isVietnamese,
               ),
             ),
           );
@@ -145,6 +148,7 @@ class StudentPeopleTab extends ConsumerWidget {
     List<Map<String, dynamic>> cachedDetails,
     bool hasProviderStudents,
     bool hasCachedDetails,
+    bool isVietnamese,
   ) {
     // ✅ Priority 1: Use provider students
     if (hasProviderStudents) {
@@ -190,12 +194,16 @@ class StudentPeopleTab extends ConsumerWidget {
               Icon(Icons.cloud_off, size: 32, color: Colors.grey[400]),
               const SizedBox(height: 8),
               Text(
-                'Có ${group.studentIds.length} học sinh',
+                isVietnamese
+                    ? 'Có ${group.studentIds.length} học sinh'
+                    : '${group.studentIds.length} students',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                'Chi tiết học sinh chưa được cache.\nKết nối mạng để xem thông tin.',
+                isVietnamese
+                    ? 'Chi tiết học sinh chưa được cache.\nKết nối mạng để xem thông tin.'
+                    : 'Student details not cached.\nConnect to network to view.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600], fontSize: 12),
               ),
@@ -204,11 +212,11 @@ class StudentPeopleTab extends ConsumerWidget {
         ),
       ];
     }
-    
+
     return [
-      const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('Chưa có học sinh nào'),
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(isVietnamese ? 'Chưa có học sinh nào' : 'No students yet'),
       ),
     ];
   }

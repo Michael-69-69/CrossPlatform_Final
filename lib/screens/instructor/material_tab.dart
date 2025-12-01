@@ -1,6 +1,7 @@
 // screens/instructor/material_tab.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../main.dart'; // for localeProvider
 import '../../models/material.dart' as app;
 import '../../models/user.dart';
 import '../../providers/material_provider.dart';
@@ -38,6 +39,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final materials = ref.watch(materialProvider)
         .where((m) => m.courseId == widget.courseId)
         .toList();
@@ -54,7 +56,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Thêm tài liệu'),
+            label: Text(isVietnamese ? 'Thêm tài liệu' : 'Add Material'),
             onPressed: () => _showCreateMaterialDialog(context),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
@@ -66,7 +68,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
             decoration: InputDecoration(
-              hintText: 'Tìm kiếm tài liệu...',
+              hintText: isVietnamese ? 'Tìm kiếm tài liệu...' : 'Search materials...',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
@@ -88,8 +90,8 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
               ? Center(
                   child: Text(
                     _searchQuery.isNotEmpty
-                        ? 'Không tìm thấy tài liệu nào'
-                        : 'Chưa có tài liệu nào',
+                        ? (isVietnamese ? 'Không tìm thấy tài liệu nào' : 'No materials found')
+                        : (isVietnamese ? 'Chưa có tài liệu nào' : 'No materials yet'),
                   ),
                 )
               : ListView.builder(
@@ -111,6 +113,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
   }
 
   void _showCreateMaterialDialog(BuildContext context) {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     final linkCtrl = TextEditingController();
@@ -121,7 +124,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Thêm tài liệu'),
+          title: Text(isVietnamese ? 'Thêm tài liệu' : 'Add Material'),
           content: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -130,36 +133,39 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
                 children: [
                   TextFormField(
                     controller: titleCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Tiêu đề *',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Tiêu đề *' : 'Title *',
+                      border: const OutlineInputBorder(),
                     ),
-                    validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                    validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: descCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Mô tả',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Mô tả' : 'Description',
+                      border: const OutlineInputBorder(),
                     ),
                     maxLines: 3,
                   ),
                   const SizedBox(height: 16),
                   const Divider(),
-                  const Text('Tệp đính kèm / Liên kết:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    isVietnamese ? 'Tệp đính kèm / Liên kết:' : 'Attachments / Links:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.attach_file),
-                          label: const Text('Chọn tệp'),
+                          label: Text(isVietnamese ? 'Chọn tệp' : 'Choose files'),
                           onPressed: () async {
                             try {
                               // ✅ NEW: Use file upload helper to encode files
                               final encodedFiles = await FileUploadHelper.pickAndEncodeMultipleFiles();
-                              
+
                               if (encodedFiles.isNotEmpty) {
                                 setDialogState(() {
                                   for (final fileData in encodedFiles) {
@@ -175,7 +181,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
                               }
                             } catch (e) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Lỗi tải file: $e')),
+                                SnackBar(content: Text('${isVietnamese ? "Lỗi tải file" : "File upload error"}: $e')),
                               );
                             }
                           },
@@ -185,12 +191,12 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.link),
-                          label: const Text('Thêm link'),
+                          label: Text(isVietnamese ? 'Thêm link' : 'Add link'),
                           onPressed: () {
                             showDialog(
                               context: context,
                               builder: (linkCtx) => AlertDialog(
-                                title: const Text('Thêm liên kết'),
+                                title: Text(isVietnamese ? 'Thêm liên kết' : 'Add Link'),
                                 content: TextField(
                                   controller: linkCtrl,
                                   decoration: const InputDecoration(
@@ -201,7 +207,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(linkCtx),
-                                    child: const Text('Hủy'),
+                                    child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
                                   ),
                                   ElevatedButton(
                                     onPressed: () {
@@ -217,7 +223,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
                                         Navigator.pop(linkCtx);
                                       }
                                     },
-                                    child: const Text('Thêm'),
+                                    child: Text(isVietnamese ? 'Thêm' : 'Add'),
                                   ),
                                 ],
                               ),
@@ -254,7 +260,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Hủy'),
+              child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -269,18 +275,18 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
                   Navigator.pop(ctx);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Đã thêm tài liệu')),
+                      SnackBar(content: Text(isVietnamese ? 'Đã thêm tài liệu' : 'Material added')),
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e')),
+                      SnackBar(content: Text('${isVietnamese ? "Lỗi" : "Error"}: $e')),
                     );
                   }
                 }
               },
-              child: const Text('Thêm'),
+              child: Text(isVietnamese ? 'Thêm' : 'Add'),
             ),
           ],
         ),
@@ -311,6 +317,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
 
   // ✅ UPDATED: Handle Base64, URL, and local paths
   Future<void> _downloadFile(BuildContext context, String materialId, app.MaterialAttachment attachment) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     try {
       // Record the download in database
       final user = ref.read(authProvider);
@@ -334,7 +341,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
       // Show loading
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đang tải xuống...')),
+          SnackBar(content: Text(isVietnamese ? 'Đang tải xuống...' : 'Downloading...')),
         );
       }
 
@@ -347,29 +354,29 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
           base64Data: attachment.fileData!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
-      } else if (attachment.fileUrl != null && 
-                 (attachment.fileUrl!.startsWith('http://') || 
+        result = '${isVietnamese ? "Đã tải" : "Downloaded"}: $path';
+      } else if (attachment.fileUrl != null &&
+                 (attachment.fileUrl!.startsWith('http://') ||
                   attachment.fileUrl!.startsWith('https://'))) {
         // URL - download from internet
         final path = await FileDownloadHelper.downloadFile(
           url: attachment.fileUrl!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = '${isVietnamese ? "Đã tải" : "Downloaded"}: $path';
       } else if (attachment.fileUrl != null &&
-                 (attachment.fileUrl!.startsWith('/') || 
+                 (attachment.fileUrl!.startsWith('/') ||
                   attachment.fileUrl!.contains('\\'))) {
         // Local file path (mobile only)
         final downloaded = await FileDownloadHelper.downloadFromLocalPath(
           localPath: attachment.fileUrl!,
           fileName: attachment.fileName,
         );
-        
+
         if (downloaded != null) {
-          result = 'Đã tải: $downloaded';
+          result = '${isVietnamese ? "Đã tải" : "Downloaded"}: $downloaded';
         } else {
-          result = 'Không thể tải file local trên web';
+          result = isVietnamese ? 'Không thể tải file local trên web' : 'Cannot download local file on web';
         }
       } else {
         throw Exception('No valid file source available');
@@ -383,27 +390,28 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? "Lỗi" : "Error"}: $e')),
         );
       }
     }
   }
 
   Future<void> _deleteMaterial(String materialId) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa tài liệu?'),
-        content: const Text('Bạn có chắc muốn xóa tài liệu này?'),
+        title: Text(isVietnamese ? 'Xóa tài liệu?' : 'Delete material?'),
+        content: Text(isVietnamese ? 'Bạn có chắc muốn xóa tài liệu này?' : 'Are you sure you want to delete this material?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -414,13 +422,13 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
         await ref.read(materialProvider.notifier).deleteMaterial(materialId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đã xóa tài liệu')),
+            SnackBar(content: Text(isVietnamese ? 'Đã xóa tài liệu' : 'Material deleted')),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e')),
+            SnackBar(content: Text('${isVietnamese ? "Lỗi" : "Error"}: $e')),
           );
         }
       }
@@ -428,7 +436,7 @@ class _MaterialTabState extends ConsumerState<MaterialTab> {
   }
 }
 
-class _MaterialCard extends StatelessWidget {
+class _MaterialCard extends ConsumerWidget {
   final app.Material material;
   final List<AppUser> students;
   final VoidCallback onTap;
@@ -442,7 +450,8 @@ class _MaterialCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -452,24 +461,27 @@ class _MaterialCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (material.description != null) Text(material.description!),
-            Text('${material.attachments.length} tệp đính kèm'),
+            Text('${material.attachments.length} ${isVietnamese ? "tệp đính kèm" : "attachments"}'),
           ],
         ),
         trailing: PopupMenuButton(
           itemBuilder: (context) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'detail',
               child: ListTile(
-                leading: Icon(Icons.info),
-                title: Text('Chi tiết'),
+                leading: const Icon(Icons.info),
+                title: Text(isVietnamese ? 'Chi tiết' : 'Details'),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'delete',
               child: ListTile(
-                leading: Icon(Icons.delete, color: Colors.red),
-                title: Text('Xóa', style: TextStyle(color: Colors.red)),
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: Text(
+                  isVietnamese ? 'Xóa' : 'Delete',
+                  style: const TextStyle(color: Colors.red),
+                ),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
@@ -504,6 +516,7 @@ class _MaterialDetailSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
       minChildSize: 0.5,
@@ -541,16 +554,16 @@ class _MaterialDetailSheet extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('Đã xem: ${views.length}/${students.length}'),
+              child: Text('${isVietnamese ? "Đã xem" : "Viewed"}: ${views.length}/${students.length}'),
             ),
             if (material.attachments.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Tệp đính kèm:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    isVietnamese ? 'Tệp đính kèm:' : 'Attachments:',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -585,16 +598,16 @@ class _MaterialDetailSheet extends ConsumerWidget {
                 length: 2,
                 child: Column(
                   children: [
-                    const TabBar(
+                    TabBar(
                       tabs: [
-                        Tab(text: 'Đã xem'),
-                        Tab(text: 'Chưa xem'),
+                        Tab(text: isVietnamese ? 'Đã xem' : 'Viewed'),
+                        Tab(text: isVietnamese ? 'Chưa xem' : 'Not Viewed'),
                       ],
                     ),
                     Expanded(
                       child: TabBarView(
                         children: [
-                          _buildViewedList(views, students),
+                          _buildViewedList(views, students, isVietnamese),
                           _buildNotViewedList(notViewed),
                         ],
                       ),
@@ -609,7 +622,7 @@ class _MaterialDetailSheet extends ConsumerWidget {
     );
   }
 
-  Widget _buildViewedList(List<app.MaterialView> views, List<AppUser> students) {
+  Widget _buildViewedList(List<app.MaterialView> views, List<AppUser> students, bool isVietnamese) {
     return ListView.builder(
       itemCount: views.length,
       itemBuilder: (context, index) {
@@ -628,7 +641,7 @@ class _MaterialDetailSheet extends ConsumerWidget {
         return ListTile(
           leading: CircleAvatar(child: Text(student.fullName[0])),
           title: Text(student.fullName),
-          subtitle: Text('${student.code} • ${view.downloaded ? "Đã tải" : "Đã xem"}'),
+          subtitle: Text('${student.code} • ${view.downloaded ? (isVietnamese ? "Đã tải" : "Downloaded") : (isVietnamese ? "Đã xem" : "Viewed")}'),
           trailing: Text(
             '${view.viewedAt.day}/${view.viewedAt.month} ${view.viewedAt.hour}:${view.viewedAt.minute.toString().padLeft(2, '0')}',
             style: const TextStyle(fontSize: 12),

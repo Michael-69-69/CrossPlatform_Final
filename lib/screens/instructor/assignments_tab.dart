@@ -1,6 +1,7 @@
 // screens/instructor/assignments_tab.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../main.dart'; // for localeProvider
 import '../../models/assignment.dart';
 import '../../models/group.dart';
 import '../../models/user.dart';
@@ -48,6 +49,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final assignments = ref.watch(assignmentProvider)
         .where((a) => a.courseId == widget.courseId)
         .toList();
@@ -58,7 +60,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.add),
-            label: const Text('Tạo bài tập'),
+            label: Text(isVietnamese ? 'Tạo bài tập' : 'Create assignment'),
             onPressed: () => _showCreateAssignmentDialog(context),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
@@ -71,7 +73,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
             children: [
               TextField(
                 decoration: InputDecoration(
-                  hintText: 'Tìm kiếm...',
+                  hintText: isVietnamese ? 'Tìm kiếm...' : 'Search...',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchQuery.isNotEmpty
                       ? IconButton(
@@ -91,13 +93,13 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       value: _selectedGroupFilter,
-                      decoration: const InputDecoration(
-                        labelText: 'Lọc theo nhóm',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: isVietnamese ? 'Lọc theo nhóm' : 'Filter by group',
+                        border: const OutlineInputBorder(),
                         isDense: true,
                       ),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('Tất cả')),
+                        DropdownMenuItem(value: null, child: Text(isVietnamese ? 'Tất cả' : 'All')),
                         ...widget.groups.map((g) => DropdownMenuItem(
                               value: g.id,
                               child: Text(g.name),
@@ -110,16 +112,16 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                   Expanded(
                     child: DropdownButtonFormField<AssignmentStatus>(
                       value: _selectedStatusFilter,
-                      decoration: const InputDecoration(
-                        labelText: 'Lọc theo trạng thái',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: isVietnamese ? 'Lọc theo trạng thái' : 'Filter by status',
+                        border: const OutlineInputBorder(),
                         isDense: true,
                       ),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('Tất cả')),
+                        DropdownMenuItem(value: null, child: Text(isVietnamese ? 'Tất cả' : 'All')),
                         ...AssignmentStatus.values.map((s) => DropdownMenuItem(
                               value: s,
-                              child: Text(_getStatusText(s)),
+                              child: Text(_getStatusText(s, isVietnamese)),
                             )),
                       ],
                       onChanged: (value) => setState(() => _selectedStatusFilter = value),
@@ -133,16 +135,16 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       value: _sortBy,
-                      decoration: const InputDecoration(
-                        labelText: 'Sắp xếp theo',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: isVietnamese ? 'Sắp xếp theo' : 'Sort by',
+                        border: const OutlineInputBorder(),
                         isDense: true,
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'name', child: Text('Tên')),
-                        DropdownMenuItem(value: 'group', child: Text('Nhóm')),
-                        DropdownMenuItem(value: 'time', child: Text('Thời gian')),
-                        DropdownMenuItem(value: 'status', child: Text('Trạng thái')),
+                      items: [
+                        DropdownMenuItem(value: 'name', child: Text(isVietnamese ? 'Tên' : 'Name')),
+                        DropdownMenuItem(value: 'group', child: Text(isVietnamese ? 'Nhóm' : 'Group')),
+                        DropdownMenuItem(value: 'time', child: Text(isVietnamese ? 'Thời gian' : 'Time')),
+                        DropdownMenuItem(value: 'status', child: Text(isVietnamese ? 'Trạng thái' : 'Status')),
                       ],
                       onChanged: (value) => setState(() => _sortBy = value!),
                     ),
@@ -159,13 +161,13 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
         ),
         Expanded(
           child: assignments.isEmpty
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.assignment, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('Chưa có bài tập nào'),
+                      const Icon(Icons.assignment, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text(isVietnamese ? 'Chưa có bài tập nào' : 'No assignments yet'),
                     ],
                   ),
                 )
@@ -231,6 +233,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
   }
 
   void _showCreateAssignmentDialog(BuildContext context) {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final titleCtrl = TextEditingController();
     final descriptionCtrl = TextEditingController();
     final startDateCtrl = TextEditingController();
@@ -249,7 +252,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
       builder: (ctx) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
           return AlertDialog(
-            title: const Text('Tạo bài tập'),
+            title: Text(isVietnamese ? 'Tạo bài tập' : 'Create assignment'),
             content: SizedBox(
               width: double.maxFinite,
               height: MediaQuery.of(context).size.height * 0.7,
@@ -262,29 +265,29 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                     children: [
                       TextFormField(
                         controller: titleCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Tiêu đề *',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: isVietnamese ? 'Tiêu đề *' : 'Title *',
+                          border: const OutlineInputBorder(),
                         ),
-                        validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                        validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: descriptionCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Mô tả *',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: isVietnamese ? 'Mô tả *' : 'Description *',
+                          border: const OutlineInputBorder(),
                         ),
                         maxLines: 3,
-                        validator: (v) => v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                        validator: (v) => v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                       ),
                       const SizedBox(height: 16),
-                      
-                      const Text('Tệp đính kèm:', style: TextStyle(fontWeight: FontWeight.bold)),
+
+                      Text(isVietnamese ? 'Tệp đính kèm:' : 'Attachments:', style: const TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
                         icon: const Icon(Icons.attach_file),
-                        label: const Text('Chọn tệp'),
+                        label: Text(isVietnamese ? 'Chọn tệp' : 'Select files'),
                         onPressed: () async {
                           try {
                             final encodedFiles = await FileUploadHelper.pickAndEncodeMultipleFiles();
@@ -296,7 +299,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                           } catch (e) {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Lỗi chọn file: $e')),
+                                SnackBar(content: Text('${isVietnamese ? 'Lỗi chọn file' : 'Error selecting file'}: $e')),
                               );
                             }
                           }
@@ -330,10 +333,10 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                           Expanded(
                             child: TextFormField(
                               controller: startDateCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Ngày bắt đầu *',
-                                border: OutlineInputBorder(),
-                                suffixIcon: Icon(Icons.calendar_today),
+                              decoration: InputDecoration(
+                                labelText: isVietnamese ? 'Ngày bắt đầu *' : 'Start date *',
+                                border: const OutlineInputBorder(),
+                                suffixIcon: const Icon(Icons.calendar_today),
                               ),
                               readOnly: true,
                               onTap: () async {
@@ -347,17 +350,17 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                                   startDateCtrl.text = '${date.day}/${date.month}/${date.year}';
                                 }
                               },
-                              validator: (v) => v?.isEmpty == true ? 'Bắt buộc' : null,
+                              validator: (v) => v?.isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: TextFormField(
                               controller: deadlineCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Hạn nộp *',
-                                border: OutlineInputBorder(),
-                                suffixIcon: Icon(Icons.calendar_today),
+                              decoration: InputDecoration(
+                                labelText: isVietnamese ? 'Hạn nộp *' : 'Deadline *',
+                                border: const OutlineInputBorder(),
+                                suffixIcon: const Icon(Icons.calendar_today),
                               ),
                               readOnly: true,
                               onTap: () async {
@@ -371,14 +374,14 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                                   deadlineCtrl.text = '${date.day}/${date.month}/${date.year}';
                                 }
                               },
-                              validator: (v) => v?.isEmpty == true ? 'Bắt buộc' : null,
+                              validator: (v) => v?.isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
                       CheckboxListTile(
-                        title: const Text('Cho phép nộp muộn'),
+                        title: Text(isVietnamese ? 'Cho phép nộp muộn' : 'Allow late submission'),
                         value: allowLateSubmission,
                         onChanged: (v) => setDialogState(() => allowLateSubmission = v!),
                         contentPadding: EdgeInsets.zero,
@@ -386,10 +389,10 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                       if (allowLateSubmission) ...[
                         TextFormField(
                           controller: lateDeadlineCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Hạn nộp muộn',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today),
+                          decoration: InputDecoration(
+                            labelText: isVietnamese ? 'Hạn nộp muộn' : 'Late deadline',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: const Icon(Icons.calendar_today),
                           ),
                           readOnly: true,
                           onTap: () async {
@@ -406,35 +409,35 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                         ),
                         const SizedBox(height: 16),
                       ],
-                      
+
                       TextFormField(
                         controller: maxAttemptsCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Số lần nộp tối đa *',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: isVietnamese ? 'Số lần nộp tối đa *' : 'Max attempts *',
+                          border: const OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
                         validator: (v) {
-                          if (v?.isEmpty == true) return 'Bắt buộc';
+                          if (v?.isEmpty == true) return isVietnamese ? 'Bắt buộc' : 'Required';
                           final n = int.tryParse(v!);
-                          if (n == null || n < 1) return 'Phải >= 1';
+                          if (n == null || n < 1) return isVietnamese ? 'Phải >= 1' : 'Must be >= 1';
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: allowedFormatsCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Định dạng cho phép (VD: pdf,doc,docx)',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: isVietnamese ? 'Định dạng cho phép (VD: pdf,doc,docx)' : 'Allowed formats (e.g., pdf,doc,docx)',
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: maxFileSizeCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Kích thước tối đa (bytes)',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: isVietnamese ? 'Kích thước tối đa (bytes)' : 'Max file size (bytes)',
+                          border: const OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
                       ),
@@ -454,23 +457,25 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                               children: [
                                 Icon(Icons.group, color: Colors.blue[700]),
                                 const SizedBox(width: 8),
-                                const Text(
-                                  'Chọn nhóm áp dụng:',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                Text(
+                                  isVietnamese ? 'Chọn nhóm áp dụng:' : 'Select groups to apply:',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Đã chọn: ${selectedGroupIds.length}/${widget.groups.length} nhóm',
+                              '${isVietnamese ? 'Đã chọn' : 'Selected'}: ${selectedGroupIds.length}/${widget.groups.length} ${isVietnamese ? 'nhóm' : 'groups'}',
                               style: TextStyle(color: Colors.grey[700], fontSize: 12),
                             ),
                             const SizedBox(height: 12),
-                            
+
                             ElevatedButton.icon(
                               icon: const Icon(Icons.edit),
                               label: Text(
-                                selectedGroupIds.isEmpty ? 'Chọn nhóm' : 'Sửa nhóm đã chọn',
+                                selectedGroupIds.isEmpty
+                                  ? (isVietnamese ? 'Chọn nhóm' : 'Select groups')
+                                  : (isVietnamese ? 'Sửa nhóm đã chọn' : 'Edit selected groups'),
                               ),
                               style: ElevatedButton.styleFrom(
                                 minimumSize: const Size(double.infinity, 48),
@@ -523,7 +528,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Hủy'),
+                child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -531,7 +536,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
 
                   if (selectedGroupIds.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng chọn ít nhất một nhóm')),
+                      SnackBar(content: Text(isVietnamese ? 'Vui lòng chọn ít nhất một nhóm' : 'Please select at least one group')),
                     );
                     return;
                   }
@@ -544,14 +549,14 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
 
                   if (startDate == null || deadline == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Vui lòng chọn ngày hợp lệ')),
+                      SnackBar(content: Text(isVietnamese ? 'Vui lòng chọn ngày hợp lệ' : 'Please select valid dates')),
                     );
                     return;
                   }
 
                   if (deadline.isBefore(startDate)) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Hạn nộp phải sau ngày bắt đầu')),
+                      SnackBar(content: Text(isVietnamese ? 'Hạn nộp phải sau ngày bắt đầu' : 'Deadline must be after start date')),
                     );
                     return;
                   }
@@ -591,18 +596,20 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                     if (ctx.mounted) Navigator.pop(ctx);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Đã tạo bài tập cho ${selectedGroupIds.length} nhóm')),
+                        SnackBar(content: Text(isVietnamese
+                          ? 'Đã tạo bài tập cho ${selectedGroupIds.length} nhóm'
+                          : 'Created assignment for ${selectedGroupIds.length} groups')),
                       );
                     }
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Lỗi: $e')),
+                        SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                       );
                     }
                   }
                 },
-                child: const Text('Tạo'),
+                child: Text(isVietnamese ? 'Tạo' : 'Create'),
               ),
             ],
           );
@@ -616,20 +623,21 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
     List<String> currentSelectedIds,
     List<Group> groups,
   ) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final tempSelectedIds = List<String>.from(currentSelectedIds);
-    
+
     return showDialog<List<String>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           final allSelected = tempSelectedIds.length == groups.length && groups.isNotEmpty;
-          
+
           return AlertDialog(
             title: Row(
               children: [
                 const Icon(Icons.group, color: Colors.blue),
                 const SizedBox(width: 8),
-                const Text('Chọn nhóm'),
+                Text(isVietnamese ? 'Chọn nhóm' : 'Select groups'),
                 const Spacer(),
                 Text(
                   '${tempSelectedIds.length}/${groups.length}',
@@ -658,13 +666,15 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                         color: allSelected ? Colors.green : Colors.blue,
                       ),
                       title: Text(
-                        allSelected ? 'Đã chọn tất cả' : 'Chọn tất cả nhóm',
+                        allSelected
+                          ? (isVietnamese ? 'Đã chọn tất cả' : 'All selected')
+                          : (isVietnamese ? 'Chọn tất cả nhóm' : 'Select all groups'),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: allSelected ? Colors.green : Colors.blue,
                         ),
                       ),
-                      subtitle: Text('${groups.length} nhóm'),
+                      subtitle: Text('${groups.length} ${isVietnamese ? 'nhóm' : 'groups'}'),
                       onTap: () {
                         setDialogState(() {
                           if (allSelected) {
@@ -680,13 +690,13 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                   const Divider(),
                   Expanded(
                     child: groups.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.group_off, size: 64, color: Colors.grey),
-                                SizedBox(height: 16),
-                                Text('Chưa có nhóm nào'),
+                                const Icon(Icons.group_off, size: 64, color: Colors.grey),
+                                const SizedBox(height: 16),
+                                Text(isVietnamese ? 'Chưa có nhóm nào' : 'No groups yet'),
                               ],
                             ),
                           )
@@ -713,7 +723,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),
-                                  subtitle: Text('${group.studentIds.length} học sinh'),
+                                  subtitle: Text('${group.studentIds.length} ${isVietnamese ? 'học sinh' : 'students'}'),
                                   trailing: isSelected
                                       ? const Icon(Icons.check_circle, color: Colors.green)
                                       : const Icon(Icons.add_circle_outline, color: Colors.grey),
@@ -737,13 +747,13 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, null),
-                child: const Text('Hủy'),
+                child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
               ),
               ElevatedButton(
                 onPressed: tempSelectedIds.isEmpty
                     ? null
                     : () => Navigator.pop(ctx, tempSelectedIds),
-                child: Text('Xác nhận (${tempSelectedIds.length})'),
+                child: Text('${isVietnamese ? 'Xác nhận' : 'Confirm'} (${tempSelectedIds.length})'),
               ),
             ],
           );
@@ -809,20 +819,21 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
   }
 
   void _deleteAssignment(String id) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa bài tập'),
-        content: const Text('Bạn có chắc muốn xóa bài tập này?'),
+        title: Text(isVietnamese ? 'Xóa bài tập' : 'Delete assignment'),
+        content: Text(isVietnamese ? 'Bạn có chắc muốn xóa bài tập này?' : 'Are you sure you want to delete this assignment?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -832,16 +843,25 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
       await ref.read(assignmentProvider.notifier).deleteAssignment(id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa bài tập')),
+          SnackBar(content: Text(isVietnamese ? 'Đã xóa bài tập' : 'Assignment deleted')),
         );
       }
     }
   }
 
   Future<void> _exportAssignmentToCSV(Assignment assignment) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     try {
       final rows = <List<dynamic>>[
-        ['Tên', 'Nhóm', 'Trạng thái', 'Lần nộp', 'Thời gian nộp', 'Điểm', 'Nhận xét'],
+        [
+          isVietnamese ? 'Tên' : 'Name',
+          isVietnamese ? 'Nhóm' : 'Group',
+          isVietnamese ? 'Trạng thái' : 'Status',
+          isVietnamese ? 'Lần nộp' : 'Attempts',
+          isVietnamese ? 'Thời gian nộp' : 'Submission time',
+          isVietnamese ? 'Điểm' : 'Grade',
+          isVietnamese ? 'Nhận xét' : 'Feedback'
+        ],
       ];
 
       final relevantStudents = assignment.groupIds.isEmpty
@@ -860,15 +880,16 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
         final submissions = assignment.submissions
             .where((s) => s.studentId == student.id)
             .toList();
-        
+
+
         if (submissions.isEmpty) {
-          rows.add([student.fullName, group.name, 'Chưa nộp', '0', '', '', '']);
+          rows.add([student.fullName, group.name, isVietnamese ? 'Chưa nộp' : 'Not submitted', '0', '', '', '']);
         } else {
           for (final submission in submissions) {
             rows.add([
               student.fullName,
               group.name,
-              submission.isLate ? 'Nộp muộn' : 'Đã nộp',
+              submission.isLate ? (isVietnamese ? 'Nộp muộn' : 'Late') : (isVietnamese ? 'Đã nộp' : 'Submitted'),
               '${submission.attemptNumber}',
               submission.submittedAt.toString(),
               submission.grade?.toString() ?? '',
@@ -885,30 +906,30 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã xuất CSV: $result')),
+          SnackBar(content: Text('${isVietnamese ? 'Đã xuất CSV' : 'CSV exported'}: $result')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi xuất CSV: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi xuất CSV' : 'CSV export error'}: $e')),
         );
       }
     }
   }
 
-  static String _getStatusText(AssignmentStatus status) {
+  static String _getStatusText(AssignmentStatus status, bool isVietnamese) {
     switch (status) {
       case AssignmentStatus.notStarted:
-        return 'Chưa bắt đầu';
+        return isVietnamese ? 'Chưa bắt đầu' : 'Not started';
       case AssignmentStatus.inProgress:
-        return 'Đang làm';
+        return isVietnamese ? 'Đang làm' : 'In progress';
       case AssignmentStatus.submitted:
-        return 'Đã nộp';
+        return isVietnamese ? 'Đã nộp' : 'Submitted';
       case AssignmentStatus.late:
-        return 'Nộp muộn';
+        return isVietnamese ? 'Nộp muộn' : 'Late';
       case AssignmentStatus.graded:
-        return 'Đã chấm';
+        return isVietnamese ? 'Đã chấm' : 'Graded';
     }
   }
 }
@@ -917,7 +938,7 @@ class _AssignmentsTabState extends ConsumerState<AssignmentsTab> {
 // ASSIGNMENT CARD
 // ═══════════════════════════════════════════════════════════════════════════
 
-class _AssignmentCard extends StatelessWidget {
+class _AssignmentCard extends ConsumerWidget {
   final Assignment assignment;
   final List<Group> groups;
   final List<AppUser> students;
@@ -935,7 +956,8 @@ class _AssignmentCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final submittedCount = assignment.submissions.length;
     final totalStudents = assignment.groupIds.isEmpty
         ? students.length
@@ -966,21 +988,21 @@ class _AssignmentCard extends StatelessWidget {
                     itemBuilder: (context) => [
                       PopupMenuItem(
                         onTap: onExport,
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.file_download),
-                            SizedBox(width: 8),
-                            Text('Xuất CSV'),
+                            const Icon(Icons.file_download),
+                            const SizedBox(width: 8),
+                            Text(isVietnamese ? 'Xuất CSV' : 'Export CSV'),
                           ],
                         ),
                       ),
                       PopupMenuItem(
                         onTap: onDelete,
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.delete, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Xóa', style: TextStyle(color: Colors.red)),
+                            const Icon(Icons.delete, color: Colors.red),
+                            const SizedBox(width: 8),
+                            Text(isVietnamese ? 'Xóa' : 'Delete', style: const TextStyle(color: Colors.red)),
                           ],
                         ),
                       ),
@@ -995,12 +1017,12 @@ class _AssignmentCard extends StatelessWidget {
                 children: [
                   Icon(Icons.people, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
-                  Text('$submittedCount/$totalStudents đã nộp', style: TextStyle(color: Colors.grey[600])),
+                  Text('$submittedCount/$totalStudents ${isVietnamese ? 'đã nộp' : 'submitted'}', style: TextStyle(color: Colors.grey[600])),
                   const SizedBox(width: 16),
                   Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    'Hạn: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
+                    '${isVietnamese ? 'Hạn' : 'Deadline'}: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                 ],
@@ -1043,25 +1065,26 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
   bool _sortAscending = true;
 
   Future<void> _downloadFile(BuildContext context, AssignmentAttachment attachment) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đang tải xuống...')),
+        SnackBar(content: Text(isVietnamese ? 'Đang tải xuống...' : 'Downloading...')),
       );
 
       String result;
-      
+
       if (attachment.fileUrl.startsWith('http://') || attachment.fileUrl.startsWith('https://')) {
         final path = await FileDownloadHelper.downloadFile(
           url: attachment.fileUrl,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = '${isVietnamese ? 'Đã tải' : 'Downloaded'}: $path';
       } else if (attachment.fileUrl.isNotEmpty) {
         final path = await FileDownloadHelper.downloadFromBase64(
           base64Data: attachment.fileUrl,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = '${isVietnamese ? 'Đã tải' : 'Downloaded'}: $path';
       } else {
         throw Exception('No valid file source');
       }
@@ -1071,13 +1094,14 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi tải file: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${isVietnamese ? 'Lỗi tải file' : 'Download error'}: $e')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final assignment = ref.watch(assignmentProvider)
         .firstWhere((a) => a.id == widget.assignment.id, orElse: () => widget.assignment);
 
@@ -1107,6 +1131,7 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
         status: status,
         latestSubmission: latestSubmission,
         onGrade: widget.onGrade,
+        isVietnamese: isVietnamese,
       );
     }).toList();
 
@@ -1176,13 +1201,13 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                         children: [
                           Text(assignment.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                           Text(
-                            'Hạn: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
+                            '${isVietnamese ? 'Hạn' : 'Deadline'}: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
                             style: TextStyle(color: Colors.grey[600]),
                           ),
                         ],
                       ),
                     ),
-                    IconButton(icon: const Icon(Icons.file_download), onPressed: widget.onExport, tooltip: 'Xuất CSV'),
+                    IconButton(icon: const Icon(Icons.file_download), onPressed: widget.onExport, tooltip: isVietnamese ? 'Xuất CSV' : 'Export CSV'),
                     IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                   ],
                 ),
@@ -1195,13 +1220,13 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (assignment.description.isNotEmpty) ...[
-                        const Text('Mô tả:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(isVietnamese ? 'Mô tả:' : 'Description:', style: const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         Text(assignment.description),
                         const SizedBox(height: 16),
                       ],
                       if (assignment.attachments.isNotEmpty) ...[
-                        const Text('Tệp đính kèm:', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(isVietnamese ? 'Tệp đính kèm:' : 'Attachments:', style: const TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         ...assignment.attachments.map((attachment) {
                           return Card(
@@ -1228,7 +1253,7 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                   children: [
                     TextField(
                       decoration: InputDecoration(
-                        hintText: 'Tìm kiếm...',
+                        hintText: isVietnamese ? 'Tìm kiếm...' : 'Search...',
                         prefixIcon: const Icon(Icons.search),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         isDense: true,
@@ -1241,9 +1266,9 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             value: _selectedGroupFilter,
-                            decoration: const InputDecoration(labelText: 'Nhóm', border: OutlineInputBorder(), isDense: true),
+                            decoration: InputDecoration(labelText: isVietnamese ? 'Nhóm' : 'Group', border: const OutlineInputBorder(), isDense: true),
                             items: [
-                              const DropdownMenuItem(value: null, child: Text('Tất cả')),
+                              DropdownMenuItem(value: null, child: Text(isVietnamese ? 'Tất cả' : 'All')),
                               ...widget.groups.map((g) => DropdownMenuItem(value: g.id, child: Text(g.name))),
                             ],
                             onChanged: (value) => setState(() => _selectedGroupFilter = value),
@@ -1253,12 +1278,12 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             value: _sortBy,
-                            decoration: const InputDecoration(labelText: 'Sắp xếp', border: OutlineInputBorder(), isDense: true),
-                            items: const [
-                              DropdownMenuItem(value: 'name', child: Text('Tên')),
-                              DropdownMenuItem(value: 'group', child: Text('Nhóm')),
-                              DropdownMenuItem(value: 'time', child: Text('Thời gian')),
-                              DropdownMenuItem(value: 'status', child: Text('Trạng thái')),
+                            decoration: InputDecoration(labelText: isVietnamese ? 'Sắp xếp' : 'Sort', border: const OutlineInputBorder(), isDense: true),
+                            items: [
+                              DropdownMenuItem(value: 'name', child: Text(isVietnamese ? 'Tên' : 'Name')),
+                              DropdownMenuItem(value: 'group', child: Text(isVietnamese ? 'Nhóm' : 'Group')),
+                              DropdownMenuItem(value: 'time', child: Text(isVietnamese ? 'Thời gian' : 'Time')),
+                              DropdownMenuItem(value: 'status', child: Text(isVietnamese ? 'Trạng thái' : 'Status')),
                             ],
                             onChanged: (value) => setState(() => _sortBy = value!),
                           ),
@@ -1278,14 +1303,14 @@ class _AssignmentDetailSheetState extends ConsumerState<_AssignmentDetailSheet> 
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Tên')),
-                        DataColumn(label: Text('Nhóm')),
-                        DataColumn(label: Text('Trạng thái')),
-                        DataColumn(label: Text('Lần nộp')),
-                        DataColumn(label: Text('Thời gian')),
-                        DataColumn(label: Text('Điểm')),
-                        DataColumn(label: Text('Hành động')),
+                      columns: [
+                        DataColumn(label: Text(isVietnamese ? 'Tên' : 'Name')),
+                        DataColumn(label: Text(isVietnamese ? 'Nhóm' : 'Group')),
+                        DataColumn(label: Text(isVietnamese ? 'Trạng thái' : 'Status')),
+                        DataColumn(label: Text(isVietnamese ? 'Lần nộp' : 'Attempts')),
+                        DataColumn(label: Text(isVietnamese ? 'Thời gian' : 'Time')),
+                        DataColumn(label: Text(isVietnamese ? 'Điểm' : 'Grade')),
+                        DataColumn(label: Text(isVietnamese ? 'Hành động' : 'Action')),
                       ],
                       rows: filtered.map((row) => row.buildDataRow(context)).toList(),
                     ),
@@ -1311,6 +1336,7 @@ class _TrackingRow {
   final AssignmentStatus status;
   final AssignmentSubmission? latestSubmission;
   final Function(String, double, String?) onGrade;
+  final bool isVietnamese;
 
   _TrackingRow({
     required this.student,
@@ -1319,6 +1345,7 @@ class _TrackingRow {
     required this.status,
     required this.latestSubmission,
     required this.onGrade,
+    required this.isVietnamese,
   });
 
   DataRow buildDataRow(BuildContext context) {
@@ -1341,7 +1368,7 @@ class _TrackingRow {
               if (hasSubmissions) ...[
                 const SizedBox(width: 4),
                 Tooltip(
-                  message: 'Nhấn để xem chi tiết bài nộp',
+                  message: isVietnamese ? 'Nhấn để xem chi tiết bài nộp' : 'Click to view submission details',
                   child: Icon(Icons.open_in_new, size: 14, color: Colors.blue[400]),
                 ),
               ],
@@ -1365,7 +1392,7 @@ class _TrackingRow {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     minimumSize: const Size(0, 32),
                   ),
-                  child: const Text('Chấm điểm', style: TextStyle(fontSize: 12)),
+                  child: Text(isVietnamese ? 'Chấm điểm' : 'Grade', style: const TextStyle(fontSize: 12)),
                 )
               : const SizedBox.shrink(),
         ),
@@ -1382,6 +1409,7 @@ class _TrackingRow {
         student: student,
         submissions: submissions,
         onGrade: onGrade,
+        isVietnamese: isVietnamese,
       ),
     );
   }
@@ -1392,23 +1420,23 @@ class _TrackingRow {
     switch (status) {
       case AssignmentStatus.notStarted:
         color = Colors.grey;
-        text = 'Chưa bắt đầu';
+        text = isVietnamese ? 'Chưa bắt đầu' : 'Not started';
         break;
       case AssignmentStatus.inProgress:
         color = Colors.blue;
-        text = 'Đang làm';
+        text = isVietnamese ? 'Đang làm' : 'In progress';
         break;
       case AssignmentStatus.submitted:
         color = Colors.green;
-        text = 'Đã nộp';
+        text = isVietnamese ? 'Đã nộp' : 'Submitted';
         break;
       case AssignmentStatus.late:
         color = Colors.orange;
-        text = 'Nộp muộn';
+        text = isVietnamese ? 'Nộp muộn' : 'Late';
         break;
       case AssignmentStatus.graded:
         color = Colors.purple;
-        text = 'Đã chấm';
+        text = isVietnamese ? 'Đã chấm' : 'Graded';
         break;
     }
     return Chip(
@@ -1429,41 +1457,41 @@ class _TrackingRow {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Chấm điểm - ${student.fullName}'),
+        title: Text('${isVietnamese ? 'Chấm điểm' : 'Grade'} - ${student.fullName}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: gradeCtrl,
-              decoration: const InputDecoration(labelText: 'Điểm *', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: '${isVietnamese ? 'Điểm' : 'Grade'} *', border: const OutlineInputBorder()),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: feedbackCtrl,
-              decoration: const InputDecoration(labelText: 'Nhận xét', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: isVietnamese ? 'Nhận xét' : 'Feedback', border: const OutlineInputBorder()),
               maxLines: 3,
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(isVietnamese ? 'Hủy' : 'Cancel')),
           ElevatedButton(
             onPressed: () {
               final grade = double.tryParse(gradeCtrl.text);
               if (grade == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Vui lòng nhập điểm hợp lệ')),
+                  SnackBar(content: Text(isVietnamese ? 'Vui lòng nhập điểm hợp lệ' : 'Please enter a valid grade')),
                 );
                 return;
               }
               onGrade(latestSubmission!.id, grade, feedbackCtrl.text.trim().isEmpty ? null : feedbackCtrl.text.trim());
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã chấm điểm và gửi email thông báo')),
+                SnackBar(content: Text(isVietnamese ? 'Đã chấm điểm và gửi email thông báo' : 'Graded and notification email sent')),
               );
             },
-            child: const Text('Lưu'),
+            child: Text(isVietnamese ? 'Lưu' : 'Save'),
           ),
         ],
       ),
@@ -1479,11 +1507,13 @@ class _StudentSubmissionsSheet extends StatelessWidget {
   final AppUser student;
   final List<AssignmentSubmission> submissions;
   final Function(String, double, String?) onGrade;
+  final bool isVietnamese;
 
   const _StudentSubmissionsSheet({
     required this.student,
     required this.submissions,
     required this.onGrade,
+    required this.isVietnamese,
   });
 
   @override
@@ -1529,7 +1559,7 @@ class _StudentSubmissionsSheet extends StatelessWidget {
                         children: [
                           Text(student.fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           Text(
-                            '${student.code ?? student.email} • ${submissions.length} lần nộp',
+                            '${student.code ?? student.email} • ${submissions.length} ${isVietnamese ? 'lần nộp' : 'submissions'}',
                             style: TextStyle(color: Colors.grey[600], fontSize: 13),
                           ),
                         ],
@@ -1547,7 +1577,7 @@ class _StudentSubmissionsSheet extends StatelessWidget {
                           children: [
                             Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
                             const SizedBox(height: 16),
-                            Text('Chưa có bài nộp', style: TextStyle(color: Colors.grey[600])),
+                            Text(isVietnamese ? 'Chưa có bài nộp' : 'No submissions yet', style: TextStyle(color: Colors.grey[600])),
                           ],
                         ),
                       )
@@ -1560,6 +1590,7 @@ class _StudentSubmissionsSheet extends StatelessWidget {
                           return _SubmissionCard(
                             submission: submission,
                             onGrade: submission.grade == null ? () => _showGradeDialog(context, submission) : null,
+                            isVietnamese: isVietnamese,
                           );
                         },
                       ),
@@ -1578,41 +1609,41 @@ class _StudentSubmissionsSheet extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Chấm điểm - Lần ${submission.attemptNumber}'),
+        title: Text('${isVietnamese ? 'Chấm điểm - Lần' : 'Grade - Attempt'} ${submission.attemptNumber}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: gradeCtrl,
-              decoration: const InputDecoration(labelText: 'Điểm *', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: '${isVietnamese ? 'Điểm' : 'Grade'} *', border: const OutlineInputBorder()),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: feedbackCtrl,
-              decoration: const InputDecoration(labelText: 'Nhận xét', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: isVietnamese ? 'Nhận xét' : 'Feedback', border: const OutlineInputBorder()),
               maxLines: 3,
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(isVietnamese ? 'Hủy' : 'Cancel')),
           ElevatedButton(
             onPressed: () {
               final grade = double.tryParse(gradeCtrl.text);
               if (grade == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Vui lòng nhập điểm hợp lệ')),
+                  SnackBar(content: Text(isVietnamese ? 'Vui lòng nhập điểm hợp lệ' : 'Please enter a valid grade')),
                 );
                 return;
               }
               onGrade(submission.id, grade, feedbackCtrl.text.trim().isEmpty ? null : feedbackCtrl.text.trim());
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã chấm điểm và gửi email thông báo')),
+                SnackBar(content: Text(isVietnamese ? 'Đã chấm điểm và gửi email thông báo' : 'Graded and notification email sent')),
               );
             },
-            child: const Text('Lưu'),
+            child: Text(isVietnamese ? 'Lưu' : 'Save'),
           ),
         ],
       ),
@@ -1627,10 +1658,12 @@ class _StudentSubmissionsSheet extends StatelessWidget {
 class _SubmissionCard extends StatelessWidget {
   final AssignmentSubmission submission;
   final VoidCallback? onGrade;
+  final bool isVietnamese;
 
   const _SubmissionCard({
     required this.submission,
     this.onGrade,
+    required this.isVietnamese,
   });
 
   @override
@@ -1651,7 +1684,7 @@ class _SubmissionCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    'Lần ${submission.attemptNumber}',
+                    '${isVietnamese ? 'Lần' : 'Attempt'} ${submission.attemptNumber}',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
@@ -1660,7 +1693,7 @@ class _SubmissionCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
-                    child: const Text('NỘP TRỄ', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                    child: Text(isVietnamese ? 'NỘP TRỄ' : 'LATE', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                 ],
                 const Spacer(),
@@ -1669,7 +1702,7 @@ class _SubmissionCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(color: Colors.purple, borderRadius: BorderRadius.circular(16)),
                     child: Text(
-                      'Điểm: ${submission.grade}',
+                      '${isVietnamese ? 'Điểm' : 'Grade'}: ${submission.grade}',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   )
@@ -1680,7 +1713,7 @@ class _SubmissionCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       minimumSize: const Size(0, 36),
                     ),
-                    child: const Text('Chấm điểm', style: TextStyle(fontSize: 12)),
+                    child: Text(isVietnamese ? 'Chấm điểm' : 'Grade', style: const TextStyle(fontSize: 12)),
                   ),
               ],
             ),
@@ -1701,13 +1734,13 @@ class _SubmissionCard extends StatelessWidget {
                   Icon(Icons.attach_file, size: 16, color: Colors.grey[700]),
                   const SizedBox(width: 6),
                   Text(
-                    '${submission.files.length} tệp đính kèm',
+                    '${submission.files.length} ${isVietnamese ? 'tệp đính kèm' : 'attachments'}',
                     style: TextStyle(color: Colors.grey[700], fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              ...submission.files.map((file) => _FileItem(file: file)),
+              ...submission.files.map((file) => _FileItem(file: file, isVietnamese: isVietnamese)),
             ],
             if (submission.feedback != null && submission.feedback!.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -1722,7 +1755,7 @@ class _SubmissionCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Nhận xét:', style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text('${isVietnamese ? 'Nhận xét' : 'Feedback'}:', style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         Text(submission.feedback!, style: TextStyle(color: Colors.grey[800], fontSize: 13)),
                       ],
@@ -1748,8 +1781,9 @@ class _SubmissionCard extends StatelessWidget {
 
 class _FileItem extends StatelessWidget {
   final AssignmentAttachment file;
+  final bool isVietnamese;
 
-  const _FileItem({required this.file});
+  const _FileItem({required this.file, required this.isVietnamese});
 
   @override
   Widget build(BuildContext context) {
@@ -1777,7 +1811,7 @@ class _FileItem extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.download, color: Colors.blue),
             onPressed: () => _downloadFile(context),
-            tooltip: 'Tải xuống',
+            tooltip: isVietnamese ? 'Tải xuống' : 'Download',
           ),
         ],
       ),
@@ -1871,19 +1905,19 @@ class _FileItem extends StatelessWidget {
   Future<void> _downloadFile(BuildContext context) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đang tải ${file.fileName}...')),
+        SnackBar(content: Text('${isVietnamese ? 'Đang tải' : 'Downloading'} ${file.fileName}...')),
       );
 
       String result;
 
       if (file.fileUrl.startsWith('http://') || file.fileUrl.startsWith('https://')) {
         final path = await FileDownloadHelper.downloadFile(url: file.fileUrl, fileName: file.fileName);
-        result = 'Đã tải: $path';
+        result = '${isVietnamese ? 'Đã tải' : 'Downloaded'}: $path';
       } else if (file.fileUrl.isNotEmpty) {
         final path = await FileDownloadHelper.downloadFromBase64(base64Data: file.fileUrl, fileName: file.fileName);
-        result = 'Đã tải: $path';
+        result = '${isVietnamese ? 'Đã tải' : 'Downloaded'}: $path';
       } else {
-        throw Exception('Không có nguồn file hợp lệ');
+        throw Exception(isVietnamese ? 'Không có nguồn file hợp lệ' : 'No valid file source');
       }
 
       if (context.mounted) {
@@ -1894,7 +1928,7 @@ class _FileItem extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tải file: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi tải file' : 'Download error'}: $e'), backgroundColor: Colors.red),
         );
       }
     }

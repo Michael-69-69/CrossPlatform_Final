@@ -7,6 +7,7 @@ import '../../models/quiz.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/assignment_provider.dart';
 import '../../providers/quiz_provider.dart';
+import '../../main.dart'; // for localeProvider
 
 class StudentDashboardScreen extends ConsumerWidget {
   final String semesterId;
@@ -24,6 +25,7 @@ class StudentDashboardScreen extends ConsumerWidget {
     final allAssignments = ref.watch(assignmentProvider);
     final allQuizzes = ref.watch(quizProvider);
     final allSubmissions = ref.watch(quizSubmissionProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     // Filter assignments for student's courses
     final assignments = allAssignments.where((a) => 
@@ -77,16 +79,16 @@ class StudentDashboardScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Stats Cards
-          const Text(
-            'Tổng quan',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Tổng quan' : 'Overview',
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Bài tập chờ nộp',
+                  title: isVietnamese ? 'Bài tập chờ nộp' : 'Pending',
                   value: pendingAssignments.length.toString(),
                   icon: Icons.assignment,
                   color: Colors.orange,
@@ -95,7 +97,7 @@ class StudentDashboardScreen extends ConsumerWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Đã hoàn thành',
+                  title: isVietnamese ? 'Đã hoàn thành' : 'Completed',
                   value: completedAssignments.length.toString(),
                   icon: Icons.check_circle,
                   color: Colors.green,
@@ -108,7 +110,7 @@ class StudentDashboardScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Trễ hạn',
+                  title: isVietnamese ? 'Trễ hạn' : 'Late',
                   value: lateAssignments.length.toString(),
                   icon: Icons.warning,
                   color: Colors.red,
@@ -117,7 +119,7 @@ class StudentDashboardScreen extends ConsumerWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Quiz chờ làm',
+                  title: isVietnamese ? 'Quiz chờ làm' : 'Pending Quiz',
                   value: pendingQuizzes.toString(),
                   icon: Icons.quiz,
                   color: Colors.blue,
@@ -129,9 +131,9 @@ class StudentDashboardScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Upcoming Deadlines
-          const Text(
-            'Deadline sắp tới',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Deadline sắp tới' : 'Upcoming Deadlines',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           if (upcomingDeadlines.isEmpty)
@@ -143,7 +145,7 @@ class StudentDashboardScreen extends ConsumerWidget {
                     Icon(Icons.celebration, size: 48, color: Colors.grey[400]),
                     const SizedBox(height: 8),
                     Text(
-                      'Không có deadline nào!',
+                      isVietnamese ? 'Không có deadline nào!' : 'No deadlines!',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
@@ -155,10 +157,11 @@ class StudentDashboardScreen extends ConsumerWidget {
               if (item is Assignment) {
                 return _DeadlineItem(
                   title: item.title,
-                  type: 'Bài tập',
+                  type: isVietnamese ? 'Bài tập' : 'Assignment',
                   deadline: item.deadline,
                   icon: Icons.assignment,
                   color: Colors.orange,
+                  isVietnamese: isVietnamese,
                 );
               } else {
                 final quiz = item as Quiz;
@@ -168,6 +171,7 @@ class StudentDashboardScreen extends ConsumerWidget {
                   deadline: quiz.closeTime,
                   icon: Icons.quiz,
                   color: Colors.blue,
+                  isVietnamese: isVietnamese,
                 );
               }
             }),
@@ -175,9 +179,9 @@ class StudentDashboardScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Quiz Scores
-          const Text(
-            'Điểm Quiz gần đây',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Điểm Quiz gần đây' : 'Recent Quiz Scores',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           if (mySubmissions.isEmpty)
@@ -185,7 +189,7 @@ class StudentDashboardScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(
-                  'Chưa có điểm quiz nào',
+                  isVietnamese ? 'Chưa có điểm quiz nào' : 'No quiz scores yet',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
               ),
@@ -270,6 +274,7 @@ class _DeadlineItem extends StatelessWidget {
   final DateTime deadline;
   final IconData icon;
   final Color color;
+  final bool isVietnamese;
 
   const _DeadlineItem({
     required this.title,
@@ -277,6 +282,7 @@ class _DeadlineItem extends StatelessWidget {
     required this.deadline,
     required this.icon,
     required this.color,
+    required this.isVietnamese,
   });
 
   @override
@@ -286,11 +292,11 @@ class _DeadlineItem extends StatelessWidget {
 
     String timeText;
     if (daysUntil > 0) {
-      timeText = '$daysUntil ngày nữa';
+      timeText = isVietnamese ? '$daysUntil ngày nữa' : 'in $daysUntil days';
     } else if (hoursUntil > 0) {
-      timeText = '$hoursUntil giờ nữa';
+      timeText = isVietnamese ? '$hoursUntil giờ nữa' : 'in $hoursUntil hours';
     } else {
-      timeText = 'Sắp hết hạn!';
+      timeText = isVietnamese ? 'Sắp hết hạn!' : 'Due soon!';
     }
 
     return Card(

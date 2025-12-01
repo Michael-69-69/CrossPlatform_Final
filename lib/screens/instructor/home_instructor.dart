@@ -16,6 +16,8 @@ import 'csv_preview_screen.dart';
 import 'test_screen.dart';
 import 'cache_management_screen.dart';
 import 'instructor_dashboard_widget.dart'; // ✅ Import the dashboard widget
+import '../../widgets/language_switcher.dart';
+import '../../main.dart'; // for localeProvider
 
 class HomeInstructor extends ConsumerStatefulWidget {
   const HomeInstructor({super.key});
@@ -159,6 +161,11 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider)!;
@@ -166,6 +173,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     final courses = ref.watch(courseProvider);
     final students = ref.watch(studentProvider);
     final conversations = ref.watch(conversationProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     final filteredCourses = _selectedSemesterId == null
         ? courses.where((c) => c.instructorId == user.id).toList()
@@ -187,8 +195,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     return Scaffold(
       appBar: _currentBottomNavIndex == 0
           ? AppBar(
-              title: Text('GV: ${user.fullName}'),
+              title: Text(isVietnamese ? 'GV: ${user.fullName}' : 'Instructor: ${user.fullName}'),
               actions: [
+                // Language switcher
+                const LanguageSwitcher(),
                 // Test access button
                 IconButton(
                   icon: const Icon(Icons.science),
@@ -263,9 +273,9 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
         currentIndex: _currentBottomNavIndex,
         onTap: (index) => setState(() => _currentBottomNavIndex = index),
         items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.home),
+            label: isVietnamese ? 'Trang chủ' : 'Home',
           ),
           BottomNavigationBarItem(
             icon: Stack(
@@ -298,7 +308,7 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
                   ),
               ],
             ),
-            label: 'Tin nhắn',
+            label: isVietnamese ? 'Tin nhắn' : 'Messages',
           ),
         ],
       ),
@@ -324,10 +334,10 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
         // ✅ 3 Tabs: Tổng quan (Dashboard), Môn học, Sinh viên
         TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.dashboard), text: 'Tổng quan'),
-            Tab(icon: Icon(Icons.book), text: 'Môn học'),
-            Tab(icon: Icon(Icons.people), text: 'Sinh viên'),
+          tabs: [
+            Tab(icon: const Icon(Icons.dashboard), text: _isVietnamese() ? 'Tổng quan' : 'Overview'),
+            Tab(icon: const Icon(Icons.book), text: _isVietnamese() ? 'Môn học' : 'Courses'),
+            Tab(icon: const Icon(Icons.people), text: _isVietnamese() ? 'Sinh viên' : 'Students'),
           ],
         ),
         Expanded(
@@ -350,6 +360,8 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
   }
 
 Widget _buildSemesterSelector(List<Semester> semesters) {
+  final isVietnamese = _isVietnamese();
+
   return Row(
     children: [
       Expanded(
@@ -357,7 +369,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
           value: _selectedSemesterId,
           isExpanded: true, // ✅ FIX: Allow dropdown to expand properly
           decoration: InputDecoration(
-            labelText: 'Chọn học kỳ',
+            labelText: isVietnamese ? 'Chọn học kỳ' : 'Select semester',
             border: const OutlineInputBorder(),
             prefixIcon: const Icon(Icons.school),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -367,7 +379,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                 : null,
           ),
           items: [
-            const DropdownMenuItem(value: null, child: Text('Tất cả học kỳ')),
+            DropdownMenuItem(value: null, child: Text(isVietnamese ? 'Tất cả học kỳ' : 'All semesters')),
             ...semesters.map((s) => DropdownMenuItem(
                   value: s.id,
                   child: Row(
@@ -412,7 +424,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
           if (_selectedSemesterId != null &&
               !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
             Tooltip(
-              message: 'Kích hoạt học kỳ',
+              message: isVietnamese ? 'Kích hoạt học kỳ' : 'Activate semester',
               child: IconButton(
                 icon: const Icon(Icons.play_arrow, color: Colors.green),
                 onPressed: () => _activateSemester(semesters),
@@ -421,7 +433,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
           // Add semester button
           IconButton(
             icon: const Icon(Icons.add_circle, color: Colors.green),
-            tooltip: 'Thêm học kỳ',
+            tooltip: isVietnamese ? 'Thêm học kỳ' : 'Add semester',
             onPressed: () => context.push('/instructor/semester/create'),
           ),
           // Delete semester button
@@ -429,7 +441,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
               !semesters.any((s) => s.id == _selectedSemesterId && s.isActive))
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.red),
-              tooltip: 'Xóa học kỳ',
+              tooltip: isVietnamese ? 'Xóa học kỳ' : 'Delete semester',
               onPressed: () => _deleteSemester(semesters),
             ),
         ],
@@ -441,25 +453,30 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
   Future<void> _activateSemester(List<Semester> semesters) async {
     final selectedSemester =
         semesters.firstWhere((s) => s.id == _selectedSemesterId);
+    final isVietnamese = _isVietnamese();
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Kích hoạt học kỳ'),
+        title: Text(isVietnamese ? 'Kích hoạt học kỳ' : 'Activate Semester'),
         content: Text(
-          'Đặt "${selectedSemester.name}" làm học kỳ hiện tại?\n\n'
-          '• Sinh viên chỉ có thể nộp bài/làm quiz trong học kỳ này\n'
-          '• Các học kỳ khác sẽ chuyển sang chế độ chỉ xem',
+          isVietnamese
+              ? 'Đặt "${selectedSemester.name}" làm học kỳ hiện tại?\n\n'
+                '• Sinh viên chỉ có thể nộp bài/làm quiz trong học kỳ này\n'
+                '• Các học kỳ khác sẽ chuyển sang chế độ chỉ xem'
+              : 'Set "${selectedSemester.name}" as the current semester?\n\n'
+                '• Students can only submit assignments/take quizzes in this semester\n'
+                '• Other semesters will become view-only',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Kích hoạt'),
+            child: Text(isVietnamese ? 'Kích hoạt' : 'Activate'),
           ),
         ],
       ),
@@ -473,7 +490,9 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✅ Đã kích hoạt: ${selectedSemester.name}'),
+              content: Text(isVietnamese
+                  ? '✅ Đã kích hoạt: ${selectedSemester.name}'
+                  : '✅ Activated: ${selectedSemester.name}'),
               backgroundColor: Colors.green,
             ),
           );
@@ -481,7 +500,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('❌ Lỗi: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('❌ ${isVietnamese ? 'Lỗi' : 'Error'}: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -491,21 +510,24 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
   Future<void> _deleteSemester(List<Semester> semesters) async {
     final semesterToDelete =
         semesters.firstWhere((s) => s.id == _selectedSemesterId);
+    final isVietnamese = _isVietnamese();
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa học kỳ'),
-        content: Text('Xóa "${semesterToDelete.name}"?'),
+        title: Text(isVietnamese ? 'Xóa học kỳ' : 'Delete Semester'),
+        content: Text(isVietnamese
+            ? 'Xóa "${semesterToDelete.name}"?'
+            : 'Delete "${semesterToDelete.name}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xóa'),
+            child: Text(isVietnamese ? 'Xóa' : 'Delete'),
           ),
         ],
       ),
@@ -524,6 +546,8 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildCoursesTab(
       List<Course> courses, List<Semester> semesters, AppUser user) {
+    final isVietnamese = _isVietnamese();
+
     return RefreshIndicator(
       onRefresh: _refreshData,
       child: courses.isEmpty
@@ -533,11 +557,11 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                 children: [
                   const Icon(Icons.book, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
-                  const Text('Chưa có môn học nào'),
+                  Text(isVietnamese ? 'Chưa có môn học nào' : 'No courses yet'),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add),
-                    label: const Text('Thêm môn học'),
+                    label: Text(isVietnamese ? 'Thêm môn học' : 'Add course'),
                     onPressed: () =>
                         _showCreateCourseDialog(context, semesters, user),
                   ),
@@ -563,7 +587,9 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                       children: [
                         Flexible(
                           child: Text(
-                            '${semester.name} • ${course.sessions} buổi',
+                            isVietnamese
+                                ? '${semester.name} • ${course.sessions} buổi'
+                                : '${semester.name} • ${course.sessions} sessions',
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -628,13 +654,15 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
   // STUDENTS TAB
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildStudentsTab(List<AppUser> students) {
+    final isVietnamese = _isVietnamese();
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
             icon: const Icon(Icons.person_add_alt_1),
-            label: const Text('Thêm Sinh viên'),
+            label: Text(isVietnamese ? 'Thêm Sinh viên' : 'Add Student'),
             onPressed: _showAddStudentOptions,
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 48),
@@ -645,7 +673,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
         ),
         Expanded(
           child: students.isEmpty
-              ? const Center(child: Text('Chưa có sinh viên'))
+              ? Center(child: Text(isVietnamese ? 'Chưa có sinh viên' : 'No students yet'))
               : ListView.builder(
                   itemCount: students.length,
                   itemBuilder: (context, i) {
@@ -700,12 +728,13 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
     final sessionsCtrl = TextEditingController(text: '10');
     String? selectedSemesterId;
     final formKey = GlobalKey<FormState>();
+    final isVietnamese = _isVietnamese();
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Thêm Môn Học'),
+          title: Text(isVietnamese ? 'Thêm Môn Học' : 'Add Course'),
           content: Form(
             key: formKey,
             child: SingleChildScrollView(
@@ -714,56 +743,56 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                 children: [
                   TextFormField(
                     controller: codeCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Mã môn học *',
-                      hintText: 'VD: WEB101',
-                      prefixIcon: Icon(Icons.code),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Mã môn học *' : 'Course code *',
+                      hintText: isVietnamese ? 'VD: WEB101' : 'e.g. WEB101',
+                      prefixIcon: const Icon(Icons.code),
                     ),
                     validator: (v) =>
-                        v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                        v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Tên môn học *',
-                      hintText: 'VD: Lập trình Web',
-                      prefixIcon: Icon(Icons.book),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Tên môn học *' : 'Course name *',
+                      hintText: isVietnamese ? 'VD: Lập trình Web' : 'e.g. Web Programming',
+                      prefixIcon: const Icon(Icons.book),
                     ),
                     validator: (v) =>
-                        v?.trim().isEmpty == true ? 'Bắt buộc' : null,
+                        v?.trim().isEmpty == true ? (isVietnamese ? 'Bắt buộc' : 'Required') : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: sessionsCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Số buổi học *',
-                      hintText: 'VD: 10, 15, 20',
-                      prefixIcon: Icon(Icons.calendar_today),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Số buổi học *' : 'Number of sessions *',
+                      hintText: isVietnamese ? 'VD: 10, 15, 20' : 'e.g. 10, 15, 20',
+                      prefixIcon: const Icon(Icons.calendar_today),
                     ),
                     keyboardType: TextInputType.number,
                     validator: (v) {
-                      if (v?.trim().isEmpty == true) return 'Bắt buộc';
+                      if (v?.trim().isEmpty == true) return isVietnamese ? 'Bắt buộc' : 'Required';
                       final n = int.tryParse(v!);
-                      if (n == null || n < 1) return 'Phải là số dương';
+                      if (n == null || n < 1) return isVietnamese ? 'Phải là số dương' : 'Must be positive';
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedSemesterId,
-                    decoration: const InputDecoration(
-                      labelText: 'Học kỳ *',
-                      prefixIcon: Icon(Icons.school),
+                    decoration: InputDecoration(
+                      labelText: isVietnamese ? 'Học kỳ *' : 'Semester *',
+                      prefixIcon: const Icon(Icons.school),
                     ),
                     items: semesters.isEmpty
                         ? [
-                            const DropdownMenuItem(
-                                value: null, child: Text('Chưa có học kỳ'))
+                            DropdownMenuItem(
+                                value: null, child: Text(isVietnamese ? 'Chưa có học kỳ' : 'No semesters'))
                           ]
                         : [
-                            const DropdownMenuItem(
-                                value: null, child: Text('Chọn học kỳ')),
+                            DropdownMenuItem(
+                                value: null, child: Text(isVietnamese ? 'Chọn học kỳ' : 'Select semester')),
                             ...semesters.map((s) => DropdownMenuItem(
                                   value: s.id,
                                   child: Text('${s.code}: ${s.name}'),
@@ -772,7 +801,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                     onChanged: semesters.isEmpty
                         ? null
                         : (v) => setDialogState(() => selectedSemesterId = v),
-                    validator: (v) => v == null ? 'Bắt buộc chọn học kỳ' : null,
+                    validator: (v) => v == null ? (isVietnamese ? 'Bắt buộc chọn học kỳ' : 'Please select a semester') : null,
                   ),
                 ],
               ),
@@ -781,14 +810,14 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Hủy'),
+              child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
                 if (!formKey.currentState!.validate()) return;
                 if (selectedSemesterId == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Vui lòng chọn học kỳ')),
+                    SnackBar(content: Text(isVietnamese ? 'Vui lòng chọn học kỳ' : 'Please select a semester')),
                   );
                   return;
                 }
@@ -806,18 +835,20 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                         content:
-                            Text('Đã thêm môn học: ${nameCtrl.text.trim()}')),
+                            Text(isVietnamese
+                                ? 'Đã thêm môn học: ${nameCtrl.text.trim()}'
+                                : 'Added course: ${nameCtrl.text.trim()}')),
                   );
                   await _refreshData();
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi: $e')),
+                      SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
                     );
                   }
                 }
               },
-              child: const Text('Tạo'),
+              child: Text(isVietnamese ? 'Tạo' : 'Create'),
             ),
           ],
         ),
@@ -826,6 +857,8 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
   }
 
   void _showAddStudentOptions() {
+    final isVietnamese = _isVietnamese();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -834,15 +867,15 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Chọn cách thêm sinh viên',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              isVietnamese ? 'Chọn cách thêm sinh viên' : 'Choose how to add students',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.upload_file, color: Colors.blue),
-              title: const Text('Nhập từ CSV'),
-              subtitle: const Text('Thêm nhiều sinh viên cùng lúc'),
+              title: Text(isVietnamese ? 'Nhập từ CSV' : 'Import from CSV'),
+              subtitle: Text(isVietnamese ? 'Thêm nhiều sinh viên cùng lúc' : 'Add multiple students at once'),
               onTap: () {
                 Navigator.pop(ctx);
                 _showCsvImportDialog(context);
@@ -851,8 +884,8 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.person_add, color: Colors.green),
-              title: const Text('Thêm thủ công / Tạo nhanh'),
-              subtitle: const Text('Nhập từng người hoặc tạo mẫu'),
+              title: Text(isVietnamese ? 'Thêm thủ công / Tạo nhanh' : 'Add manually / Quick create'),
+              subtitle: Text(isVietnamese ? 'Nhập từng người hoặc tạo mẫu' : 'Enter individually or create samples'),
               onTap: () {
                 Navigator.pop(ctx);
                 _showAddStudentDialog();
@@ -873,6 +906,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
     final quickCountCtrl = TextEditingController(text: '1');
     final quickBaseCodeCtrl = TextEditingController(text: '2023001');
     final quickFormKey = GlobalKey<FormState>();
+    final isVietnamese = _isVietnamese();
 
     final firstNames = [
       'Nguyễn',
@@ -909,16 +943,16 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
               final tabController = DefaultTabController.of(tabContext);
 
               return AlertDialog(
-                title: const Text('Thêm sinh viên'),
+                title: Text(isVietnamese ? 'Thêm sinh viên' : 'Add Student'),
                 content: SizedBox(
                   width: 400,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const TabBar(
+                      TabBar(
                         tabs: [
-                          Tab(text: 'Thủ công'),
-                          Tab(text: 'Tạo nhanh'),
+                          Tab(text: isVietnamese ? 'Thủ công' : 'Manual'),
+                          Tab(text: isVietnamese ? 'Tạo nhanh' : 'Quick Create'),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -935,39 +969,39 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                                   children: [
                                     TextFormField(
                                       controller: codeCtrl,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Mã SV *',
-                                        hintText: 'VD: 2023001',
-                                        prefixIcon: Icon(Icons.badge),
-                                        helperText: 'Mã sinh viên (bắt buộc)',
+                                      decoration: InputDecoration(
+                                        labelText: isVietnamese ? 'Mã SV *' : 'Student ID *',
+                                        hintText: isVietnamese ? 'VD: 2023001' : 'e.g. 2023001',
+                                        prefixIcon: const Icon(Icons.badge),
+                                        helperText: isVietnamese ? 'Mã sinh viên (bắt buộc)' : 'Student ID (required)',
                                       ),
                                       validator: (v) =>
                                           v?.trim().isEmpty == true
-                                              ? 'Bắt buộc'
+                                              ? (isVietnamese ? 'Bắt buộc' : 'Required')
                                               : null,
                                     ),
                                     const SizedBox(height: 8),
                                     TextFormField(
                                       controller: nameCtrl,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Họ và tên *',
-                                        hintText: 'VD: Nguyễn Văn An',
-                                        prefixIcon: Icon(Icons.person),
-                                        helperText: 'Tên đầy đủ (bắt buộc)',
+                                      decoration: InputDecoration(
+                                        labelText: isVietnamese ? 'Họ và tên *' : 'Full name *',
+                                        hintText: isVietnamese ? 'VD: Nguyễn Văn An' : 'e.g. John Doe',
+                                        prefixIcon: const Icon(Icons.person),
+                                        helperText: isVietnamese ? 'Tên đầy đủ (bắt buộc)' : 'Full name (required)',
                                       ),
                                       validator: (v) =>
                                           v?.trim().isEmpty == true
-                                              ? 'Bắt buộc'
+                                              ? (isVietnamese ? 'Bắt buộc' : 'Required')
                                               : null,
                                     ),
                                     const SizedBox(height: 8),
                                     TextFormField(
                                       controller: emailCtrl,
-                                      decoration: const InputDecoration(
+                                      decoration: InputDecoration(
                                         labelText: 'Email',
-                                        hintText: 'VD: an@school.com',
-                                        prefixIcon: Icon(Icons.email),
-                                        helperText: 'Email (tùy chọn)',
+                                        hintText: isVietnamese ? 'VD: an@school.com' : 'e.g. john@school.com',
+                                        prefixIcon: const Icon(Icons.email),
+                                        helperText: isVietnamese ? 'Email (tùy chọn)' : 'Email (optional)',
                                       ),
                                       keyboardType: TextInputType.emailAddress,
                                       validator: (v) {
@@ -976,23 +1010,25 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                                         if (!RegExp(
                                                 r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
                                             .hasMatch(v!)) {
-                                          return 'Email không hợp lệ';
+                                          return isVietnamese ? 'Email không hợp lệ' : 'Invalid email';
                                         }
                                         return null;
                                       },
                                     ),
                                     const SizedBox(height: 8),
                                     const Divider(),
-                                    const Text(
-                                      'Thông tin tài khoản:',
-                                      style: TextStyle(
+                                    Text(
+                                      isVietnamese ? 'Thông tin tài khoản:' : 'Account info:',
+                                      style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 12),
                                     ),
                                     const SizedBox(height: 4),
-                                    const Text(
-                                      '• Mật khẩu mặc định: Mã SV\n• Vai trò: Sinh viên',
-                                      style: TextStyle(
+                                    Text(
+                                      isVietnamese
+                                          ? '• Mật khẩu mặc định: Mã SV\n• Vai trò: Sinh viên'
+                                          : '• Default password: Student ID\n• Role: Student',
+                                      style: const TextStyle(
                                           fontSize: 11, color: Colors.grey),
                                     ),
                                   ],
@@ -1006,26 +1042,26 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                                 children: [
                                   TextFormField(
                                     controller: quickBaseCodeCtrl,
-                                    decoration: const InputDecoration(
-                                        labelText: 'Mã SV bắt đầu *'),
+                                    decoration: InputDecoration(
+                                        labelText: isVietnamese ? 'Mã SV bắt đầu *' : 'Starting ID *'),
                                     keyboardType: TextInputType.number,
                                     validator: (v) {
                                       if (v?.trim().isEmpty == true)
-                                        return 'Bắt buộc';
+                                        return isVietnamese ? 'Bắt buộc' : 'Required';
                                       if (int.tryParse(v!) == null)
-                                        return 'Phải là số';
+                                        return isVietnamese ? 'Phải là số' : 'Must be a number';
                                       return null;
                                     },
                                   ),
                                   const SizedBox(height: 8),
                                   TextFormField(
                                     controller: quickCountCtrl,
-                                    decoration: const InputDecoration(
-                                        labelText: 'Số lượng *'),
+                                    decoration: InputDecoration(
+                                        labelText: isVietnamese ? 'Số lượng *' : 'Count *'),
                                     keyboardType: TextInputType.number,
                                     validator: (v) {
                                       if (v?.trim().isEmpty == true)
-                                        return 'Bắt buộc';
+                                        return isVietnamese ? 'Bắt buộc' : 'Required';
                                       final n = int.tryParse(v!);
                                       if (n == null || n < 1 || n > 50)
                                         return '1-50';
@@ -1033,9 +1069,11 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                                     },
                                   ),
                                   const SizedBox(height: 12),
-                                  const Text(
-                                    'Tên & email sẽ được tạo tự động\nVD: Nguyễn An → an2023001@school.com',
-                                    style: TextStyle(
+                                  Text(
+                                    isVietnamese
+                                        ? 'Tên & email sẽ được tạo tự động\nVD: Nguyễn An → an2023001@school.com'
+                                        : 'Name & email will be auto-generated\ne.g. Nguyen An → an2023001@school.com',
+                                    style: const TextStyle(
                                         fontSize: 12, color: Colors.grey),
                                     textAlign: TextAlign.center,
                                   ),
@@ -1051,7 +1089,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Hủy')),
+                      child: Text(isVietnamese ? 'Hủy' : 'Cancel')),
                   ElevatedButton(
                     onPressed: () async {
                       final tabIndex = tabController.index;
@@ -1068,7 +1106,7 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                             .any((s) => s.code == code);
                         if (exists) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Mã SV đã tồn tại')),
+                            SnackBar(content: Text(isVietnamese ? 'Mã SV đã tồn tại' : 'Student ID already exists')),
                           );
                           return;
                         }
@@ -1086,14 +1124,15 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                  content: Text(
-                                      'Đã thêm: $name (Mật khẩu: $code)')),
+                                  content: Text(isVietnamese
+                                      ? 'Đã thêm: $name (Mật khẩu: $code)'
+                                      : 'Added: $name (Password: $code)')),
                             );
                           }
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context)
-                                .showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                                .showSnackBar(SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')));
                           }
                         }
                       } else {
@@ -1148,13 +1187,14 @@ Widget _buildSemesterSelector(List<Semester> semesters) {
                         if (mounted && created.isNotEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                                content: Text(
-                                    'Đã tạo ${created.length} sinh viên mẫu (Mật khẩu = Mã SV)')),
+                                content: Text(isVietnamese
+                                    ? 'Đã tạo ${created.length} sinh viên mẫu (Mật khẩu = Mã SV)'
+                                    : 'Created ${created.length} sample students (Password = Student ID)')),
                           );
                         }
                       }
                     },
-                    child: const Text('Thêm'),
+                    child: Text(isVietnamese ? 'Thêm' : 'Add'),
                   ),
                 ],
               );

@@ -6,6 +6,7 @@ import '../../../../models/group.dart';
 import '../../../../providers/announcement_provider.dart';
 import '../../../../providers/auth_provider.dart';
 import '../student_announcement_detail.dart';
+import '../../../main.dart'; // for localeProvider
 
 class StudentStreamTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -32,9 +33,15 @@ class _StudentStreamTabState extends ConsumerState<StudentStreamTab> {
     });
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final announcements = ref.watch(announcementProvider)
         .where((a) => a.courseId == widget.courseId)
         .toList();
@@ -62,7 +69,7 @@ class _StudentStreamTabState extends ConsumerState<StudentStreamTab> {
                   Icon(Icons.announcement, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
                   Text(
-                    'Chưa có thông báo nào',
+                    isVietnamese ? 'Chưa có thông báo nào' : 'No announcements yet',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                 ],
@@ -150,7 +157,9 @@ class _StudentStreamTabState extends ConsumerState<StudentStreamTab> {
                                 Icon(Icons.attach_file, size: 16, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${announcement.attachments.length} tệp đính kèm',
+                                  isVietnamese
+                                      ? '${announcement.attachments.length} tệp đính kèm'
+                                      : '${announcement.attachments.length} attachments',
                                   style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                 ),
                               ],
@@ -163,7 +172,9 @@ class _StudentStreamTabState extends ConsumerState<StudentStreamTab> {
                                 Icon(Icons.comment, size: 16, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${announcement.comments.length} bình luận',
+                                  isVietnamese
+                                      ? '${announcement.comments.length} bình luận'
+                                      : '${announcement.comments.length} comments',
                                   style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                 ),
                               ],
@@ -182,14 +193,15 @@ class _StudentStreamTabState extends ConsumerState<StudentStreamTab> {
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
+    final isVietnamese = _isVietnamese();
 
     if (diff.inDays == 0) {
       if (diff.inHours == 0) {
-        return '${diff.inMinutes} phút trước';
+        return isVietnamese ? '${diff.inMinutes} phút trước' : '${diff.inMinutes}m ago';
       }
-      return '${diff.inHours} giờ trước';
+      return isVietnamese ? '${diff.inHours} giờ trước' : '${diff.inHours}h ago';
     } else if (diff.inDays < 7) {
-      return '${diff.inDays} ngày trước';
+      return isVietnamese ? '${diff.inDays} ngày trước' : '${diff.inDays}d ago';
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }

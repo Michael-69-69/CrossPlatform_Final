@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../models/user.dart';
+import '../main.dart'; // for localeProvider
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -109,6 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     
     return Scaffold(
       body: Container(
@@ -136,21 +138,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Logo Section
-                      _buildLogoSection(),
+                      _buildLogoSection(isVietnamese),
                       const SizedBox(height: 40),
                       
                       // Login Card
-                      _buildLoginCard(size),
+                      _buildLoginCard(size, isVietnamese),
                       
                       const SizedBox(height: 24),
-                      
-                      // Demo Credentials
-                      _buildDemoCredentials(),
-                      
+
+                      // Settings Button (Demo Accounts & Language)
+                      _buildSettingsButton(isVietnamese),
+
                       const SizedBox(height: 16),
-                      
+
                       // Footer
-                      _buildFooter(),
+                      _buildFooter(isVietnamese),
                     ],
                   ),
                 ),
@@ -162,7 +164,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildLogoSection() {
+  Widget _buildLogoSection(bool isVietnamese) {
     return Column(
       children: [
         // Animated Logo Container
@@ -181,8 +183,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
@@ -213,7 +215,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
         const SizedBox(height: 8),
         Text(
-          'Smart Learning Platform',
+          isVietnamese 
+              ? 'Nền tảng học tập thông minh' 
+              : 'Smart Learning Platform',
           style: TextStyle(
             fontSize: 16,
             color: Colors.white.withOpacity(0.9),
@@ -224,7 +228,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildLoginCard(Size size) {
+  Widget _buildLoginCard(Size size, bool isVietnamese) {
     return Container(
       width: size.width > 500 ? 420 : double.infinity,
       padding: const EdgeInsets.all(32),
@@ -245,9 +249,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Welcome Text
-            const Text(
-              'Welcome back! 👋',
-              style: TextStyle(
+            Text(
+              isVietnamese ? 'Chào mừng trở lại! 👋' : 'Welcome back! 👋',
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF1a1a2e),
@@ -255,7 +259,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Login to continue learning',
+              isVietnamese 
+                  ? 'Đăng nhập để tiếp tục học tập' 
+                  : 'Login to continue learning',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey.shade600,
@@ -266,17 +272,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             // Email Field
             _buildInputLabel('Email'),
             const SizedBox(height: 8),
-            _buildEmailField(),
+            _buildEmailField(isVietnamese),
             const SizedBox(height: 20),
 
             // Password Field
-            _buildInputLabel('Password'),
+            _buildInputLabel(isVietnamese ? 'Mật khẩu' : 'Password'),
             const SizedBox(height: 8),
-            _buildPasswordField(),
+            _buildPasswordField(isVietnamese),
             const SizedBox(height: 32),
 
             // Login Button
-            _buildLoginButton(),
+            _buildLoginButton(isVietnamese),
           ],
         ),
       ),
@@ -294,13 +300,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildEmailField() {
+  Widget _buildEmailField(bool isVietnamese) {
     return TextFormField(
       controller: _emailController,
       keyboardType: TextInputType.emailAddress,
       style: const TextStyle(fontSize: 16),
       decoration: InputDecoration(
-        hintText: 'Enter your email',
+        hintText: isVietnamese ? 'Nhập email của bạn' : 'Enter your email',
         hintStyle: TextStyle(color: Colors.grey.shade400),
         prefixIcon: Icon(
           Icons.email_outlined,
@@ -332,23 +338,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       ),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
-          return 'Please enter email';
+          return isVietnamese ? 'Vui lòng nhập email' : 'Please enter email';
         }
         if (!value.contains('@')) {
-          return 'Invalid email';
+          return isVietnamese ? 'Email không hợp lệ' : 'Invalid email';
         }
         return null;
       },
     );
   }
 
-  Widget _buildPasswordField() {
+  Widget _buildPasswordField(bool isVietnamese) {
     return TextFormField(
       controller: _passwordController,
       obscureText: _obscurePassword,
       style: const TextStyle(fontSize: 16),
       decoration: InputDecoration(
-        hintText: 'Enter password',
+        hintText: isVietnamese ? 'Nhập mật khẩu' : 'Enter password',
         hintStyle: TextStyle(color: Colors.grey.shade400),
         prefixIcon: Icon(
           Icons.lock_outline_rounded,
@@ -391,14 +397,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
-          return 'Please enter password';
+          return isVietnamese ? 'Vui lòng nhập mật khẩu' : 'Please enter password';
         }
         return null;
       },
     );
   }
 
-  Widget _buildLoginButton() {
+  Widget _buildLoginButton(bool isVietnamese) {
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -423,156 +429,271 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Row(
+            : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Login',
-                    style: TextStyle(
+                    isVietnamese ? 'Đăng nhập' : 'Login',
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded, size: 20),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_rounded, size: 20),
                 ],
               ),
       ),
     );
   }
 
-  Widget _buildDemoCredentials() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
+  Widget _buildSettingsButton(bool isVietnamese) {
+    return TextButton.icon(
+      onPressed: () => _showSettingsDialog(isVietnamese),
+      icon: Icon(
+        Icons.settings_rounded,
+        color: Colors.white.withOpacity(0.9),
+        size: 20,
+      ),
+      label: Text(
+        isVietnamese ? 'Cài đặt' : 'Settings',
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.95),
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
         ),
       ),
-      child: Column(
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        backgroundColor: Colors.white.withOpacity(0.15),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(25),
+          side: BorderSide(color: Colors.white.withOpacity(0.2)),
+        ),
+      ),
+    );
+  }
+
+  void _showSettingsDialog(bool isVietnamese) {
+    showDialog(
+      context: context,
+      builder: (context) => Consumer(
+        builder: (context, ref, child) {
+          final currentIsVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                const Icon(Icons.settings_rounded, color: Color(0xFF667eea)),
+                const SizedBox(width: 12),
+                Text(
+                  currentIsVietnamese ? 'Cài đặt' : 'Settings',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Language Section
+                  Text(
+                    currentIsVietnamese ? 'Ngôn ngữ' : 'Language',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildLanguageToggleDialog(currentIsVietnamese, ref),
+
+                  const SizedBox(height: 24),
+
+                  // Demo Accounts Section
+                  Text(
+                    currentIsVietnamese ? 'Tài khoản demo' : 'Demo Accounts',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildDemoAccountTile(
+                    icon: Icons.person_outline_rounded,
+                    role: currentIsVietnamese ? 'Giảng viên' : 'Teacher',
+                    email: 'teacher@gmail.com',
+                    password: '123456',
+                    color: const Color(0xFF667eea),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDemoAccountTile(
+                    icon: Icons.school_outlined,
+                    role: currentIsVietnamese ? 'Sinh viên' : 'Student',
+                    email: 'phongth779@gmail.com',
+                    password: '522C0005',
+                    color: const Color(0xFF764ba2),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  currentIsVietnamese ? 'Đóng' : 'Close',
+                  style: const TextStyle(color: Color(0xFF667eea)),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLanguageToggleDialog(bool isVietnamese, WidgetRef ref) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: Colors.white.withOpacity(0.9),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Demo Accounts',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.95),
-                  fontSize: 14,
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                ref.read(localeProvider.notifier).state = const Locale('vi');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: isVietnamese ? const Color(0xFF667eea) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('🇻🇳', style: TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tiếng Việt',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isVietnamese ? Colors.white : Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDemoAccountCard(
-                  icon: Icons.person_outline_rounded,
-                  role: 'Teacher',
-                  email: 'teacher@gmail.com',
-                  password: '123456',
-                  color: const Color(0xFF667eea),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                ref.read(localeProvider.notifier).state = const Locale('en');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: !isVietnamese ? const Color(0xFF667eea) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('🇺🇸', style: TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'English',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: !isVietnamese ? Colors.white : Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildDemoAccountCard(
-                  icon: Icons.school_outlined,
-                  role: 'Student',
-                  email: 'nam@gmail.com',
-                  password: '123',
-                  color: const Color(0xFF764ba2),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDemoAccountCard({
+  Widget _buildDemoAccountTile({
     required IconData icon,
     required String role,
     required String email,
     required String password,
     required Color color,
   }) {
-    return GestureDetector(
+    return InkWell(
       onTap: () {
         setState(() {
           _emailController.text = email;
           _passwordController.text = password;
         });
+        Navigator.of(context).pop();
       },
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
-        child: Column(
+        child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 20, color: color),
+              child: Icon(icon, size: 22, color: color),
             ),
-            const SizedBox(height: 8),
-            Text(
-              role,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: Colors.grey.shade800,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    role,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  Text(
+                    'Pass: $password',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              email,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              'Pass: $password',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade500,
-              ),
-            ),
+            Icon(Icons.arrow_forward_ios_rounded, size: 16, color: color),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildFooter(bool isVietnamese) {
     return Text(
-      '© 2025 EduFlow - Learning anytime, anywhere',
+      isVietnamese 
+          ? '© 2025 EduFlow - Học tập mọi lúc, mọi nơi'
+          : '© 2025 EduFlow - Learning anytime, anywhere',
       style: TextStyle(
         fontSize: 12,
         color: Colors.white.withOpacity(0.7),

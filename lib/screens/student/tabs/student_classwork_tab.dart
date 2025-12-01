@@ -11,6 +11,7 @@ import '../../../../providers/auth_provider.dart';
 import '../student_assignment_detail.dart';
 import '../student_quiz_take.dart';
 import '../student_material_view.dart';
+import '../../../main.dart'; // for localeProvider
 
 class StudentClassworkTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -51,8 +52,15 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
     super.dispose();
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Column(
       children: [
         // Search Bar
@@ -60,7 +68,7 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
           padding: const EdgeInsets.all(16),
           child: TextField(
             decoration: InputDecoration(
-              hintText: 'Tìm kiếm...',
+              hintText: isVietnamese ? 'Tìm kiếm...' : 'Search...',
               prefixIcon: const Icon(Icons.search),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -70,17 +78,17 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
             onChanged: (value) => setState(() => _searchQuery = value),
           ),
         ),
-        
+
         // Tabs
         TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Bài tập'),
+          tabs: [
+            Tab(text: isVietnamese ? 'Bài tập' : 'Assignments'),
             Tab(text: 'Quiz'),
-            Tab(text: 'Tài liệu'),
+            Tab(text: isVietnamese ? 'Tài liệu' : 'Materials'),
           ],
         ),
-        
+
         // Tab Views
         Expanded(
           child: TabBarView(
@@ -98,6 +106,7 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
 
   Widget _buildAssignmentsView() {
     final user = ref.watch(authProvider);
+    final isVietnamese = _isVietnamese();
     final assignments = ref.watch(assignmentProvider)
         .where((a) => a.courseId == widget.courseId)
         .toList();
@@ -118,7 +127,9 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
             Icon(Icons.assignment, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              _searchQuery.isNotEmpty ? 'Không tìm thấy' : 'Chưa có bài tập nào',
+              _searchQuery.isNotEmpty
+                  ? (isVietnamese ? 'Không tìm thấy' : 'Not found')
+                  : (isVietnamese ? 'Chưa có bài tập nào' : 'No assignments yet'),
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
@@ -197,7 +208,11 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
                       ),
                       Chip(
                         label: Text(
-                          hasSubmitted ? 'Đã nộp' : isLate ? 'Trễ hạn' : 'Chưa nộp',
+                          hasSubmitted
+                              ? (isVietnamese ? 'Đã nộp' : 'Submitted')
+                              : isLate
+                                  ? (isVietnamese ? 'Trễ hạn' : 'Late')
+                                  : (isVietnamese ? 'Chưa nộp' : 'Pending'),
                           style: const TextStyle(fontSize: 11),
                         ),
                         backgroundColor: hasSubmitted
@@ -214,7 +229,9 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
                       Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text(
-                        'Hạn: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
+                        isVietnamese
+                            ? 'Hạn: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}'
+                            : 'Due: ${assignment.deadline.day}/${assignment.deadline.month}/${assignment.deadline.year}',
                         style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
                       if (hasSubmitted) ...[
@@ -226,7 +243,7 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
                                       .firstWhere((s) => s.studentId == user?.id)
                                       .grade
                                       ?.toString() ??
-                                  'Chưa chấm',
+                                  (isVietnamese ? 'Chưa chấm' : 'Not graded'),
                           style: TextStyle(color: Colors.grey[600], fontSize: 12),
                         ),
                       ],
@@ -243,6 +260,7 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
 
   Widget _buildQuizzesView() {
     final user = ref.watch(authProvider);
+    final isVietnamese = _isVietnamese();
     final quizzes = ref.watch(quizProvider)
         .where((q) => q.courseId == widget.courseId)
         .toList();
@@ -265,7 +283,9 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
             Icon(Icons.quiz, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              _searchQuery.isNotEmpty ? 'Không tìm thấy' : 'Chưa có quiz nào',
+              _searchQuery.isNotEmpty
+                  ? (isVietnamese ? 'Không tìm thấy' : 'Not found')
+                  : (isVietnamese ? 'Chưa có quiz nào' : 'No quizzes yet'),
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
@@ -344,7 +364,11 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
                       ),
                       Chip(
                         label: Text(
-                          hasCompleted ? 'Đã làm' : isOpen ? 'Đang mở' : 'Đã đóng',
+                          hasCompleted
+                              ? (isVietnamese ? 'Đã làm' : 'Completed')
+                              : isOpen
+                                  ? (isVietnamese ? 'Đang mở' : 'Open')
+                                  : (isVietnamese ? 'Đã đóng' : 'Closed'),
                           style: const TextStyle(fontSize: 11),
                         ),
                         backgroundColor: hasCompleted
@@ -361,14 +385,14 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
                       Icon(Icons.timer, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text(
-                        '${quiz.durationMinutes} phút',
+                        isVietnamese ? '${quiz.durationMinutes} phút' : '${quiz.durationMinutes} min',
                         style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
                       const SizedBox(width: 16),
                       Icon(Icons.question_answer, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text(
-                        '${quiz.questionIds.length} câu',
+                        isVietnamese ? '${quiz.questionIds.length} câu' : '${quiz.questionIds.length} questions',
                         style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
                       if (submission != null) ...[
@@ -388,7 +412,9 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
                       Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 4),
                       Text(
-                        'Đóng: ${quiz.closeTime.day}/${quiz.closeTime.month}/${quiz.closeTime.year} ${quiz.closeTime.hour}:${quiz.closeTime.minute.toString().padLeft(2, '0')}',
+                        isVietnamese
+                            ? 'Đóng: ${quiz.closeTime.day}/${quiz.closeTime.month}/${quiz.closeTime.year} ${quiz.closeTime.hour}:${quiz.closeTime.minute.toString().padLeft(2, '0')}'
+                            : 'Closes: ${quiz.closeTime.day}/${quiz.closeTime.month}/${quiz.closeTime.year} ${quiz.closeTime.hour}:${quiz.closeTime.minute.toString().padLeft(2, '0')}',
                         style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
                     ],
@@ -403,6 +429,7 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
   }
 
   Widget _buildMaterialsView() {
+    final isVietnamese = _isVietnamese();
     final materials = ref.watch(materialProvider)
         .where((m) => m.courseId == widget.courseId)
         .toList();
@@ -422,7 +449,9 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
             Icon(Icons.folder, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              _searchQuery.isNotEmpty ? 'Không tìm thấy' : 'Chưa có tài liệu nào',
+              _searchQuery.isNotEmpty
+                  ? (isVietnamese ? 'Không tìm thấy' : 'Not found')
+                  : (isVietnamese ? 'Chưa có tài liệu nào' : 'No materials yet'),
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
@@ -484,7 +513,9 @@ class _StudentClassworkTabState extends ConsumerState<StudentClassworkTab>
                             Icon(Icons.attach_file, size: 14, color: Colors.grey[600]),
                             const SizedBox(width: 4),
                             Text(
-                              '${material.attachments.length} tệp',
+                              isVietnamese
+                                  ? '${material.attachments.length} tệp'
+                                  : '${material.attachments.length} files',
                               style: TextStyle(color: Colors.grey[600], fontSize: 12),
                             ),
                           ],

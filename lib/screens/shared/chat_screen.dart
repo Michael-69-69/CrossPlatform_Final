@@ -6,6 +6,7 @@ import '../../models/user.dart';
 import '../../providers/message_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/file_download_helper.dart';
+import '../../main.dart'; // for localeProvider
 
 class ChatScreen extends ConsumerStatefulWidget {
   final Conversation conversation;
@@ -81,15 +82,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
     final allMessages = ref.watch(messageProvider);
-    
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     // ✅ FIX: Filter messages for THIS conversation only
     final messages = allMessages
         .where((m) => m.conversationId == widget.conversation.id)
         .toList();
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Vui lòng đăng nhập')),
+      return Scaffold(
+        body: Center(child: Text(isVietnamese ? 'Vui lòng đăng nhập' : 'Please log in')),
       );
     }
 
@@ -113,7 +115,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     style: const TextStyle(fontSize: 16),
                   ),
                   Text(
-                    isInstructor ? 'Học sinh' : 'Giảng viên',
+                    isInstructor
+                        ? (isVietnamese ? 'Học sinh' : 'Student')
+                        : (isVietnamese ? 'Giảng viên' : 'Instructor'),
                     style: const TextStyle(fontSize: 12),
                   ),
                 ],
@@ -136,11 +140,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             Icon(Icons.chat_bubble_outline,
                                 size: 64, color: Colors.grey[400]),
                             const SizedBox(height: 16),
-                            const Text('Chưa có tin nhắn nào'),
+                            Text(isVietnamese ? 'Chưa có tin nhắn nào' : 'No messages yet'),
                             const SizedBox(height: 8),
-                            const Text(
-                              'Gửi tin nhắn đầu tiên!',
-                              style: TextStyle(color: Colors.grey),
+                            Text(
+                              isVietnamese ? 'Gửi tin nhắn đầu tiên!' : 'Send the first message!',
+                              style: const TextStyle(color: Colors.grey),
                             ),
                           ],
                         ),
@@ -183,9 +187,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Nhập tin nhắn...',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: isVietnamese ? 'Nhập tin nhắn...' : 'Type a message...',
+                      border: const OutlineInputBorder(),
                       isDense: true,
                     ),
                     maxLines: null,
@@ -243,14 +247,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     } catch (e) {
       if (mounted) {
+        final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }
   }
 
   Future<void> _downloadFile(MessageAttachment attachment) async {
+    final isVietnamese = ref.read(localeProvider).languageCode == 'vi';
     try {
       if (attachment.isLink) {
         if (mounted) {
@@ -267,7 +273,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           base64Data: attachment.fileData!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
       } else if (attachment.fileUrl != null &&
           (attachment.fileUrl!.startsWith('http://') ||
               attachment.fileUrl!.startsWith('https://'))) {
@@ -275,9 +281,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           url: attachment.fileUrl!,
           fileName: attachment.fileName,
         );
-        result = 'Đã tải: $path';
+        result = isVietnamese ? 'Đã tải: $path' : 'Downloaded: $path';
       } else {
-        throw Exception('No valid file source');
+        throw Exception(isVietnamese ? 'Không có nguồn file hợp lệ' : 'No valid file source');
       }
 
       if (mounted) {
@@ -288,7 +294,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('${isVietnamese ? 'Lỗi' : 'Error'}: $e')),
         );
       }
     }

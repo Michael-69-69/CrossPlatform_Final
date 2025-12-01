@@ -10,6 +10,7 @@ import '../../models/material.dart' as app;
 import '../../providers/assignment_provider.dart';
 import '../../providers/quiz_provider.dart';
 import '../../providers/material_provider.dart';
+import '../../main.dart'; // for localeProvider
 
 class AnalyticsTab extends ConsumerStatefulWidget {
   final String courseId;
@@ -43,6 +44,8 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
+
     return Column(
       children: [
         // Tab Selector
@@ -52,7 +55,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             children: [
               Expanded(
                 child: _TabButton(
-                  label: 'Bài tập',
+                  label: isVietnamese ? 'Bài tập' : 'Assignments',
                   icon: Icons.assignment,
                   isSelected: _selectedTab == 0,
                   onTap: () => setState(() => _selectedTab = 0),
@@ -70,7 +73,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
               const SizedBox(width: 8),
               Expanded(
                 child: _TabButton(
-                  label: 'Tài liệu',
+                  label: isVietnamese ? 'Tài liệu' : 'Materials',
                   icon: Icons.folder,
                   isSelected: _selectedTab == 2,
                   onTap: () => setState(() => _selectedTab = 2),
@@ -98,12 +101,13 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
   // ASSIGNMENT ANALYTICS
   // ═══════════════════════════════════════════════
   Widget _buildAssignmentAnalytics() {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final assignments = ref.watch(assignmentProvider)
         .where((a) => a.courseId == widget.courseId)
         .toList();
 
     if (assignments.isEmpty) {
-      return const Center(child: Text('Chưa có bài tập nào'));
+      return Center(child: Text(isVietnamese ? 'Chưa có bài tập nào' : 'No assignments yet'));
     }
 
     // Calculate statistics
@@ -166,7 +170,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Tổng bài tập',
+                  title: isVietnamese ? 'Tổng bài tập' : 'Total Assignments',
                   value: assignments.length.toString(),
                   icon: Icons.assignment,
                   color: Colors.blue,
@@ -175,7 +179,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Tỷ lệ nộp',
+                  title: isVietnamese ? 'Tỷ lệ nộp' : 'Submission Rate',
                   value: '$submissionRate%',
                   icon: Icons.check_circle,
                   color: Colors.green,
@@ -188,7 +192,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Đúng hạn',
+                  title: isVietnamese ? 'Đúng hạn' : 'On Time',
                   value: totalOnTime.toString(),
                   icon: Icons.schedule,
                   color: Colors.orange,
@@ -197,7 +201,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Trễ hạn',
+                  title: isVietnamese ? 'Trễ hạn' : 'Late',
                   value: totalLate.toString(),
                   icon: Icons.warning,
                   color: Colors.red,
@@ -209,9 +213,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
           const SizedBox(height: 24),
 
           // Submission Rate Pie Chart
-          const Text(
-            'Tỷ lệ nộp bài',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Tỷ lệ nộp bài' : 'Submission Rate',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -219,15 +223,16 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             child: _buildSubmissionPieChart(
               submitted: totalSubmitted,
               notSubmitted: totalExpected - totalSubmitted,
+              isVietnamese: isVietnamese,
             ),
           ),
 
           const SizedBox(height: 24),
 
           // Grade Distribution
-          const Text(
-            'Phân bố điểm',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Phân bố điểm' : 'Grade Distribution',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -238,12 +243,12 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
           const SizedBox(height: 24),
 
           // Student Participation
-          const Text(
-            'Tham gia của sinh viên',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Tham gia của sinh viên' : 'Student Participation',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildStudentParticipation(assignments),
+          _buildStudentParticipation(assignments, isVietnamese),
         ],
       ),
     );
@@ -253,13 +258,14 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
   // QUIZ ANALYTICS
   // ═══════════════════════════════════════════════
   Widget _buildQuizAnalytics() {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final quizzes = ref.watch(quizProvider)
         .where((q) => q.courseId == widget.courseId)
         .toList();
     final submissions = ref.watch(quizSubmissionProvider);
 
     if (quizzes.isEmpty) {
-      return const Center(child: Text('Chưa có quiz nào'));
+      return Center(child: Text(isVietnamese ? 'Chưa có quiz nào' : 'No quizzes yet'));
     }
 
     // Calculate statistics
@@ -292,7 +298,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Tổng quiz',
+                  title: isVietnamese ? 'Tổng quiz' : 'Total Quizzes',
                   value: quizzes.length.toString(),
                   icon: Icons.quiz,
                   color: Colors.purple,
@@ -301,7 +307,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Hoàn thành',
+                  title: isVietnamese ? 'Hoàn thành' : 'Completed',
                   value: '$completionRate%',
                   icon: Icons.check_circle,
                   color: Colors.green,
@@ -314,7 +320,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Điểm TB',
+                  title: isVietnamese ? 'Điểm TB' : 'Avg Score',
                   value: '$avgScore%',
                   icon: Icons.grade,
                   color: Colors.blue,
@@ -323,7 +329,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Tỷ lệ đậu',
+                  title: isVietnamese ? 'Tỷ lệ đậu' : 'Pass Rate',
                   value: '$passRate%',
                   icon: Icons.emoji_events,
                   color: Colors.amber,
@@ -335,9 +341,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
           const SizedBox(height: 24),
 
           // Score Distribution
-          const Text(
-            'Phân bố điểm số',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Phân bố điểm số' : 'Score Distribution',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -348,9 +354,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
           const SizedBox(height: 24),
 
           // Quiz List with Stats
-          const Text(
-            'Chi tiết từng quiz',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Chi tiết từng quiz' : 'Quiz Details',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           ...quizzes.map((quiz) {
@@ -367,17 +373,21 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
                   child: Icon(Icons.quiz),
                 ),
                 title: Text(quiz.title),
-                subtitle: Text('$completed/$totalStudents sinh viên hoàn thành'),
+                subtitle: Text(isVietnamese
+                    ? '$completed/$totalStudents sinh viên hoàn thành'
+                    : '$completed/$totalStudents students completed'),
                 trailing: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      'TB: $avgQuizScore%',
+                      isVietnamese ? 'TB: $avgQuizScore%' : 'Avg: $avgQuizScore%',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      '${(completed / totalStudents * 100).toStringAsFixed(0)}% hoàn thành',
+                      isVietnamese
+                          ? '${(completed / totalStudents * 100).toStringAsFixed(0)}% hoàn thành'
+                          : '${(completed / totalStudents * 100).toStringAsFixed(0)}% completed',
                       style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     ),
                   ],
@@ -394,13 +404,14 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
   // MATERIAL ANALYTICS
   // ═══════════════════════════════════════════════
   Widget _buildMaterialAnalytics() {
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
     final materials = ref.watch(materialProvider)
         .where((m) => m.courseId == widget.courseId)
         .toList();
     final allViews = ref.watch(materialViewProvider);
 
     if (materials.isEmpty) {
-      return const Center(child: Text('Chưa có tài liệu nào'));
+      return Center(child: Text(isVietnamese ? 'Chưa có tài liệu nào' : 'No materials yet'));
     }
 
     // Calculate statistics
@@ -419,7 +430,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Tổng tài liệu',
+                  title: isVietnamese ? 'Tổng tài liệu' : 'Total Materials',
                   value: materials.length.toString(),
                   icon: Icons.folder,
                   color: Colors.teal,
@@ -428,7 +439,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Lượt xem',
+                  title: isVietnamese ? 'Lượt xem' : 'Views',
                   value: totalViews.toString(),
                   icon: Icons.visibility,
                   color: Colors.blue,
@@ -441,7 +452,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
             children: [
               Expanded(
                 child: _StatCard(
-                  title: 'Lượt tải',
+                  title: isVietnamese ? 'Lượt tải' : 'Downloads',
                   value: totalDownloads.toString(),
                   icon: Icons.download,
                   color: Colors.green,
@@ -450,7 +461,7 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  title: 'Đã xem',
+                  title: isVietnamese ? 'Đã xem' : 'Viewed',
                   value: '$uniqueViewers/$totalStudents',
                   icon: Icons.people,
                   color: Colors.orange,
@@ -462,9 +473,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
           const SizedBox(height: 24),
 
           // Material Engagement
-          const Text(
-            'Mức độ tương tác',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            isVietnamese ? 'Mức độ tương tác' : 'Engagement Level',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           ...materials.map((material) {
@@ -482,7 +493,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
                   child: Icon(Icons.folder),
                 ),
                 title: Text(material.title),
-                subtitle: Text('$viewCount xem • $downloadCount tải'),
+                subtitle: Text(isVietnamese
+                    ? '$viewCount xem • $downloadCount tải'
+                    : '$viewCount views • $downloadCount downloads'),
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -508,14 +521,14 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
                             const Icon(Icons.visibility, size: 16, color: Colors.blue),
                             const SizedBox(width: 8),
                             Text(
-                              'Đã xem ($viewCount):',
+                              isVietnamese ? 'Đã xem ($viewCount):' : 'Viewed ($viewCount):',
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         if (materialViews.isEmpty)
-                          const Text('Chưa có ai xem')
+                          Text(isVietnamese ? 'Chưa có ai xem' : 'No views yet')
                         else
                           ...materialViews.take(5).map((view) {
                             final student = widget.students.firstWhere(
@@ -544,7 +557,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
                           }),
                         if (materialViews.length > 5)
                           Text(
-                            '... và ${materialViews.length - 5} người khác',
+                            isVietnamese
+                                ? '... và ${materialViews.length - 5} người khác'
+                                : '... and ${materialViews.length - 5} others',
                             style: TextStyle(color: Colors.grey[600], fontSize: 12),
                           ),
 
@@ -558,7 +573,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
                             const Icon(Icons.close, size: 16, color: Colors.red),
                             const SizedBox(width: 8),
                             Text(
-                              'Chưa xem (${totalStudents - viewCount}):',
+                              isVietnamese
+                                  ? 'Chưa xem (${totalStudents - viewCount}):'
+                                  : 'Not viewed (${totalStudents - viewCount}):',
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -569,9 +586,9 @@ class _AnalyticsTabState extends ConsumerState<AnalyticsTab> {
                           final notViewed = widget.students
                               .where((s) => !viewedStudentIds.contains(s.id))
                               .toList();
-                          
+
                           if (notViewed.isEmpty) {
-                            return const Text('Tất cả đã xem');
+                            return Text(isVietnamese ? 'Tất cả đã xem' : 'All viewed');
                           }
 
 return Column(
@@ -589,13 +606,15 @@ return Column(
         subtitle: Text(student.code ?? ''),
       );
     }),
-    
+
     // Show "... and X more" if needed
     if (notViewed.length > 5)
       Padding(
         padding: const EdgeInsets.all(8.0),
         child: Text(
-          '... và ${notViewed.length - 5} người khác',
+          isVietnamese
+              ? '... và ${notViewed.length - 5} người khác'
+              : '... and ${notViewed.length - 5} others',
           style: TextStyle(color: Colors.grey[600], fontSize: 12),
         ),
       ),
@@ -624,13 +643,17 @@ return Column(
   // CHART WIDGETS
   // ═══════════════════════════════════════════════
 
-  Widget _buildSubmissionPieChart({required int submitted, required int notSubmitted}) {
+  Widget _buildSubmissionPieChart({
+    required int submitted,
+    required int notSubmitted,
+    required bool isVietnamese,
+  }) {
     return PieChart(
       PieChartData(
         sections: [
           PieChartSectionData(
             value: submitted.toDouble(),
-            title: 'Đã nộp\n$submitted',
+            title: isVietnamese ? 'Đã nộp\n$submitted' : 'Submitted\n$submitted',
             color: Colors.green,
             radius: 100,
             titleStyle: const TextStyle(
@@ -641,7 +664,7 @@ return Column(
           ),
           PieChartSectionData(
             value: notSubmitted.toDouble(),
-            title: 'Chưa nộp\n$notSubmitted',
+            title: isVietnamese ? 'Chưa nộp\n$notSubmitted' : 'Not Submitted\n$notSubmitted',
             color: Colors.red,
             radius: 100,
             titleStyle: const TextStyle(
@@ -809,7 +832,7 @@ return Column(
     );
   }
 
-  Widget _buildStudentParticipation(List<Assignment> assignments) {
+  Widget _buildStudentParticipation(List<Assignment> assignments, bool isVietnamese) {
     // Calculate per-student submission count
     final Map<String, int> studentSubmissions = {};
     for (var student in widget.students) {
@@ -818,21 +841,21 @@ return Column(
 
     for (var assignment in assignments) {
       for (var submission in assignment.submissions) {
-        studentSubmissions[submission.studentId] = 
+        studentSubmissions[submission.studentId] =
             (studentSubmissions[submission.studentId] ?? 0) + 1;
       }
     }
 
     // Sort by submission count
     final sortedStudents = widget.students.toList()
-      ..sort((a, b) => 
+      ..sort((a, b) =>
           (studentSubmissions[b.id] ?? 0).compareTo(studentSubmissions[a.id] ?? 0));
 
     return Column(
       children: sortedStudents.take(10).map((student) {
         final count = studentSubmissions[student.id] ?? 0;
         final rate = assignments.isEmpty ? 0.0 : count / assignments.length;
-        
+
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
@@ -840,7 +863,9 @@ return Column(
               child: Text(student.fullName[0]),
             ),
             title: Text(student.fullName),
-            subtitle: Text('${student.code} • $count/${assignments.length} bài tập'),
+            subtitle: Text(isVietnamese
+                ? '${student.code} • $count/${assignments.length} bài tập'
+                : '${student.code} • $count/${assignments.length} assignments'),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -874,7 +899,7 @@ return Column(
 // HELPER WIDGETS
 // ═══════════════════════════════════════════════
 
-class _TabButton extends StatelessWidget {
+class _TabButton extends ConsumerWidget {
   final String label;
   final IconData icon;
   final bool isSelected;
@@ -888,7 +913,7 @@ class _TabButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -920,7 +945,7 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _StatCard extends ConsumerWidget {
   final String title;
   final String value;
   final IconData icon;
@@ -934,7 +959,7 @@ class _StatCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),

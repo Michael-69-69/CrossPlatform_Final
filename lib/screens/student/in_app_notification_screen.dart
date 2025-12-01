@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/in_app_notification.dart';
 import '../../providers/in_app_notification_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../main.dart'; // for localeProvider
 
 class InAppNotificationScreen extends ConsumerStatefulWidget {
   const InAppNotificationScreen({super.key});
@@ -29,13 +30,14 @@ class _InAppNotificationScreenState extends ConsumerState<InAppNotificationScree
   Widget build(BuildContext context) {
     final notifications = ref.watch(inAppNotificationProvider);
     final user = ref.watch(authProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     // Group notifications by date
-    final groupedNotifications = _groupNotificationsByDate(notifications);
+    final groupedNotifications = _groupNotificationsByDate(notifications, isVietnamese);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thông báo'),
+        title: Text(isVietnamese ? 'Thông báo' : 'Notifications'),
         actions: [
           if (notifications.any((n) => !n.isRead))
             TextButton(
@@ -44,23 +46,23 @@ class _InAppNotificationScreenState extends ConsumerState<InAppNotificationScree
                   ref.read(inAppNotificationProvider.notifier).markAllAsRead(user.id);
                 }
               },
-              child: const Text(
-                'Đọc tất cả',
-                style: TextStyle(color: Colors.white),
+              child: Text(
+                isVietnamese ? 'Đọc tất cả' : 'Mark all read',
+                style: const TextStyle(color: Colors.white),
               ),
             ),
         ],
       ),
       body: notifications.isEmpty
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
+                  const Icon(Icons.notifications_none, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
                   Text(
-                    'Chưa có thông báo nào',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                    isVietnamese ? 'Chưa có thông báo nào' : 'No notifications yet',
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
                   ),
                 ],
               ),
@@ -97,7 +99,7 @@ class _InAppNotificationScreenState extends ConsumerState<InAppNotificationScree
                       // Notifications for this date
                       ...(group['notifications'] as List<InAppNotification>)
                           .map((notification) =>
-                              _NotificationTile(notification: notification))
+                              _NotificationTile(notification: notification, isVietnamese: isVietnamese))
                           .toList(),
                     ],
                   );
@@ -108,7 +110,7 @@ class _InAppNotificationScreenState extends ConsumerState<InAppNotificationScree
   }
 
   List<Map<String, dynamic>> _groupNotificationsByDate(
-      List<InAppNotification> notifications) {
+      List<InAppNotification> notifications, bool isVietnamese) {
     final Map<String, List<InAppNotification>> grouped = {};
     final now = DateTime.now();
 
@@ -117,13 +119,13 @@ class _InAppNotificationScreenState extends ConsumerState<InAppNotificationScree
       String label;
 
       if (_isSameDay(date, now)) {
-        label = 'Hôm nay';
+        label = isVietnamese ? 'Hôm nay' : 'Today';
       } else if (_isSameDay(date, now.subtract(const Duration(days: 1)))) {
-        label = 'Hôm qua';
+        label = isVietnamese ? 'Hôm qua' : 'Yesterday';
       } else if (now.difference(date).inDays < 7) {
-        label = 'Tuần này';
+        label = isVietnamese ? 'Tuần này' : 'This week';
       } else if (now.difference(date).inDays < 30) {
-        label = 'Tháng này';
+        label = isVietnamese ? 'Tháng này' : 'This month';
       } else {
         label = DateFormat('MMMM yyyy').format(date);
       }
@@ -147,8 +149,36 @@ class _InAppNotificationScreenState extends ConsumerState<InAppNotificationScree
 
 class _NotificationTile extends ConsumerWidget {
   final InAppNotification notification;
+  final bool isVietnamese;
 
-  const _NotificationTile({required this.notification});
+  const _NotificationTile({required this.notification, required this.isVietnamese});
+
+  // Get localized title with prefix based on notification type
+  String _getLocalizedTitle() {
+    final title = notification.title;
+
+    // If title already contains a prefix pattern (old notifications), strip it
+    final cleanTitle = title
+        .replaceFirst(RegExp(r'^Thông báo mới:\s*'), '')
+        .replaceFirst(RegExp(r'^New announcement:\s*'), '');
+
+    switch (notification.type) {
+      case InAppNotificationType.announcement:
+        return isVietnamese ? 'Thông báo mới: $cleanTitle' : 'New announcement: $cleanTitle';
+      case InAppNotificationType.assignment:
+        return isVietnamese ? 'Bài tập mới: $cleanTitle' : 'New assignment: $cleanTitle';
+      case InAppNotificationType.assignmentGraded:
+        return isVietnamese ? 'Đã chấm điểm: $cleanTitle' : 'Graded: $cleanTitle';
+      case InAppNotificationType.quiz:
+        return isVietnamese ? 'Quiz mới: $cleanTitle' : 'New quiz: $cleanTitle';
+      case InAppNotificationType.material:
+        return isVietnamese ? 'Tài liệu mới: $cleanTitle' : 'New material: $cleanTitle';
+      case InAppNotificationType.message:
+        return isVietnamese ? 'Tin nhắn mới: $cleanTitle' : 'New message: $cleanTitle';
+      case InAppNotificationType.deadlineReminder:
+        return isVietnamese ? 'Nhắc nhở: $cleanTitle' : 'Reminder: $cleanTitle';
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -167,7 +197,7 @@ class _NotificationTile extends ConsumerWidget {
       onDismissed: (_) {
         ref.read(inAppNotificationProvider.notifier).deleteNotification(notification.id);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa thông báo')),
+          SnackBar(content: Text(isVietnamese ? 'Đã xóa thông báo' : 'Notification deleted')),
         );
       },
       child: Container(
@@ -178,7 +208,7 @@ class _NotificationTile extends ConsumerWidget {
             child: Icon(icon, color: color, size: 20),
           ),
           title: Text(
-            notification.title,
+            _getLocalizedTitle(),
             style: TextStyle(
               fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
             ),
@@ -254,13 +284,13 @@ class _NotificationTile extends ConsumerWidget {
     final difference = now.difference(dateTime);
 
     if (difference.inMinutes < 1) {
-      return 'Vừa xong';
+      return isVietnamese ? 'Vừa xong' : 'Just now';
     } else if (difference.inHours < 1) {
-      return '${difference.inMinutes} phút trước';
+      return isVietnamese ? '${difference.inMinutes} phút trước' : '${difference.inMinutes}m ago';
     } else if (difference.inDays < 1) {
-      return '${difference.inHours} giờ trước';
+      return isVietnamese ? '${difference.inHours} giờ trước' : '${difference.inHours}h ago';
     } else if (difference.inDays < 7) {
-      return '${difference.inDays} ngày trước';
+      return isVietnamese ? '${difference.inDays} ngày trước' : '${difference.inDays}d ago';
     } else {
       return DateFormat('dd/MM/yyyy HH:mm').format(dateTime);
     }
@@ -270,7 +300,9 @@ class _NotificationTile extends ConsumerWidget {
     // TODO: Implement navigation based on notification type
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Mở ${notification.type.toString().split('.').last}'),
+        content: Text(isVietnamese
+            ? 'Mở ${notification.type.toString().split('.').last}'
+            : 'Opening ${notification.type.toString().split('.').last}'),
       ),
     );
   }

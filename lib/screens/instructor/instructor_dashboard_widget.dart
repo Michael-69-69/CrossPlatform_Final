@@ -12,6 +12,7 @@ import '../../providers/group_provider.dart';
 import '../../providers/assignment_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/semester_provider.dart';
+import '../../main.dart'; // for localeProvider
 
 // ✅ Provider to cache dashboard data
 final _dashboardDataProvider = StateProvider<_DashboardData?>((ref) => null);
@@ -55,6 +56,11 @@ class InstructorDashboardWidget extends ConsumerStatefulWidget {
 class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardWidget> {
   bool _isLoading = false;
   String? _error;
+
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
 
   @override
   void initState() {
@@ -103,7 +109,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
         if (mounted) {
           setState(() {
             _isLoading = false;
-            _error = 'Chưa đăng nhập';
+            _error = _isVietnamese() ? 'Chưa đăng nhập' : 'Not logged in';
           });
         }
         return;
@@ -170,7 +176,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _error = 'Lỗi: $e';
+          _error = '${_isVietnamese() ? 'Lỗi' : 'Error'}: $e';
         });
       }
     }
@@ -316,20 +322,20 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
     }
 
     if (_isLoading && data == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Đang tải dữ liệu...'),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(_isVietnamese() ? 'Đang tải dữ liệu...' : 'Loading data...'),
           ],
         ),
       );
     }
 
     if (data == null) {
-      return const Center(child: Text('Không có dữ liệu'));
+      return Center(child: Text(_isVietnamese() ? 'Không có dữ liệu' : 'No data'));
     }
 
     // Categorize by submission age
@@ -359,32 +365,32 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
               if (monthOldUngraded.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _buildAssignmentsSection(
-                  title: '🚨 Quá 30 ngày chưa chấm',
-                  subtitle: 'Cần xử lý ngay!',
+                  title: _isVietnamese() ? '🚨 Quá 30 ngày chưa chấm' : '🚨 Over 30 days ungraded',
+                  subtitle: _isVietnamese() ? 'Cần xử lý ngay!' : 'Needs immediate attention!',
                   assignments: monthOldUngraded,
                   color: Colors.red[700]!,
                   icon: Icons.error,
                 ),
               ],
-              
+
               // 7-30 days old
               if (weekOldUngraded.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _buildAssignmentsSection(
-                  title: '⚠️ 7-30 ngày chưa chấm',
-                  subtitle: 'Nên chấm sớm',
+                  title: _isVietnamese() ? '⚠️ 7-30 ngày chưa chấm' : '⚠️ 7-30 days ungraded',
+                  subtitle: _isVietnamese() ? 'Nên chấm sớm' : 'Should grade soon',
                   assignments: weekOldUngraded,
                   color: Colors.orange,
                   icon: Icons.warning_amber,
                 ),
               ],
-              
+
               // Recent (0-7 days)
               if (recentUngraded.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _buildAssignmentsSection(
-                  title: '📝 Mới nộp (< 7 ngày)',
-                  subtitle: 'Bài nộp gần đây',
+                  title: _isVietnamese() ? '📝 Mới nộp (< 7 ngày)' : '📝 Recent (< 7 days)',
+                  subtitle: _isVietnamese() ? 'Bài nộp gần đây' : 'Recent submissions',
                   assignments: recentUngraded,
                   color: Colors.blue,
                   icon: Icons.schedule,
@@ -413,10 +419,10 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
                     color: Theme.of(context).primaryColor,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
+                      const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
@@ -424,8 +430,8 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
                           valueColor: AlwaysStoppedAnimation(Colors.white),
                         ),
                       ),
-                      SizedBox(width: 8),
-                      Text('Đang cập nhật...', style: TextStyle(color: Colors.white, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      Text(_isVietnamese() ? 'Đang cập nhật...' : 'Updating...', style: const TextStyle(color: Colors.white, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -445,12 +451,12 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
           children: [
             const Icon(Icons.error_outline, size: 64, color: Colors.red),
             const SizedBox(height: 16),
-            Text(_error ?? 'Đã xảy ra lỗi', textAlign: TextAlign.center),
+            Text(_error ?? (_isVietnamese() ? 'Đã xảy ra lỗi' : 'An error occurred'), textAlign: TextAlign.center),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _forceRefresh,
               icon: const Icon(Icons.refresh),
-              label: const Text('Thử lại'),
+              label: Text(_isVietnamese() ? 'Thử lại' : 'Retry'),
             ),
           ],
         ),
@@ -460,7 +466,8 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
 
   Widget _buildEmptyState() {
     final allGraded = _totalSubmissions > 0 && _ungradedSubmissions == 0;
-    
+    final isVietnamese = _isVietnamese();
+
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -476,7 +483,9 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
           ),
           const SizedBox(height: 16),
           Text(
-            allGraded ? 'Đã chấm hết! 🎉' : 'Chưa có bài nộp',
+            allGraded
+                ? (isVietnamese ? 'Đã chấm hết! 🎉' : 'All graded! 🎉')
+                : (isVietnamese ? 'Chưa có bài nộp' : 'No submissions yet'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -485,9 +494,11 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
           ),
           const SizedBox(height: 8),
           Text(
-            allGraded 
-                ? 'Tất cả $_totalSubmissions bài nộp đã được chấm điểm'
-                : 'Tạo bài tập để sinh viên nộp bài',
+            allGraded
+                ? (isVietnamese
+                    ? 'Tất cả $_totalSubmissions bài nộp đã được chấm điểm'
+                    : 'All $_totalSubmissions submissions have been graded')
+                : (isVietnamese ? 'Tạo bài tập để sinh viên nộp bài' : 'Create assignments for students to submit'),
             style: TextStyle(color: Colors.grey[500]),
             textAlign: TextAlign.center,
           ),
@@ -500,9 +511,14 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
     final user = ref.watch(authProvider);
     final semesters = ref.watch(semesterProvider);
     final activeSemester = semesters.where((s) => s.isActive).firstOrNull;
+    final isVietnamese = _isVietnamese();
 
     final hour = DateTime.now().hour;
-    String greeting = hour < 12 ? 'Chào buổi sáng' : (hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối');
+    String greeting = hour < 12
+        ? (isVietnamese ? 'Chào buổi sáng' : 'Good morning')
+        : (hour < 18
+            ? (isVietnamese ? 'Chào buổi chiều' : 'Good afternoon')
+            : (isVietnamese ? 'Chào buổi tối' : 'Good evening'));
     IconData icon = hour < 12 ? Icons.wb_sunny : (hour < 18 ? Icons.wb_cloudy : Icons.nights_stay);
 
     return Container(
@@ -529,7 +545,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(greeting, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                    Text(user?.fullName ?? 'Giảng viên', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(user?.fullName ?? (isVietnamese ? 'Giảng viên' : 'Instructor'), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -549,13 +565,14 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
   }
 
   Widget _buildQuickStats(_DashboardData data) {
+    final isVietnamese = _isVietnamese();
     return Row(
       children: [
-        _statCard(Icons.book, data.coursesCount, 'Môn học', Colors.blue),
+        _statCard(Icons.book, data.coursesCount, isVietnamese ? 'Môn học' : 'Courses', Colors.blue),
         const SizedBox(width: 10),
-        _statCard(Icons.group_work, data.groupsCount, 'Nhóm', Colors.orange),
+        _statCard(Icons.group_work, data.groupsCount, isVietnamese ? 'Nhóm' : 'Groups', Colors.orange),
         const SizedBox(width: 10),
-        _statCard(Icons.people, data.studentsCount, 'Sinh viên', Colors.green),
+        _statCard(Icons.people, data.studentsCount, isVietnamese ? 'Sinh viên' : 'Students', Colors.green),
       ],
     );
   }
@@ -585,6 +602,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
     final total = _totalSubmissions;
     final progress = total > 0 ? _gradedSubmissions / total : 0.0;
     final progressColor = progress >= 0.8 ? Colors.green : (progress >= 0.5 ? Colors.orange : Colors.red);
+    final isVietnamese = _isVietnamese();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -600,7 +618,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
             children: [
               Icon(Icons.assignment_turned_in, color: Theme.of(context).primaryColor, size: 20),
               const SizedBox(width: 8),
-              const Text('Tiến độ chấm bài', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              Text(isVietnamese ? 'Tiến độ chấm bài' : 'Grading Progress', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
@@ -612,7 +630,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
                   children: [
                     Icon(Icons.hourglass_empty, size: 32, color: Colors.grey[400]),
                     const SizedBox(height: 8),
-                    Text('Chưa có bài nộp nào', style: TextStyle(color: Colors.grey[500])),
+                    Text(isVietnamese ? 'Chưa có bài nộp nào' : 'No submissions yet', style: TextStyle(color: Colors.grey[500])),
                   ],
                 ),
               ),
@@ -625,7 +643,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
                   '${(progress * 100).toStringAsFixed(0)}%',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: progressColor),
                 ),
-                Text('$_gradedSubmissions / $total bài nộp', style: TextStyle(color: Colors.grey[600])),
+                Text(isVietnamese ? '$_gradedSubmissions / $total bài nộp' : '$_gradedSubmissions / $total submissions', style: TextStyle(color: Colors.grey[600])),
               ],
             ),
             const SizedBox(height: 10),
@@ -642,8 +660,8 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _progressLabel(Colors.green, 'Đã chấm', _gradedSubmissions),
-                _progressLabel(Colors.orange, 'Chưa chấm', _ungradedSubmissions),
+                _progressLabel(Colors.green, isVietnamese ? 'Đã chấm' : 'Graded', _gradedSubmissions),
+                _progressLabel(Colors.orange, isVietnamese ? 'Chưa chấm' : 'Ungraded', _ungradedSubmissions),
               ],
             ),
           ],
@@ -712,6 +730,7 @@ class _InstructorDashboardWidgetState extends ConsumerState<InstructorDashboardW
                 ungradedCount: data['ungradedCount'] as int,
                 submissions: data['submissions'] as List,
                 color: color,
+                isVietnamese: _isVietnamese(),
                 onTap: () => _navigateToAssignment(
                   (data['course'] as Course).id,
                   (data['assignment'] as Assignment).id,
@@ -733,6 +752,7 @@ class _AssignmentFolderTile extends StatefulWidget {
   final int ungradedCount;
   final List submissions;
   final Color color;
+  final bool isVietnamese;
   final VoidCallback onTap;
 
   const _AssignmentFolderTile({
@@ -741,6 +761,7 @@ class _AssignmentFolderTile extends StatefulWidget {
     required this.ungradedCount,
     required this.submissions,
     required this.color,
+    required this.isVietnamese,
     required this.onTap,
   });
 
@@ -824,7 +845,9 @@ class _AssignmentFolderTileState extends State<_AssignmentFolderTile> {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        'và ${widget.submissions.length - 5} bài nộp khác...',
+                        widget.isVietnamese
+                            ? 'và ${widget.submissions.length - 5} bài nộp khác...'
+                            : 'and ${widget.submissions.length - 5} more submissions...',
                         style: TextStyle(color: Colors.grey[600], fontSize: 11),
                       ),
                     ),
@@ -834,7 +857,7 @@ class _AssignmentFolderTileState extends State<_AssignmentFolderTile> {
                     child: ElevatedButton.icon(
                       onPressed: widget.onTap,
                       icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('Mở bài tập', style: TextStyle(fontSize: 12)),
+                      label: Text(widget.isVietnamese ? 'Mở bài tập' : 'Open assignment', style: const TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: widget.color,
                         foregroundColor: Colors.white,
@@ -887,7 +910,7 @@ class _AssignmentFolderTileState extends State<_AssignmentFolderTile> {
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
-              '$daysOld ngày',
+              widget.isVietnamese ? '$daysOld ngày' : '$daysOld days',
               style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
             ),
           ),

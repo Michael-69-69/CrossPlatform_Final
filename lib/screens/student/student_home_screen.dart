@@ -18,6 +18,8 @@ import '../shared/inbox_screen.dart';
 import '../student/in_app_notification_screen.dart';
 import 'student_course_detail_screen.dart';
 import 'student_dashboard_screen.dart';
+import '../../widgets/language_switcher.dart';
+import '../../main.dart'; // for localeProvider
 
 class StudentHomeScreen extends ConsumerStatefulWidget {
   const StudentHomeScreen({super.key});
@@ -129,6 +131,11 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     );
   }
 
+  // Helper method to check if Vietnamese
+  bool _isVietnamese() {
+    return ref.read(localeProvider).languageCode == 'vi';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
@@ -137,6 +144,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     final allGroups = ref.watch(groupProvider);
     final conversations = ref.watch(conversationProvider);
     final notifications = ref.watch(inAppNotificationProvider);
+    final isVietnamese = ref.watch(localeProvider).languageCode == 'vi';
 
     // ✅ UPDATED: Auto-select active semester (or first if none active)
     if (_selectedSemesterId == null && semesters.isNotEmpty) {
@@ -197,13 +205,17 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     return Scaffold(
       appBar: _currentBottomNavIndex == 0 // Only show AppBar on home tab
           ? AppBar(
-              title: const Text('Khóa học của tôi'),
+              title: Text(isVietnamese ? 'Khóa học của tôi' : 'My Courses'),
               actions: [
+                // Language switcher
+                const LanguageSwitcher(),
                 // Dashboard toggle
                 IconButton(
                   icon: Icon(_showDashboard ? Icons.grid_view : Icons.dashboard),
                   onPressed: () => setState(() => _showDashboard = !_showDashboard),
-                  tooltip: _showDashboard ? 'Xem khóa học' : 'Xem dashboard',
+                  tooltip: _showDashboard
+                      ? (isVietnamese ? 'Xem khóa học' : 'View courses')
+                      : (isVietnamese ? 'Xem dashboard' : 'View dashboard'),
                 ),
                 // Notification bell
                 Stack(
@@ -218,7 +230,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                           ),
                         );
                       },
-                      tooltip: 'Thông báo',
+                      tooltip: isVietnamese ? 'Thông báo' : 'Notifications',
                     ),
                     if (unreadNotificationCount > 0)
                       Positioned(
@@ -254,16 +266,16 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                   child: IconButton(
                     icon: _buildUserAvatar(user),
                     onPressed: () => context.push('/student/profile'),
-                    tooltip: 'Hồ sơ cá nhân',
+                    tooltip: isVietnamese ? 'Hồ sơ cá nhân' : 'Profile',
                   ),
                 ),
                 // Logout
                 IconButton(
                   icon: const Icon(Icons.logout),
                   onPressed: () {
-                    _showLogoutConfirmDialog(context, ref);
+                    _showLogoutConfirmDialog(context, ref, isVietnamese);
                   },
-                  tooltip: 'Đăng xuất',
+                  tooltip: isVietnamese ? 'Đăng xuất' : 'Logout',
                 ),
               ],
             )
@@ -275,9 +287,9 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           setState(() => _currentBottomNavIndex = index);
         },
         items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.school),
-            label: 'Khóa học',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.school),
+            label: isVietnamese ? 'Khóa học' : 'Courses',
           ),
           BottomNavigationBarItem(
             icon: Stack(
@@ -310,7 +322,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                   ),
               ],
             ),
-            label: 'Tin nhắn',
+            label: isVietnamese ? 'Tin nhắn' : 'Messages',
           ),
         ],
       ),
@@ -319,22 +331,22 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
   }
 
   // ✅ NEW: Logout confirmation dialog
-  void _showLogoutConfirmDialog(BuildContext context, WidgetRef ref) {
+  void _showLogoutConfirmDialog(BuildContext context, WidgetRef ref, bool isVietnamese) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.logout, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Đăng xuất'),
+            const Icon(Icons.logout, color: Colors.red),
+            const SizedBox(width: 8),
+            Text(isVietnamese ? 'Đăng xuất' : 'Logout'),
           ],
         ),
-        content: const Text('Bạn có chắc muốn đăng xuất?'),
+        content: Text(isVietnamese ? 'Bạn có chắc muốn đăng xuất?' : 'Are you sure you want to logout?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
+            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -346,7 +358,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Đăng xuất'),
+            child: Text(isVietnamese ? 'Đăng xuất' : 'Logout'),
           ),
         ],
       ),
@@ -360,6 +372,8 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     List<Group> studentGroups,
     bool isPastSemester,
   ) {
+    final isVietnamese = _isVietnamese();
+
     return Column(
       children: [
         // Semester Switcher
@@ -373,9 +387,9 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: _selectedSemesterId,
-                  decoration: const InputDecoration(
-                    labelText: 'Học kỳ',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isVietnamese ? 'Học kỳ' : 'Semester',
+                    border: const OutlineInputBorder(),
                     isDense: true,
                   ),
                   items: semesters.map((s) {
@@ -398,9 +412,9 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                                 color: Colors.green,
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Text(
-                                'Hiện tại',
-                                style: TextStyle(
+                              child: Text(
+                                isVietnamese ? 'Hiện tại' : 'Current',
+                                style: const TextStyle(
                                   fontSize: 9,
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -418,7 +432,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             ],
           ),
         ),
-        
+
         // Warning for non-active semesters
         if (isPastSemester)
           Container(
@@ -430,7 +444,9 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Học kỳ cũ - Chỉ xem và tải tài liệu, không thể nộp bài hoặc làm quiz',
+                    isVietnamese
+                        ? 'Học kỳ cũ - Chỉ xem và tải tài liệu, không thể nộp bài hoặc làm quiz'
+                        : 'Past semester - View only, cannot submit assignments or take quizzes',
                     style: TextStyle(color: Colors.orange[800]),
                   ),
                 ),
@@ -466,6 +482,8 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     List<Group> studentGroups,
     bool isPastSemester,
   ) {
+    final isVietnamese = _isVietnamese();
+
     if (courses.isEmpty) {
       return Center(
         child: Column(
@@ -474,7 +492,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             Icon(Icons.school, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'Chưa có khóa học nào',
+              isVietnamese ? 'Chưa có khóa học nào' : 'No courses yet',
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
@@ -508,6 +526,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           semester: semester,
           groupName: courseGroup.name,
           isPastSemester: isPastSemester,
+          isVietnamese: isVietnamese,
           onTap: () {
             Navigator.push(
               context,
@@ -531,6 +550,7 @@ class _CourseCard extends StatelessWidget {
   final Semester semester;
   final String groupName;
   final bool isPastSemester;
+  final bool isVietnamese;
   final VoidCallback onTap;
 
   const _CourseCard({
@@ -538,6 +558,7 @@ class _CourseCard extends StatelessWidget {
     required this.semester,
     required this.groupName,
     required this.isPastSemester,
+    required this.isVietnamese,
     required this.onTap,
   });
 
@@ -583,7 +604,7 @@ class _CourseCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Show "Cũ" badge for non-active semesters
+                  // Show "Past" badge for non-active semesters
                   if (isPastSemester)
                     Positioned(
                       top: 8,
@@ -594,9 +615,9 @@ class _CourseCard extends StatelessWidget {
                           color: Colors.orange,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          'Cũ',
-                          style: TextStyle(
+                        child: Text(
+                          isVietnamese ? 'Cũ' : 'Past',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
