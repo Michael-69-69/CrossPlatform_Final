@@ -1,18 +1,19 @@
-// services/cache_service.dart
+// lib/services/cache_service.dart
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 class CacheService {
-  static late Box _cacheBox;
-  static late SharedPreferences _prefs;
+  static Box? _cacheBox;
+  static SharedPreferences? _prefs;
   static bool _initialized = false;
 
   // Cache expiration times (in minutes)
   static const int CATEGORY_CACHE_DURATION = 60; // 1 hour
   static const int QUERY_CACHE_DURATION = 10;    // 10 minutes
   static const int SEMESTER_CACHE_DURATION = 30; // 30 minutes
+  static const int PERMANENT_CACHE = -1;         // Never expires
 
   /// Initialize cache service
   static Future<void> initialize() async {
@@ -30,53 +31,9 @@ class CacheService {
     }
   }
 
-// Add this method to cache_service.dart
-
-  /// Get all cache items with metadata
-  static Future<List<Map<String, dynamic>>> getAllCacheItems() async {
-    await _ensureInitialized();
-    
-    final List<Map<String, dynamic>> items = [];
-    
-    try {
-      for (var key in _cacheBox.keys) {
-        try {
-          final cached = _cacheBox.get(key);
-          if (cached == null) continue;
-          
-          final cacheData = jsonDecode(cached) as Map<String, dynamic>;
-          final data = cacheData['data'];
-          
-          items.add({
-            'key': key.toString(),
-            'timestamp': cacheData['timestamp'],
-            'expiresAt': cacheData['expiresAt'],
-            'data': data,
-            'dataCount': data is List ? data.length : 1,
-          });
-        } catch (e) {
-          // Skip malformed cache entries
-          print('⚠️ Skipping malformed cache entry: $key');
-        }
-      }
-      
-      // Sort by timestamp (newest first)
-      items.sort((a, b) {
-        final aTime = a['timestamp'] as String? ?? '';
-        final bTime = b['timestamp'] as String? ?? '';
-        return bTime.compareTo(aTime);
-      });
-      
-      return items;
-    } catch (e) {
-      print('❌ Error getting cache items: $e');
-      return [];
-    }
-  }
-
   /// Ensure cache is initialized
   static Future<void> _ensureInitialized() async {
-    if (!_initialized) {
+    if (!_initialized || _cacheBox == null) {
       await initialize();
     }
   }
@@ -92,17 +49,18 @@ class CacheService {
     int durationMinutes = CATEGORY_CACHE_DURATION,
   }) async {
     await _ensureInitialized();
+    if (_cacheBox == null) return;
     
     try {
       final cacheData = {
         'data': data,
         'timestamp': DateTime.now().toIso8601String(),
-        'expiresAt': DateTime.now()
-            .add(Duration(minutes: durationMinutes))
-            .toIso8601String(),
+        'expiresAt': durationMinutes == PERMANENT_CACHE 
+            ? null 
+            : DateTime.now().add(Duration(minutes: durationMinutes)).toIso8601String(),
       };
       
-      await _cacheBox.put(key, jsonEncode(cacheData));
+      await _cacheBox!.put(key, jsonEncode(cacheData));
       print('✅ Cached category data: $key (${data.length} items)');
     } catch (e) {
       print('❌ Error caching category data: $e');
@@ -110,21 +68,23 @@ class CacheService {
   }
 
   /// Get cached category data
-  static Future<List<Map<String, dynamic>>?> getCachedCategoryData(String key) async {
+  static Future<List<Map<String, dynamic>>?> getCachedCategoryData(String key, {bool ignoreExpiry = false}) async {
     await _ensureInitialized();
+    if (_cacheBox == null) return null;
     
     try {
-      final cached = _cacheBox.get(key);
+      final cached = _cacheBox!.get(key);
       if (cached == null) return null;
 
       final cacheData = jsonDecode(cached) as Map<String, dynamic>;
-      final expiresAt = DateTime.parse(cacheData['expiresAt'] as String);
       
-      // Check if expired
-      if (DateTime.now().isAfter(expiresAt)) {
-        await _cacheBox.delete(key);
-        print('⏰ Cache expired: $key');
-        return null;
+      // Check if expired (skip if ignoreExpiry or no expiration)
+      if (!ignoreExpiry && cacheData['expiresAt'] != null) {
+        final expiresAt = DateTime.parse(cacheData['expiresAt'] as String);
+        if (DateTime.now().isAfter(expiresAt)) {
+          print('⏰ Cache expired: $key');
+          // Still return data, let caller decide to refresh
+        }
       }
 
       final data = (cacheData['data'] as List)
@@ -150,6 +110,7 @@ class CacheService {
     int durationMinutes = QUERY_CACHE_DURATION,
   }) async {
     await _ensureInitialized();
+    if (_cacheBox == null) return;
     
     try {
       final cacheData = {
@@ -160,7 +121,7 @@ class CacheService {
             .toIso8601String(),
       };
       
-      await _cacheBox.put('query_$queryKey', jsonEncode(cacheData));
+      await _cacheBox!.put('query_$queryKey', jsonEncode(cacheData));
       print('✅ Cached query result: $queryKey');
     } catch (e) {
       print('❌ Error caching query result: $e');
@@ -170,16 +131,17 @@ class CacheService {
   /// Get cached query result
   static Future<Map<String, dynamic>?> getCachedQueryResult(String queryKey) async {
     await _ensureInitialized();
+    if (_cacheBox == null) return null;
     
     try {
-      final cached = _cacheBox.get('query_$queryKey');
+      final cached = _cacheBox!.get('query_$queryKey');
       if (cached == null) return null;
 
       final cacheData = jsonDecode(cached) as Map<String, dynamic>;
       final expiresAt = DateTime.parse(cacheData['expiresAt'] as String);
       
       if (DateTime.now().isAfter(expiresAt)) {
-        await _cacheBox.delete('query_$queryKey');
+        await _cacheBox!.delete('query_$queryKey');
         print('⏰ Query cache expired: $queryKey');
         return null;
       }
@@ -203,6 +165,7 @@ class CacheService {
     int durationMinutes = SEMESTER_CACHE_DURATION,
   }) async {
     await _ensureInitialized();
+    if (_cacheBox == null) return;
     
     try {
       final cacheKey = 'semester_$semesterId';
@@ -215,7 +178,7 @@ class CacheService {
             .toIso8601String(),
       };
       
-      await _cacheBox.put(cacheKey, jsonEncode(cacheData));
+      await _cacheBox!.put(cacheKey, jsonEncode(cacheData));
       print('✅ Cached semester data: $semesterId');
     } catch (e) {
       print('❌ Error caching semester data: $e');
@@ -225,25 +188,26 @@ class CacheService {
   /// Get cached semester data
   static Future<Map<String, dynamic>?> getCachedSemesterData(String semesterId) async {
     await _ensureInitialized();
+    if (_cacheBox == null) return null;
     
     try {
       final cacheKey = 'semester_$semesterId';
-      final cached = _cacheBox.get(cacheKey);
+      final cached = _cacheBox!.get(cacheKey);
       if (cached == null) return null;
 
       final cacheData = jsonDecode(cached) as Map<String, dynamic>;
       final expiresAt = DateTime.parse(cacheData['expiresAt'] as String);
       
       if (DateTime.now().isAfter(expiresAt)) {
-        await _cacheBox.delete(cacheKey);
+        await _cacheBox!.delete(cacheKey);
         print('⏰ Semester cache expired: $semesterId');
         return null;
       }
 
-      print('✅ Retrieved cached semester data: $semesterId');
+      print('✅ Retrieved cached semester: $semesterId');
       return Map<String, dynamic>.from(cacheData['data'] as Map);
     } catch (e) {
-      print('❌ Error retrieving cached semester data: $e');
+      print('❌ Error retrieving cached semester: $e');
       return null;
     }
   }
@@ -252,90 +216,98 @@ class CacheService {
   // CACHE MANAGEMENT
   // ============================================
 
-  /// Clear specific cache by key
+  /// Clear specific cache
   static Future<void> clearCache(String key) async {
     await _ensureInitialized();
-    await _cacheBox.delete(key);
+    if (_cacheBox == null) return;
+    
+    await _cacheBox!.delete(key);
     print('🗑️ Cleared cache: $key');
   }
 
-  /// Clear all category caches
-  static Future<void> clearCategoryCache() async {
-    await _ensureInitialized();
-    
-    final keys = _cacheBox.keys.where((key) => 
-      key.toString().startsWith('semesters') || 
-      key.toString().startsWith('courses') || 
-      key.toString().startsWith('groups') ||
-      key.toString().startsWith('students')
-    ).toList();
-    
-    for (var key in keys) {
-      await _cacheBox.delete(key);
-    }
-    
-    print('🗑️ Cleared all category caches');
-  }
-
-  /// Clear all query caches
-  static Future<void> clearQueryCache() async {
-    await _ensureInitialized();
-    
-    final keys = _cacheBox.keys.where((key) => 
-      key.toString().startsWith('query_')
-    ).toList();
-    
-    for (var key in keys) {
-      await _cacheBox.delete(key);
-    }
-    
-    print('🗑️ Cleared all query caches');
-  }
-
-  /// Clear semester cache
-  static Future<void> clearSemesterCache([String? semesterId]) async {
-    await _ensureInitialized();
-    
-    if (semesterId != null) {
-      await _cacheBox.delete('semester_$semesterId');
-      print('🗑️ Cleared semester cache: $semesterId');
-    } else {
-      final keys = _cacheBox.keys.where((key) => 
-        key.toString().startsWith('semester_')
-      ).toList();
-      
-      for (var key in keys) {
-        await _cacheBox.delete(key);
-      }
-      
-      print('🗑️ Cleared all semester caches');
-    }
-  }
-
-  /// Clear all caches
+  /// Clear all cache
   static Future<void> clearAllCache() async {
     await _ensureInitialized();
-    await _cacheBox.clear();
-    print('🗑️ Cleared all caches');
+    if (_cacheBox == null) return;
+    
+    await _cacheBox!.clear();
+    print('🗑️ Cleared all cache');
+  }
+
+  /// Get all cache items with metadata
+  static Future<List<Map<String, dynamic>>> getAllCacheItems() async {
+    await _ensureInitialized();
+    if (_cacheBox == null) return [];
+    
+    final List<Map<String, dynamic>> items = [];
+    
+    try {
+      for (var key in _cacheBox!.keys) {
+        try {
+          final cached = _cacheBox!.get(key);
+          if (cached == null) continue;
+          
+          final cacheData = jsonDecode(cached) as Map<String, dynamic>;
+          final data = cacheData['data'] ?? cacheData['result'];
+          
+          items.add({
+            'key': key.toString(),
+            'timestamp': cacheData['timestamp'],
+            'expiresAt': cacheData['expiresAt'],
+            'permanent': cacheData['permanent'] ?? false,
+            'data': data,
+            'dataCount': data is List ? data.length : 1,
+          });
+        } catch (e) {
+          print('⚠️ Skipping malformed cache entry: $key');
+        }
+      }
+      
+      items.sort((a, b) {
+        final aTime = a['timestamp'] as String? ?? '';
+        final bTime = b['timestamp'] as String? ?? '';
+        return bTime.compareTo(aTime);
+      });
+      
+      return items;
+    } catch (e) {
+      print('❌ Error getting cache items: $e');
+      return [];
+    }
   }
 
   /// Get cache statistics
-  static Future<Map<String, dynamic>> getCacheStats() async {
+  static Future<Map<String, int>> getCacheStats() async {
     await _ensureInitialized();
+    if (_cacheBox == null) {
+      return {'total': 0, 'category': 0, 'query': 0, 'semester': 0};
+    }
     
-    final allKeys = _cacheBox.keys.toList();
-    final categoryKeys = allKeys.where((k) => 
-      !k.toString().startsWith('query_') && 
-      !k.toString().startsWith('semester_')
-    ).length;
-    final queryKeys = allKeys.where((k) => k.toString().startsWith('query_')).length;
-    final semesterKeys = allKeys.where((k) => k.toString().startsWith('semester_')).length;
+    final items = await getAllCacheItems();
+    
+    int categoryCount = 0;
+    int queryCount = 0;
+    int semesterCount = 0;
+    
+    for (var item in items) {
+      final key = item['key'] as String;
+      if (key.startsWith('query_')) {
+        queryCount++;
+      } else if (key.startsWith('semester_')) {
+        semesterCount++;
+      } else {
+        categoryCount++;
+      }
+    }
     
     return {
-      'total': allKeys.length,
-      'category': categoryKeys,
-      'query': queryKeys,
-      'semester': semesterKeys,
+      'total': items.length,
+      'category': categoryCount,
+      'query': queryCount,
+      'semester': semesterCount,
     };
   }
+
+  /// Check if cache is initialized
+  static bool get isInitialized => _initialized && _cacheBox != null;
 }

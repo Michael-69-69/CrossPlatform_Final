@@ -1,4 +1,4 @@
-// main.dart
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -8,15 +8,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:ggclassroom/l10n/app_localizations.dart';
 import 'routes/app_router.dart';
 import 'services/mongodb_service.dart';
-import 'services/cache_service.dart'; // ✅ ADD
-import 'services/network_service.dart'; // ✅ ADD
-import 'widgets/network_status_banner.dart'; // ✅ ADD
+import 'services/cache_service.dart';
+import 'services/network_service.dart';
+import 'widgets/network_status_banner.dart';
 
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  
+  // ✅ Initialize Hive first (only once)
   await Hive.initFlutter();
   
   // ✅ Initialize Cache Service
@@ -39,13 +41,11 @@ void main() async {
   try {
     await MongoDBService.connect();
   } catch (e) {
-    // On web, this is expected - MongoDB direct connection not supported
     if (MongoDBService.isWebPlatform) {
       print('Info: MongoDB direct connection not available on web platform');
     } else {
       print('Warning: MongoDB connection failed: $e');
     }
-    // Continue anyway - connection will be retried when needed
   }
   
   runApp(const ProviderScope(child: MyApp()));
@@ -71,7 +71,6 @@ class MyApp extends ConsumerWidget {
         useMaterial3: true,
         textTheme: GoogleFonts.robotoTextTheme(),
       ),
-      // ✅ Wrap with network status banner
       builder: (context, child) {
         return NetworkStatusBanner(child: child ?? const SizedBox());
       },

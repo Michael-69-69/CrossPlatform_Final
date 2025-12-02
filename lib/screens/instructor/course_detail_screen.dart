@@ -13,13 +13,14 @@ import 'groups_tab.dart';
 import 'quiz_tab.dart';
 import 'material_tab.dart';
 import 'analytics_tab.dart';
-import '../shared/forum_list_widget.dart'; // ✅ ADD THIS
+import '../shared/forum_list_widget.dart';
 
 class CourseDetailScreen extends ConsumerStatefulWidget {
   final Course course;
   final Semester semester;
   final List<app.Group> groups;
   final List<AppUser> students;
+  final int initialTabIndex; // ✅ NEW: Initial tab to open
 
   const CourseDetailScreen({
     super.key,
@@ -27,6 +28,7 @@ class CourseDetailScreen extends ConsumerStatefulWidget {
     required this.semester,
     required this.groups,
     required this.students,
+    this.initialTabIndex = 0, // ✅ Default to Announcements (index 0)
   });
 
   @override
@@ -41,10 +43,15 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
   void initState() {
     super.initState();
     currentStudents = List.from(widget.students);
-    _tabController = TabController(length: 7, vsync: this); // ✅ CHANGE TO 7
+    _tabController = TabController(
+      length: 7, 
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 6), // ✅ Use initial tab index (clamped to valid range)
+    );
     
     print('🏫 CourseDetailScreen initialized');
     print('📚 Course: ${widget.course.name}');
+    print('📑 Initial tab index: ${widget.initialTabIndex}');
     print('👥 Groups count: ${widget.groups.length}');
     for (var group in widget.groups) {
       print('  - ${group.name} (ID: ${group.id}, Students: ${group.studentIds.length})');
@@ -132,7 +139,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
                 _buildQuizTab(),
                 _buildMaterialTab(),
                 _buildGroupsTab(),
-                _buildForumTab(), // ✅ ADD THIS
+                _buildForumTab(),
                 _buildAnalyticsTab(),
               ],
             ),
@@ -188,7 +195,6 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> with Ti
     );
   }
 
-  // ✅ ADD THIS METHOD
   Widget _buildForumTab() {
     print('💬 Building ForumTab');
     return ForumListWidget(

@@ -1,4 +1,4 @@
-// screens/instructor/cache_management_screen.dart
+// lib/screens/instructor/cache_management_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/cache_service.dart';
@@ -25,7 +25,7 @@ class CacheManagementScreen extends ConsumerStatefulWidget {
 }
 
 class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
-  Map<String, dynamic>? _cacheStats;
+  Map<String, int>? _cacheStats;
   List<Map<String, dynamic>> _cacheItems = [];
   bool _isLoading = false;
   bool _isRefreshing = false;
@@ -48,12 +48,18 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       });
     } catch (e) {
       print('Error loading cache data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi tải cache: $e'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  // ✅ FIXED: Refresh all data from database and update cache
   Future<void> _refreshAllData() async {
     if (NetworkService().isOffline) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,7 +81,6 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
 
       final isInstructor = user.role == UserRole.instructor;
 
-      // Show progress dialog
       if (mounted) {
         showDialog(
           context: context,
@@ -98,50 +103,58 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
         );
       }
 
-      // ✅ 1. Clear all cache first
+      // 1. Clear all cache first
       await CacheService.clearAllCache();
       print('✅ Cleared all cache');
 
-      // ✅ 2. Reload all core data
+      // 2. Reload all core data
       await Future.wait([
         ref.read(semesterProvider.notifier).loadSemesters(),
         ref.read(courseProvider.notifier).loadCourses(),
         ref.read(groupProvider.notifier).loadGroups(),
         if (isInstructor) ref.read(studentProvider.notifier).loadStudents(),
       ]);
-      print('✅ Reloaded core data (semesters, courses, groups, students)');
+      print('✅ Reloaded core data');
 
-      // ✅ 3. Reload user-specific data
+      // 3. Reload user-specific data
       await Future.wait([
         ref.read(conversationProvider.notifier).loadConversations(user.id, isInstructor),
         ref.read(inAppNotificationProvider.notifier).loadNotifications(user.id),
       ]);
-      print('✅ Reloaded user-specific data (conversations, notifications)');
+      print('✅ Reloaded user-specific data');
 
-      // ✅ 4. Reload course-specific data for all courses
+      // 4. Reload course-specific data
       final courses = ref.read(courseProvider);
       for (final course in courses) {
-        await Future.wait([
-          ref.read(assignmentProvider.notifier).loadAssignments(course.id),
-          ref.read(announcementProvider.notifier).loadAnnouncements(course.id), // ✅ FIXED: positional parameter
-          ref.read(quizProvider.notifier).loadQuizzes(courseId: course.id),
-          ref.read(questionProvider.notifier).loadQuestions(courseId: course.id),
-          ref.read(materialProvider.notifier).loadMaterials(courseId: course.id),
-          ref.read(forumTopicProvider.notifier).loadTopics(course.id),
-        ]);
+        try {
+          await Future.wait([
+            ref.read(assignmentProvider.notifier).loadAssignments(course.id),
+            ref.read(announcementProvider.notifier).loadAnnouncements(course.id),
+            ref.read(quizProvider.notifier).loadQuizzes(courseId: course.id),
+            ref.read(questionProvider.notifier).loadQuestions(courseId: course.id),
+            ref.read(materialProvider.notifier).loadMaterials(courseId: course.id),
+            ref.read(forumTopicProvider.notifier).loadTopics(course.id),
+          ]);
+        } catch (e) {
+          print('⚠️ Error loading data for course ${course.id}: $e');
+        }
       }
       print('✅ Reloaded course-specific data for ${courses.length} courses');
 
-      // ✅ 5. Reload quiz submissions
-      await ref.read(quizSubmissionProvider.notifier).loadSubmissions(
-        studentId: isInstructor ? null : user.id,
-      );
-      print('✅ Reloaded quiz submissions');
+      // 5. Reload quiz submissions
+      try {
+        await ref.read(quizSubmissionProvider.notifier).loadSubmissions(
+          studentId: isInstructor ? null : user.id,
+        );
+        print('✅ Reloaded quiz submissions');
+      } catch (e) {
+        print('⚠️ Error loading quiz submissions: $e');
+      }
 
       // Close progress dialog
       if (mounted) Navigator.pop(context);
 
-      // ✅ 6. Reload cache management screen
+      // 6. Reload cache management screen
       await _loadCacheData();
 
       if (mounted) {
@@ -154,20 +167,18 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
         );
       }
     } catch (e) {
-      // Close progress dialog
       if (mounted) Navigator.pop(context);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Lỗi: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('❌ Lỗi: $e'), backgroundColor: Colors.red),
         );
       }
       print('❌ Error refreshing all data: $e');
     } finally {
-      setState(() => _isRefreshing = false);
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
     }
   }
 
@@ -176,31 +187,30 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     try {
       if (key == null) {
         await CacheService.clearAllCache();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Đã xóa toàn bộ cache'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ Đã xóa toàn bộ cache'), backgroundColor: Colors.green),
+          );
+        }
       } else {
         await CacheService.clearCache(key);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Đã xóa cache: $key'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('✅ Đã xóa cache: $key'), backgroundColor: Colors.green),
+          );
+        }
       }
       await _loadCacheData();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Lỗi: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Lỗi: $e'), backgroundColor: Colors.red),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -215,7 +225,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   }
 
   String _formatDuration(String? expiresAt) {
-    if (expiresAt == null) return 'N/A';
+    if (expiresAt == null) return '♾️ Không hết hạn';
     try {
       final expiry = DateTime.parse(expiresAt);
       final now = DateTime.now();
@@ -247,6 +257,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     if (key.startsWith('questions_')) return Colors.purple;
     if (key.startsWith('materials_')) return Colors.teal;
     if (key.startsWith('announcements_')) return Colors.red;
+    if (key.startsWith('permanent_')) return Colors.deepPurple;
     if (key == 'semesters') return Colors.indigo;
     if (key == 'courses') return Colors.green;
     if (key == 'groups') return Colors.amber;
@@ -266,6 +277,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     if (key.startsWith('questions_')) return Icons.question_answer;
     if (key.startsWith('materials_')) return Icons.folder;
     if (key.startsWith('announcements_')) return Icons.campaign;
+    if (key.startsWith('permanent_')) return Icons.lock;
     if (key == 'semesters') return Icons.calendar_today;
     if (key == 'courses') return Icons.school;
     if (key == 'groups') return Icons.group;
@@ -281,28 +293,25 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
             item['key'].toString().toLowerCase().contains(_filterKey.toLowerCase())
           ).toList();
 
+    final isOnline = NetworkService().isOnline;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('🗄️ Cache Management'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         actions: [
-          // ✅ Refresh button
           IconButton(
             icon: _isRefreshing 
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.refresh),
             tooltip: 'Làm mới tất cả dữ liệu từ server',
             onPressed: _isRefreshing ? null : _refreshAllData,
           ),
-          // ✅ Reload cache screen button
           IconButton(
             icon: const Icon(Icons.visibility_outlined),
             tooltip: 'Tải lại màn hình',
@@ -323,26 +332,22 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
-                  color: NetworkService().isOnline 
-                      ? Colors.green.shade100 
-                      : Colors.orange.shade100,
+                  color: isOnline ? Colors.green.shade100 : Colors.orange.shade100,
                   child: Row(
                     children: [
                       Icon(
-                        NetworkService().isOnline ? Icons.wifi : Icons.wifi_off,
-                        color: NetworkService().isOnline ? Colors.green : Colors.orange,
+                        isOnline ? Icons.wifi : Icons.wifi_off,
+                        color: isOnline ? Colors.green : Colors.orange,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          NetworkService().isOnline 
+                          isOnline 
                               ? '🟢 Online - Nhấn 🔄 để làm mới dữ liệu từ server' 
                               : '🟠 Offline - Chỉ hiển thị dữ liệu cache',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: NetworkService().isOnline 
-                                ? Colors.green.shade800 
-                                : Colors.orange.shade800,
+                            color: isOnline ? Colors.green.shade800 : Colors.orange.shade800,
                           ),
                         ),
                       ),
@@ -351,7 +356,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                 ),
 
                 // Refresh Info Banner
-                if (NetworkService().isOnline)
+                if (isOnline)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(8),
@@ -376,13 +381,13 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        _buildStatCard('Tổng', _cacheStats!['total'], Colors.deepPurple),
+                        _buildStatCard('Tổng', _cacheStats!['total'] ?? 0, Colors.deepPurple),
                         const SizedBox(width: 8),
-                        _buildStatCard('Danh mục', _cacheStats!['category'], Colors.blue),
+                        _buildStatCard('Danh mục', _cacheStats!['category'] ?? 0, Colors.blue),
                         const SizedBox(width: 8),
-                        _buildStatCard('Truy vấn', _cacheStats!['query'], Colors.teal),
+                        _buildStatCard('Truy vấn', _cacheStats!['query'] ?? 0, Colors.teal),
                         const SizedBox(width: 8),
-                        _buildStatCard('Học kỳ', _cacheStats!['semester'], Colors.orange),
+                        _buildStatCard('Học kỳ', _cacheStats!['semester'] ?? 0, Colors.orange),
                       ],
                     ),
                   ),
@@ -415,9 +420,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                     decoration: InputDecoration(
                       hintText: 'Tìm kiếm cache key...',
                       prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       isDense: true,
                       suffixIcon: _filterKey.isNotEmpty
                           ? IconButton(
@@ -440,13 +443,11 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                               Icon(Icons.inbox, size: 64, color: Colors.grey[400]),
                               const SizedBox(height: 16),
                               Text(
-                                _filterKey.isEmpty 
-                                    ? 'Chưa có cache nào' 
-                                    : 'Không tìm thấy cache',
+                                _filterKey.isEmpty ? 'Chưa có cache nào' : 'Không tìm thấy cache',
                                 style: TextStyle(color: Colors.grey[600]),
                               ),
                               const SizedBox(height: 8),
-                              if (_filterKey.isEmpty && NetworkService().isOnline)
+                              if (_filterKey.isEmpty && isOnline)
                                 ElevatedButton.icon(
                                   onPressed: _refreshAllData,
                                   icon: const Icon(Icons.refresh),
@@ -482,18 +483,11 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           children: [
             Text(
               '$value',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
             ),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color.withOpacity(0.8),
-              ),
+              style: TextStyle(fontSize: 12, color: color.withOpacity(0.8)),
             ),
           ],
         ),
@@ -514,23 +508,24 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
       backgroundColor: hasCache ? color.withOpacity(0.1) : Colors.grey.shade200,
       onPressed: hasCache
           ? () {
-              final exactMatch = _cacheItems.firstWhere(
-                (item) => item['key'] == key,
-                orElse: () => _cacheItems.firstWhere(
-                  (item) => item['key'].toString().startsWith(key),
-                ),
-              );
-              _showCacheDetailDialog(exactMatch);
+              final matchingItems = _cacheItems.where(
+                (item) => item['key'].toString().startsWith(key),
+              ).toList();
+              
+              if (matchingItems.isNotEmpty) {
+                _showCacheDetailDialog(matchingItems.first);
+              }
             }
           : null,
     );
   }
 
   Widget _buildCacheItemCard(Map<String, dynamic> item) {
-    final key = item['key'] as String;
+    final key = item['key'] as String? ?? 'unknown';
     final timestamp = item['timestamp'] as String?;
     final expiresAt = item['expiresAt'] as String?;
     final dataCount = item['dataCount'] as int? ?? 0;
+    final isPermanent = item['permanent'] as bool? ?? false;
     final color = _getCacheTypeColor(key);
     final icon = _getCacheTypeIcon(key);
 
@@ -552,14 +547,30 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
               '📦 $dataCount mục • ${_formatTimestamp(timestamp)}',
               style: const TextStyle(fontSize: 12),
             ),
-            Text(
-              _formatDuration(expiresAt),
-              style: TextStyle(
-                fontSize: 11,
-                color: expiresAt != null && DateTime.now().isAfter(DateTime.parse(expiresAt))
-                    ? Colors.red
-                    : Colors.green,
-              ),
+            Row(
+              children: [
+                if (isPermanent)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      '♾️ Vĩnh viễn',
+                      style: TextStyle(fontSize: 10, color: Colors.deepPurple),
+                    ),
+                  )
+                else
+                  Text(
+                    _formatDuration(expiresAt),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _isExpired(expiresAt) ? Colors.red : Colors.green,
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -583,11 +594,21 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     );
   }
 
+  bool _isExpired(String? expiresAt) {
+    if (expiresAt == null) return false;
+    try {
+      return DateTime.now().isAfter(DateTime.parse(expiresAt));
+    } catch (e) {
+      return false;
+    }
+  }
+
   void _showCacheDetailDialog(Map<String, dynamic> item) {
-    final key = item['key'] as String;
+    final key = item['key'] as String? ?? 'unknown';
     final data = item['data'];
     final timestamp = item['timestamp'] as String?;
     final expiresAt = item['expiresAt'] as String?;
+    final isPermanent = item['permanent'] as bool? ?? false;
 
     showDialog(
       context: context,
@@ -597,11 +618,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
             Icon(_getCacheTypeIcon(key), color: _getCacheTypeColor(key)),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                key,
-                style: const TextStyle(fontSize: 16),
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: Text(key, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
             ),
           ],
         ),
@@ -611,7 +628,6 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Metadata
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -622,19 +638,18 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('📅 Lưu lúc: ${_formatTimestamp(timestamp)}'),
-                    Text('⏰ Hết hạn: ${_formatTimestamp(expiresAt)}'),
-                    Text('📊 Trạng thái: ${_formatDuration(expiresAt)}'),
+                    if (isPermanent)
+                      const Text('⏰ Hết hạn: ♾️ Vĩnh viễn')
+                    else
+                      Text('⏰ Hết hạn: ${_formatTimestamp(expiresAt)}'),
+                    Text('📊 Trạng thái: ${isPermanent ? "♾️ Vĩnh viễn" : _formatDuration(expiresAt)}'),
                     if (data is List) Text('📦 Số lượng: ${data.length} mục'),
                   ],
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Dữ liệu:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              const Text('Dữ liệu:', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              // Data Preview
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(8),
@@ -689,7 +704,10 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
         
         return '[\n{\n$preview\n}\n${data.length > 3 ? '... và ${data.length - 3} mục khác' : ''}]';
       }
-      return data.toString();
+      if (data is Map) {
+        return data.entries.take(10).map((e) => '"${e.key}": ${_truncate(e.value.toString(), 50)}').join('\n');
+      }
+      return data?.toString() ?? 'null';
     } catch (e) {
       return 'Không thể hiển thị dữ liệu';
     }

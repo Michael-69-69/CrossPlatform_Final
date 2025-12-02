@@ -1,18 +1,21 @@
-// routes/app_router.dart
+// lib/routes/app_router.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../screens/login_screen.dart';
 import '../screens/instructor/home_instructor.dart';
+import '../screens/instructor/ai_quiz_generator_screen.dart';
 import '../screens/student/student_home_screen.dart';
 import '../screens/student/student_profile_screen.dart';
 import '../screens/instructor/group_detail_screen.dart'; 
 import '../screens/instructor/course_detail_screen.dart'; 
 import '../screens/instructor/semester_create_screen.dart'; 
 import '../screens/instructor/csv_preview_screen.dart';
+import '../screens/shared/ai_chatbot_screen.dart';
 import '../providers/auth_provider.dart';
 import '../models/user.dart';
+import '../models/course.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
@@ -23,12 +26,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState != null;
       final isLoginPage = state.uri.path == '/';
 
-      // ✅ Not logged in and not on login page -> redirect to login
       if (!isLoggedIn && !isLoginPage) {
         return '/';
       }
 
-      // ✅ Logged in and on login page -> redirect based on role
       if (isLoggedIn && isLoginPage) {
         if (authState.role == UserRole.instructor) {
           return '/instructor/home';
@@ -61,6 +62,91 @@ final routerProvider = Provider<GoRouter>((ref) {
             semester: extra['semester'],
             groups: extra['groups'],
             students: extra['students'],
+            initialTabIndex: extra['initialTabIndex'] ?? 0,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/instructor/course/:courseId/assignments',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return CourseDetailScreen(
+            course: extra['course'],
+            semester: extra['semester'],
+            groups: extra['groups'],
+            students: extra['students'],
+            initialTabIndex: 1,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/instructor/course/:courseId/quiz',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return CourseDetailScreen(
+            course: extra['course'],
+            semester: extra['semester'],
+            groups: extra['groups'],
+            students: extra['students'],
+            initialTabIndex: 2,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/instructor/course/:courseId/materials',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return CourseDetailScreen(
+            course: extra['course'],
+            semester: extra['semester'],
+            groups: extra['groups'],
+            students: extra['students'],
+            initialTabIndex: 3,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/instructor/course/:courseId/groups',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return CourseDetailScreen(
+            course: extra['course'],
+            semester: extra['semester'],
+            groups: extra['groups'],
+            students: extra['students'],
+            initialTabIndex: 4,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/instructor/course/:courseId/forum',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return CourseDetailScreen(
+            course: extra['course'],
+            semester: extra['semester'],
+            groups: extra['groups'],
+            students: extra['students'],
+            initialTabIndex: 5,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/instructor/course/:courseId/analytics',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return CourseDetailScreen(
+            course: extra['course'],
+            semester: extra['semester'],
+            groups: extra['groups'],
+            students: extra['students'],
+            initialTabIndex: 6,
           );
         },
       ),
@@ -93,6 +179,31 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/instructor/csv-preview',
         builder: (context, state) => const CsvPreviewScreen(),
+      ),
+
+      // ══════ AI ROUTES ══════
+      GoRoute(
+        path: '/ai-chat',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is Course) {
+            return AIChatbotScreen(course: extra);
+          } else if (extra is Map<String, dynamic>) {
+            return AIChatbotScreen(
+              course: extra['course'] as Course?,
+              materialContext: extra['materialContext'] as String?,
+            );
+          }
+          return const AIChatbotScreen();
+        },
+      ),
+
+      GoRoute(
+        path: '/instructor/ai-quiz-generator/:courseId',
+        builder: (context, state) {
+          final course = state.extra as Course;
+          return AIQuizGeneratorScreen(course: course);
+        },
       ),
 
       // ══════ STUDENT ROUTES ══════
