@@ -11,6 +11,7 @@ import 'services/mongodb_service.dart';
 import 'services/cache_service.dart';
 import 'services/network_service.dart';
 import 'widgets/network_status_banner.dart';
+import 'theme/app_theme.dart';
 
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
 
@@ -66,10 +67,8 @@ class MyApp extends ConsumerWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: router,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        textTheme: GoogleFonts.robotoTextTheme(),
+      theme: AppTheme.lightTheme.copyWith(
+        textTheme: GoogleFonts.poppinsTextTheme(),
       ),
       builder: (context, child) {
         return NetworkStatusBanner(child: child ?? const SizedBox());

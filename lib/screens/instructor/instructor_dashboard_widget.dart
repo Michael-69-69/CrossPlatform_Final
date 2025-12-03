@@ -514,11 +514,7 @@ Future<void> _fetchAndCacheData() async {
               const SizedBox(height: 16),
               _buildQuickStats(data),
               const SizedBox(height: 16),
-              
-              // ✅ Debug info (can be removed later)
-              _buildDebugInfo(data),
-              const SizedBox(height: 16),
-              
+
               _buildLast7DaysSubmissionStats(),
               const SizedBox(height: 16),
               
@@ -565,55 +561,6 @@ Future<void> _fetchAndCacheData() async {
               const SizedBox(height: 16),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  // ✅ Debug info widget to help diagnose issues
-  Widget _buildDebugInfo(_DashboardData data) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.bug_report, size: 16, color: Colors.grey[600]),
-              const SizedBox(width: 8),
-              Text('Debug Info', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[600])),
-              const Spacer(),
-              Text(
-                'Loaded: ${data.loadedAt.hour}:${data.loadedAt.minute.toString().padLeft(2, '0')}',
-                style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 16,
-            runSpacing: 4,
-            children: [
-              Text('📚 ${data.coursesCount} courses', style: const TextStyle(fontSize: 11)),
-              Text('📝 ${data.allAssignments.length} assignments', style: const TextStyle(fontSize: 11)),
-              Text('📤 $_totalSubmissions total subs', style: const TextStyle(fontSize: 11)),
-              Text('⏰ $_totalSubmissionsLast7Days last 7d', style: const TextStyle(fontSize: 11)),
-            ],
-          ),
-          if (data.allAssignments.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              'First assignment: ${data.allAssignments.first.title} (${data.allAssignments.first.submissions.length} subs)',
-              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ],
       ),
     );
