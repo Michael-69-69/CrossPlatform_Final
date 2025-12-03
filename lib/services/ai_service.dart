@@ -309,8 +309,148 @@ Hãy trả lời ngắn gọn, súc tích nhưng đầy đủ thông tin. Sử d
   // ══════════════════════════════════════════════════════════════════════════
   // 📝 AI QUIZ GENERATOR
   // ══════════════════════════════════════════════════════════════════════════
-// Add this after generateQuizQuestions method:
+// ══════════════════════════════════════════════════════════════════════════
+  // 📝 AI QUIZ GENERATOR WITH DIFFICULTY COUNTS
+  // ══════════════════════════════════════════════════════════════════════════
 
+  static Future<List<Map<String, dynamic>>> generateQuizQuestionsWithDifficulty({
+    required String material,
+    required int easyCount,
+    required int mediumCount,
+    required int hardCount,
+    String? topic,
+    String language = 'vi',
+  }) async {
+    final totalQuestions = easyCount + mediumCount + hardCount;
+    
+    if (totalQuestions == 0) {
+      throw Exception('Please select at least 1 question');
+    }
+
+    final prompt = language == 'vi' ? '''
+Dựa trên tài liệu sau, hãy tạo CHÍNH XÁC:
+- $easyCount câu hỏi DỄ (easy)
+- $mediumCount câu hỏi TRUNG BÌNH (medium) 
+- $hardCount câu hỏi KHÓ (hard)
+
+TÀI LIỆU:
+$material
+
+${topic != null ? 'CHỦ ĐỀ TẬP TRUNG: $topic' : ''}
+
+ĐỊNH DẠNG: Trả về JSON array, mỗi câu hỏi có format:
+{
+  "question": "Nội dung câu hỏi",
+  "options": ["A. Đáp án 1", "B. Đáp án 2", "C. Đáp án 3", "D. Đáp án 4"],
+  "correctAnswer": "A",
+  "difficulty": "easy|medium|hard",
+  "explanation": "Giải thích ngắn gọn"
+}
+
+QUY TẮC:
+- Câu hỏi DỄ: Kiểm tra kiến thức cơ bản, định nghĩa
+- Câu hỏi TRUNG BÌNH: Yêu cầu hiểu và áp dụng
+- Câu hỏi KHÓ: Phân tích, so sánh, tình huống phức tạp
+- Mỗi câu PHẢI có đúng 4 đáp án A, B, C, D
+- correctAnswer chỉ chứa chữ cái (A, B, C hoặc D)
+
+CHỈ TRẢ VỀ JSON ARRAY, KHÔNG CÓ TEXT KHÁC.
+''' : '''
+Based on the following material, create EXACTLY:
+- $easyCount EASY questions
+- $mediumCount MEDIUM questions
+- $hardCount HARD questions
+
+MATERIAL:
+$material
+
+${topic != null ? 'FOCUS TOPIC: $topic' : ''}
+
+FORMAT: Return JSON array, each question has format:
+{
+  "question": "Question text",
+  "options": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"],
+  "correctAnswer": "A",
+  "difficulty": "easy|medium|hard",
+  "explanation": "Brief explanation"
+}
+
+RULES:
+- EASY: Basic knowledge, definitions
+- MEDIUM: Understanding and application
+- HARD: Analysis, comparison, complex scenarios
+- Each question MUST have exactly 4 options A, B, C, D
+- correctAnswer contains only the letter (A, B, C, or D)
+
+RETURN ONLY JSON ARRAY, NO OTHER TEXT.
+''';
+
+    final response = await chat(message: prompt, temperature: 0.7, maxTokens: 4096);
+
+    try {
+      String jsonStr = response.trim();
+      
+      // Remove markdown
+      if (jsonStr.contains('```json')) {
+        jsonStr = jsonStr.split('```json')[1].split('```')[0].trim();
+      } else if (jsonStr.contains('```')) {
+        jsonStr = jsonStr.split('```')[1].split('```')[0].trim();
+      }
+      
+      // Find JSON array
+      final startIndex = jsonStr.indexOf('[');
+      final endIndex = jsonStr.lastIndexOf(']');
+      if (startIndex != -1 && endIndex != -1) {
+        jsonStr = jsonStr.substring(startIndex, endIndex + 1);
+      }
+      
+      final List<dynamic> questions = jsonDecode(jsonStr);
+      return questions.map((q) => Map<String, dynamic>.from(q)).toList();
+    } catch (e) {
+      print('❌ Error parsing quiz questions: $e');
+      print('Raw response: $response');
+      throw Exception('Failed to parse AI response. Please try again.');
+    }
+  }
+
+  /// Validate and format questions for our system
+  static List<Map<String, dynamic>> validateAndFormatQuestions(List<Map<String, dynamic>> questions) {
+    final validated = <Map<String, dynamic>>[];
+    
+    for (final q in questions) {
+      // Must have question text
+      if (q['question'] == null || (q['question'] as String).trim().isEmpty) continue;
+      
+      // Must have options
+      if (q['options'] == null || (q['options'] as List).length < 2) continue;
+      
+      // Must have correct answer
+      if (q['correctAnswer'] == null) continue;
+      
+      // Validate correct answer is A, B, C, or D
+      final correctAnswer = (q['correctAnswer'] as String).trim().toUpperCase();
+      if (!['A', 'B', 'C', 'D'].contains(correctAnswer[0])) continue;
+      
+      // Ensure difficulty is valid
+      final difficulty = (q['difficulty'] as String?)?.toLowerCase() ?? 'medium';
+      if (!['easy', 'medium', 'hard'].contains(difficulty)) {
+        q['difficulty'] = 'medium';
+      } else {
+        q['difficulty'] = difficulty;
+      }
+      
+      // Ensure we have exactly 4 options
+      final options = (q['options'] as List).cast<String>();
+      while (options.length < 4) {
+        options.add('${['A', 'B', 'C', 'D'][options.length]}. Empty option');
+      }
+      q['options'] = options.take(4).toList();
+      
+      validated.add(q);
+    }
+    
+    return validated;
+  }
   /// Validate generated questions
   static List<Map<String, dynamic>> validateQuestions(List<Map<String, dynamic>> questions) {
     final validated = <Map<String, dynamic>>[];

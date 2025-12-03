@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/ai_service.dart';
 import '../../models/course.dart';
+import '../../models/question.dart';
 import '../../providers/quiz_provider.dart';
 import '../../main.dart';
 
@@ -18,29 +19,60 @@ class AIQuizGeneratorScreen extends ConsumerStatefulWidget {
 class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
   final _materialController = TextEditingController();
   final _topicController = TextEditingController();
+  final _titleController = TextEditingController();
   
-  int _numberOfQuestions = 5;
-  QuizDifficulty _difficulty = QuizDifficulty.medium;
-  final Set<QuestionType> _selectedTypes = {QuestionType.multipleChoice};
+  // Difficulty counts
+  int _easyCount = 2;
+  int _mediumCount = 3;
+  int _hardCount = 2;
   
+  // Quiz settings
+  int _durationMinutes = 30;
+  int _maxAttempts = 2;
+  
+  // Generation state
   bool _isGenerating = false;
+  String _currentStep = '';
   List<Map<String, dynamic>> _generatedQuestions = [];
+  List<Map<String, dynamic>> _validatedQuestions = [];
   String? _error;
+  
+  // Progress tracking
+  int _totalSteps = 4;
+  int _currentStepIndex = 0;
+
+  int get _totalQuestions => _easyCount + _mediumCount + _hardCount;
 
   bool _isVietnamese() => ref.watch(localeProvider).languageCode == 'vi';
 
+  @override
+  void initState() {
+    super.initState();
+    _titleController.text = '${widget.course.code} - Quiz';
+  }
+
+  @override
+  void dispose() {
+    _materialController.dispose();
+    _topicController.dispose();
+    _titleController.dispose();
+    super.dispose();
+  }
+
   Future<void> _generateQuestions() async {
+    final isVi = _isVietnamese();
+    
     if (_materialController.text.trim().isEmpty) {
-      setState(() => _error = _isVietnamese() 
+      setState(() => _error = isVi 
           ? 'Vui lòng nhập tài liệu hoặc nội dung bài học' 
           : 'Please enter material or lesson content');
       return;
     }
 
-    if (_selectedTypes.isEmpty) {
-      setState(() => _error = _isVietnamese()
-          ? 'Vui lòng chọn ít nhất một loại câu hỏi'
-          : 'Please select at least one question type');
+    if (_totalQuestions < 1) {
+      setState(() => _error = isVi
+          ? 'Vui lòng chọn ít nhất 1 câu hỏi'
+          : 'Please select at least 1 question');
       return;
     }
 
@@ -48,99 +80,234 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
       _isGenerating = true;
       _error = null;
       _generatedQuestions = [];
+      _validatedQuestions = [];
+      _currentStepIndex = 0;
     });
 
     try {
-      final questions = await AIService.generateQuizQuestions(
+      // ════════════════════════════════════════════════════════════════════
+      // STEP 1: Generate questions with AI
+      // ════════════════════════════════════════════════════════════════════
+      setState(() {
+        _currentStep = isVi ? '🤖 Đang tạo câu hỏi bằng AI...' : '🤖 Generating questions with AI...';
+        _currentStepIndex = 1;
+      });
+
+      final questions = await AIService.generateQuizQuestionsWithDifficulty(
         material: _materialController.text,
-        numberOfQuestions: _numberOfQuestions,
-        difficulty: _difficulty,
-        questionTypes: _selectedTypes.toList(),
+        easyCount: _easyCount,
+        mediumCount: _mediumCount,
+        hardCount: _hardCount,
         topic: _topicController.text.isNotEmpty ? _topicController.text : null,
-        language: _isVietnamese() ? 'vi' : 'en',
+        language: isVi ? 'vi' : 'en',
       );
 
-      final validated = AIService.validateQuestions(questions);
+      setState(() {
+        _generatedQuestions = questions;
+        _currentStep = isVi 
+            ? '✅ Đã tạo ${questions.length} câu hỏi' 
+            : '✅ Generated ${questions.length} questions';
+      });
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // ════════════════════════════════════════════════════════════════════
+      // STEP 2: Validate and format questions
+      // ════════════════════════════════════════════════════════════════════
+      setState(() {
+        _currentStep = isVi ? '🔍 Đang kiểm tra định dạng...' : '🔍 Validating format...';
+        _currentStepIndex = 2;
+      });
+
+      final validated = AIService.validateAndFormatQuestions(questions);
 
       setState(() {
-        _generatedQuestions = validated;
-        if (validated.isEmpty) {
-          _error = _isVietnamese()
-              ? 'Không thể tạo câu hỏi hợp lệ. Vui lòng thử lại.'
-              : 'Could not generate valid questions. Please try again.';
-        }
+        _validatedQuestions = validated;
+        _currentStep = isVi 
+            ? '✅ ${validated.length}/${questions.length} câu hỏi hợp lệ' 
+            : '✅ ${validated.length}/${questions.length} questions valid';
       });
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (validated.isEmpty) {
+        setState(() {
+          _error = isVi
+              ? 'Không thể tạo câu hỏi hợp lệ. Vui lòng thử lại với nội dung khác.'
+              : 'Could not generate valid questions. Please try again with different content.';
+          _isGenerating = false;
+        });
+        return;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // STEP 3: Ready to save
+      // ════════════════════════════════════════════════════════════════════
+      setState(() {
+        _currentStep = isVi ? '✨ Sẵn sàng lưu Quiz!' : '✨ Ready to save Quiz!';
+        _currentStepIndex = 3;
+        _isGenerating = false;
+      });
+
     } catch (e) {
       setState(() {
         _error = e.toString();
+        _isGenerating = false;
       });
-    } finally {
-      setState(() => _isGenerating = false);
     }
   }
 
   Future<void> _saveToQuiz() async {
-    if (_generatedQuestions.isEmpty) return;
+    if (_validatedQuestions.isEmpty) return;
 
     final isVi = _isVietnamese();
-    
-    // Show dialog to get quiz title
-    final titleController = TextEditingController(
-      text: _topicController.text.isNotEmpty 
-          ? _topicController.text 
-          : '${widget.course.code} - AI Generated Quiz',
-    );
 
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isVi ? 'Lưu vào Quiz' : 'Save to Quiz'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(
-                labelText: isVi ? 'Tên Quiz' : 'Quiz Title',
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isVi 
-                  ? 'Sẽ tạo quiz mới với ${_generatedQuestions.length} câu hỏi'
-                  : 'Will create new quiz with ${_generatedQuestions.length} questions',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(isVi ? 'Hủy' : 'Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(isVi ? 'Tạo Quiz' : 'Create Quiz'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != true) return;
-
-    try {
-      // Convert generated questions to quiz format
-      // This depends on your quiz model structure
+    // Validate title
+    if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isVi ? '✅ Đã lưu quiz thành công!' : '✅ Quiz saved successfully!'),
-          backgroundColor: Colors.green,
+          content: Text(isVi ? 'Vui lòng nhập tên Quiz' : 'Please enter Quiz title'),
+          backgroundColor: Colors.orange,
         ),
       );
+      return;
+    }
+
+    setState(() {
+      _isGenerating = true;
+      _currentStep = isVi ? '📝 Đang tạo câu hỏi trong hệ thống...' : '📝 Creating questions in system...';
+      _currentStepIndex = 3;
+    });
+
+    try {
+      final questionIds = <String>[];
+      int createdCount = 0;
+
+      // ════════════════════════════════════════════════════════════════════
+      // STEP 3: Create questions in database
+      // ════════════════════════════════════════════════════════════════════
+      for (final q in _validatedQuestions) {
+        setState(() {
+          _currentStep = isVi 
+              ? '📝 Đang tạo câu hỏi ${createdCount + 1}/${_validatedQuestions.length}...' 
+              : '📝 Creating question ${createdCount + 1}/${_validatedQuestions.length}...';
+        });
+
+        // Parse difficulty
+        final difficultyStr = (q['difficulty'] as String?) ?? 'medium';
+        final difficulty = QuestionDifficulty.values.firstWhere(
+          (d) => d.toString().split('.').last == difficultyStr,
+          orElse: () => QuestionDifficulty.medium,
+        );
+
+        // Parse choices and correct answer
+        final options = (q['options'] as List?)?.cast<String>() ?? [];
+        final correctAnswer = q['correctAnswer'] as String? ?? 'A';
+        
+        // Convert "A", "B", "C", "D" to index
+        int correctIndex = 0;
+        if (correctAnswer.isNotEmpty) {
+          final letter = correctAnswer[0].toUpperCase();
+          correctIndex = ['A', 'B', 'C', 'D'].indexOf(letter);
+          if (correctIndex < 0) correctIndex = 0;
+        }
+
+        // Clean options (remove "A. ", "B. ", etc. prefixes if present)
+        final cleanedChoices = options.map((opt) {
+          final cleaned = opt.replaceFirst(RegExp(r'^[A-Da-d][\.\)\s]+'), '');
+          return cleaned.trim();
+        }).toList();
+
+        // Ensure we have at least 2 choices
+        if (cleanedChoices.length < 2) {
+          cleanedChoices.addAll(['Option 1', 'Option 2']);
+        }
+        
+        // Ensure correctIndex is valid
+        if (correctIndex >= cleanedChoices.length) {
+          correctIndex = 0;
+        }
+
+        // Create question
+        await ref.read(questionProvider.notifier).createQuestion(
+          courseId: widget.course.id,
+          questionText: q['question'] as String? ?? '',
+          choices: cleanedChoices,
+          correctAnswerIndex: correctIndex,
+          difficulty: difficulty,
+        );
+
+        // Get the created question ID
+        final questions = ref.read(questionProvider);
+        if (questions.isNotEmpty) {
+          questionIds.add(questions.first.id);
+        }
+
+        createdCount++;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      // STEP 4: Create Quiz
+      // ════════════════════════════════════════════════════════════════════
+      setState(() {
+        _currentStep = isVi ? '🎯 Đang tạo Quiz...' : '🎯 Creating Quiz...';
+        _currentStepIndex = 4;
+      });
+
+      // Count by difficulty
+      int easyCount = 0, mediumCount = 0, hardCount = 0;
+      for (final q in _validatedQuestions) {
+        final diff = (q['difficulty'] as String?) ?? 'medium';
+        if (diff == 'easy') easyCount++;
+        else if (diff == 'hard') hardCount++;
+        else mediumCount++;
+      }
+
+      // Create quiz with "(AI GENERATED)" in title
+      final quizTitle = '${_titleController.text.trim()} (AI GENERATED)';
       
-      Navigator.pop(context);
+      final now = DateTime.now();
+      await ref.read(quizProvider.notifier).createQuiz(
+        courseId: widget.course.id,
+        title: quizTitle,
+        description: _topicController.text.isNotEmpty 
+            ? '${isVi ? 'Chủ đề' : 'Topic'}: ${_topicController.text}' 
+            : null,
+        openTime: now,
+        closeTime: now.add(const Duration(days: 7)),
+        maxAttempts: _maxAttempts,
+        durationMinutes: _durationMinutes,
+        easyCount: easyCount,
+        mediumCount: mediumCount,
+        hardCount: hardCount,
+        questionIds: questionIds,
+      );
+
+      setState(() {
+        _currentStep = isVi ? '✅ Hoàn thành!' : '✅ Complete!';
+      });
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isVi 
+                ? '✅ Đã tạo Quiz "$quizTitle" với ${questionIds.length} câu hỏi!' 
+                : '✅ Created Quiz "$quizTitle" with ${questionIds.length} questions!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        Navigator.pop(context, true); // Return true to indicate success
+      }
+
     } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isGenerating = false;
+      });
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
       );
@@ -153,7 +320,7 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isVi ? '🤖 AI Tạo Câu Hỏi' : '🤖 AI Quiz Generator'),
+        title: Text(isVi ? '🤖 Tạo Quiz bằng AI' : '🤖 AI Quiz Generator'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
       ),
@@ -163,41 +330,53 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Course Info
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.deepPurple.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.school, color: Colors.deepPurple),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(widget.course.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text(widget.course.code, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                      ],
+            Card(
+              color: Colors.deepPurple.withOpacity(0.1),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.school, color: Colors.deepPurple),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(widget.course.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text(widget.course.code, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Quiz Title
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                labelText: isVi ? '📝 Tên Quiz' : '📝 Quiz Title',
+                hintText: isVi ? 'VD: Kiểm tra giữa kỳ' : 'e.g., Midterm Quiz',
+                border: const OutlineInputBorder(),
+                suffixText: '(AI GENERATED)',
+                suffixStyle: TextStyle(color: Colors.deepPurple, fontSize: 10),
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // Material Input
             Text(
-              isVi ? '📚 Tài liệu / Nội dung bài học *' : '📚 Material / Lesson Content *',
+              isVi ? '📚 Tài liệu nguồn' : '📚 Source Material',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _materialController,
-              maxLines: 8,
+              maxLines: 6,
               decoration: InputDecoration(
-                hintText: isVi
+                hintText: isVi 
                     ? 'Dán nội dung bài học, tài liệu, hoặc ghi chú vào đây...'
                     : 'Paste lesson content, materials, or notes here...',
                 border: const OutlineInputBorder(),
@@ -217,84 +396,106 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Settings
+            // ════════════════════════════════════════════════════════════════
+            // DIFFICULTY SETTINGS (Number of questions per difficulty)
+            // ════════════════════════════════════════════════════════════════
             Text(
-              isVi ? '⚙️ Cài đặt' : '⚙️ Settings',
+              isVi ? '⚙️ Số câu hỏi theo độ khó' : '⚙️ Questions per Difficulty',
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 12),
-
-            // Number of questions
+            
             Row(
               children: [
-                Text(isVi ? 'Số câu hỏi:' : 'Questions:'),
-                const SizedBox(width: 16),
-                DropdownButton<int>(
-                  value: _numberOfQuestions,
-                  items: [3, 5, 10, 15, 20].map((n) => DropdownMenuItem(value: n, child: Text('$n'))).toList(),
-                  onChanged: (v) => setState(() => _numberOfQuestions = v!),
-                ),
+                Expanded(child: _buildDifficultyCounter(
+                  label: isVi ? '🟢 Dễ' : '🟢 Easy',
+                  value: _easyCount,
+                  color: Colors.green,
+                  onChanged: (v) => setState(() => _easyCount = v),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: _buildDifficultyCounter(
+                  label: isVi ? '🟡 TB' : '🟡 Medium',
+                  value: _mediumCount,
+                  color: Colors.orange,
+                  onChanged: (v) => setState(() => _mediumCount = v),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: _buildDifficultyCounter(
+                  label: isVi ? '🔴 Khó' : '🔴 Hard',
+                  value: _hardCount,
+                  color: Colors.red,
+                  onChanged: (v) => setState(() => _hardCount = v),
+                )),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Difficulty
-            Text(isVi ? 'Độ khó:' : 'Difficulty:'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: QuizDifficulty.values.map((d) {
-                final isSelected = _difficulty == d;
-                final label = {
-                  QuizDifficulty.easy: isVi ? '🟢 Dễ' : '🟢 Easy',
-                  QuizDifficulty.medium: isVi ? '🟡 Trung bình' : '🟡 Medium',
-                  QuizDifficulty.hard: isVi ? '🔴 Khó' : '🔴 Hard',
-                }[d]!;
-                
-                return ChoiceChip(
-                  label: Text(label),
-                  selected: isSelected,
-                  onSelected: (_) => setState(() => _difficulty = d),
-                  selectedColor: Colors.deepPurple.withOpacity(0.2),
-                );
-              }).toList(),
+            
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                isVi ? 'Tổng: $_totalQuestions câu hỏi' : 'Total: $_totalQuestions questions',
+                style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
+              ),
             ),
             const SizedBox(height: 16),
 
-            // Question Types
-            Text(isVi ? 'Loại câu hỏi:' : 'Question Types:'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: QuestionType.values.map((t) {
-                final isSelected = _selectedTypes.contains(t);
-                final label = {
-                  QuestionType.multipleChoice: isVi ? 'Trắc nghiệm' : 'Multiple Choice',
-                  QuestionType.trueFalse: isVi ? 'Đúng/Sai' : 'True/False',
-                  QuestionType.shortAnswer: isVi ? 'Tự luận ngắn' : 'Short Answer',
-                  QuestionType.fillInBlank: isVi ? 'Điền khuyết' : 'Fill in Blank',
-                }[t]!;
-                
-                return FilterChip(
-                  label: Text(label),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedTypes.add(t);
-                      } else {
-                        _selectedTypes.remove(t);
-                      }
-                    });
-                  },
-                  selectedColor: Colors.deepPurple.withOpacity(0.2),
-                );
-              }).toList(),
+            // ════════════════════════════════════════════════════════════════
+            // QUIZ SETTINGS
+            // ════════════════════════════════════════════════════════════════
+            Text(
+              isVi ? '⏱️ Cài đặt Quiz' : '⏱️ Quiz Settings',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(isVi ? 'Thời gian (phút):' : 'Duration (min):', style: const TextStyle(fontSize: 12)),
+                      const SizedBox(height: 4),
+                      DropdownButtonFormField<int>(
+                        value: _durationMinutes,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        items: [10, 15, 20, 30, 45, 60, 90, 120]
+                            .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                            .toList(),
+                        onChanged: (v) => setState(() => _durationMinutes = v!),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(isVi ? 'Số lần làm:' : 'Max attempts:', style: const TextStyle(fontSize: 12)),
+                      const SizedBox(height: 4),
+                      DropdownButtonFormField<int>(
+                        value: _maxAttempts,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        items: [1, 2, 3, 5, 10]
+                            .map((n) => DropdownMenuItem(value: n, child: Text('$n')))
+                            .toList(),
+                        onChanged: (v) => setState(() => _maxAttempts = v!),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 
-            // Error
+            // Error message
             if (_error != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -306,9 +507,48 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.error, color: Colors.red),
+                    const Icon(Icons.error, color: Colors.red, size: 20),
                     const SizedBox(width: 8),
                     Expanded(child: Text(_error!, style: const TextStyle(color: Colors.red))),
+                  ],
+                ),
+              ),
+
+            // ════════════════════════════════════════════════════════════════
+            // PROGRESS INDICATOR
+            // ════════════════════════════════════════════════════════════════
+            if (_currentStep.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.deepPurple.withOpacity(0.3)),
+                ),
+                child: Column(
+                  children: [
+                    // Progress bar
+                    LinearProgressIndicator(
+                      value: _currentStepIndex / _totalSteps,
+                      backgroundColor: Colors.grey.withOpacity(0.2),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (_isGenerating)
+                          const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.deepPurple),
+                          ),
+                        if (!_isGenerating)
+                          const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_currentStep, style: const TextStyle(fontWeight: FontWeight.w500))),
+                        Text('${_currentStepIndex}/$_totalSteps', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -317,16 +557,15 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isGenerating || !AIService.isConfigured ? null : _generateQuestions,
-                icon: _isGenerating
+                onPressed: _isGenerating ? null : _generateQuestions,
+                icon: _isGenerating && _currentStepIndex < 3
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 20, height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.auto_awesome),
-                label: Text(_isGenerating
-                    ? (isVi ? 'Đang tạo câu hỏi...' : 'Generating...')
+                label: Text(_isGenerating && _currentStepIndex < 3
+                    ? (isVi ? 'Đang xử lý...' : 'Processing...')
                     : (isVi ? 'Tạo câu hỏi bằng AI' : 'Generate with AI')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.deepPurple,
@@ -345,42 +584,156 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
                 ),
               ),
 
-            // Generated Questions
-            if (_generatedQuestions.isNotEmpty) ...[
+            // ════════════════════════════════════════════════════════════════
+            // GENERATED QUESTIONS PREVIEW
+            // ════════════════════════════════════════════════════════════════
+            if (_validatedQuestions.isNotEmpty) ...[
               const SizedBox(height: 32),
-              Row(
-                children: [
-                  Text(
-                    isVi ? '📝 Câu hỏi đã tạo (${_generatedQuestions.length})' : '📝 Generated Questions (${_generatedQuestions.length})',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              
+              // Summary
+              Card(
+                color: Colors.green.withOpacity(0.1),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isVi 
+                                  ? '${_validatedQuestions.length} câu hỏi sẵn sàng' 
+                                  : '${_validatedQuestions.length} questions ready',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildDifficultyBadge('Easy', _validatedQuestions.where((q) => q['difficulty'] == 'easy').length, Colors.green),
+                          _buildDifficultyBadge('Medium', _validatedQuestions.where((q) => q['difficulty'] == 'medium').length, Colors.orange),
+                          _buildDifficultyBadge('Hard', _validatedQuestions.where((q) => q['difficulty'] == 'hard').length, Colors.red),
+                        ],
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: _saveToQuiz,
-                    icon: const Icon(Icons.save),
-                    label: Text(isVi ? 'Lưu vào Quiz' : 'Save to Quiz'),
-                  ),
-                ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Questions list
+              Text(
+                isVi ? '📝 Xem trước câu hỏi' : '📝 Preview Questions',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 12),
               
-              ..._generatedQuestions.asMap().entries.map((entry) {
+              ..._validatedQuestions.asMap().entries.map((entry) {
                 final index = entry.key;
                 final question = entry.value;
                 return _buildQuestionCard(index + 1, question);
               }),
+
+              const SizedBox(height: 24),
+
+              // Save Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isGenerating ? null : _saveToQuiz,
+                  icon: _isGenerating && _currentStepIndex >= 3
+                      ? const SizedBox(
+                          width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(_isGenerating && _currentStepIndex >= 3
+                      ? (isVi ? 'Đang lưu...' : 'Saving...')
+                      : (isVi ? '💾 Lưu Quiz vào hệ thống' : '💾 Save Quiz to System')),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
+              ),
             ],
+            
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildQuestionCard(int number, Map<String, dynamic> question) {
-    final isVi = _isVietnamese();
-    final type = question['type'] as String? ?? 'multipleChoice';
-    final difficulty = question['difficulty'] as String? ?? 'medium';
+  Widget _buildDifficultyCounter({
+    required String label,
+    required int value,
+    required Color color,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 12)),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              InkWell(
+                onTap: value > 0 ? () => onChanged(value - 1) : null,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: value > 0 ? color : Colors.grey,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.remove, color: Colors.white, size: 16),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text('$value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+              ),
+              InkWell(
+                onTap: () => onChanged(value + 1),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  child: const Icon(Icons.add, color: Colors.white, size: 16),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildDifficultyBadge(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text('$label: $count', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+    );
+  }
+
+  Widget _buildQuestionCard(int number, Map<String, dynamic> question) {
+    final difficulty = question['difficulty'] as String? ?? 'medium';
     final difficultyColor = {
       'easy': Colors.green,
       'medium': Colors.orange,
@@ -414,21 +767,12 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
                     style: TextStyle(color: difficultyColor, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(type, style: const TextStyle(fontSize: 10)),
-                ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20),
+                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
                   onPressed: () {
                     setState(() {
-                      _generatedQuestions.removeAt(number - 1);
+                      _validatedQuestions.removeAt(number - 1);
                     });
                   },
                 ),
@@ -436,17 +780,22 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Question
+            // Question text
             Text(
               question['question'] as String? ?? '',
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
 
-            // Options (for multiple choice)
-            if (type == 'multipleChoice' && question['options'] != null) ...[
+            // Options
+            if (question['options'] != null) ...[
               const SizedBox(height: 12),
-              ...((question['options'] as List).map((option) {
-                final isCorrect = option.toString().startsWith(question['correctAnswer'] ?? '');
+              ...((question['options'] as List).asMap().entries.map((entry) {
+                final idx = entry.key;
+                final option = entry.value.toString();
+                final letter = ['A', 'B', 'C', 'D'][idx];
+                final correctAnswer = question['correctAnswer'] as String? ?? 'A';
+                final isCorrect = correctAnswer.startsWith(letter);
+                
                 return Container(
                   margin: const EdgeInsets.only(bottom: 4),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -460,58 +809,37 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
                   child: Row(
                     children: [
                       if (isCorrect) const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                      if (isCorrect) const SizedBox(width: 8),
-                      Expanded(child: Text(option.toString())),
+                      if (!isCorrect) Icon(Icons.circle_outlined, color: Colors.grey[400], size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(option, style: TextStyle(
+                        color: isCorrect ? Colors.green[700] : null,
+                        fontWeight: isCorrect ? FontWeight.w500 : null,
+                      ))),
                     ],
                   ),
                 );
               })),
             ],
 
-            // Correct Answer (for other types)
-            if (type != 'multipleChoice') ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.check_circle, color: Colors.green, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${isVi ? "Đáp án" : "Answer"}: ${question['correctAnswer']}',
-                        style: const TextStyle(color: Colors.green),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
             // Explanation
-            if (question['explanation'] != null) ...[
-              const SizedBox(height: 12),
+            if (question['explanation'] != null && (question['explanation'] as String).isNotEmpty) ...[
+              const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.blue.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Column(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isVi ? '💡 Giải thích:' : '💡 Explanation:',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[700], fontSize: 12),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      question['explanation'] as String,
-                      style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    Icon(Icons.lightbulb_outline, size: 16, color: Colors.blue[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        question['explanation'] as String,
+                        style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                      ),
                     ),
                   ],
                 ),
@@ -521,12 +849,5 @@ class _AIQuizGeneratorScreenState extends ConsumerState<AIQuizGeneratorScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _materialController.dispose();
-    _topicController.dispose();
-    super.dispose();
   }
 }
