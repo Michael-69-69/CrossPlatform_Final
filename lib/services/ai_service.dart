@@ -14,12 +14,32 @@ class AIService {
 
   static AIProvider _provider = AIProvider.gemini;
   
+  // ══════════════════════════════════════════════════════════════════════════
+  // COOLDOWN MANAGEMENT
+  // ══════════════════════════════════════════════════════════════════════════
+  static DateTime? _lastRequestTime;
+  static const int _cooldownSeconds = 10;
+  
+  static bool get isInCooldown {
+    if (_lastRequestTime == null) return false;
+    return DateTime.now().difference(_lastRequestTime!).inSeconds < _cooldownSeconds;
+  }
+  
+  static int get remainingCooldownSeconds {
+    if (_lastRequestTime == null) return 0;
+    final elapsed = DateTime.now().difference(_lastRequestTime!).inSeconds;
+    return (_cooldownSeconds - elapsed).clamp(0, _cooldownSeconds);
+  }
+  
+  static void _recordRequest() {
+    _lastRequestTime = DateTime.now();
+  }
+  
   // API Key
   static String get _apiKey {
     final envKey = dotenv.env['GEMINI_API_KEY'] ?? '';
     if (envKey.isNotEmpty) return envKey;
-    // Fallback - replace with your key
-    return 'AIzaSyA8CEoWywNo52mbVR1o3z71hkVhqvL1yCg';
+    return '';
   }
 
   static String get _model {
@@ -44,18 +64,15 @@ class AIService {
     }
   }
 
-  /// Check if AI is configured
   static bool get isConfigured {
     final key = _apiKey;
     return key.isNotEmpty && key.length > 10;
   }
 
-  /// Set provider
   static void setProvider(AIProvider provider) {
     _provider = provider;
   }
 
-  /// Initialize AI service
   static Future<void> initialize() async {
     print('🤖 Initializing AI Service...');
     print('🤖 Using model: $_model');
@@ -63,7 +80,7 @@ class AIService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CORE CHAT COMPLETION
+  // CORE CHAT COMPLETION (FIXED!)
   // ══════════════════════════════════════════════════════════════════════════
 
   static Future<String> chat({
@@ -71,88 +88,25 @@ class AIService {
     String? systemPrompt,
     List<Map<String, String>>? conversationHistory,
     double temperature = 0.7,
-    int maxTokens = 2048,
+    int maxTokens = 4096,
   }) async {
     if (!isConfigured) {
-      throw Exception('AI service not configured. Please add API key.');
-    }
-
-    try {
-      if (_provider == AIProvider.gemini) {
-        return await _chatGemini(
-          message: message,
-          systemPrompt: systemPrompt,
-          conversationHistory: conversationHistory,
-          temperature: temperature,
-          maxTokens: maxTokens,
-        );
-      } else {
-        return await _chatOpenAIFormat(
-          message: message,
-          systemPrompt: systemPrompt,
-          conversationHistory: conversationHistory,
-          temperature: temperature,
-          maxTokens: maxTokens,
-        );
-      }
-    } catch (e) {
-      print('❌ AI chat error: $e');
-      rethrow;
-    }
-  }
-
-  static Future<String> _chatOpenAIFormat({
-    required String message,
-    String? systemPrompt,
-    List<Map<String, String>>? conversationHistory,
-    double temperature = 0.7,
-    int maxTokens = 2048,
-  }) async {
-    final messages = <Map<String, String>>[];
-    
-    if (systemPrompt != null) {
-      messages.add({'role': 'system', 'content': systemPrompt});
+      throw Exception('AI service not configured. Please add GEMINI_API_KEY to .env');
     }
     
-    if (conversationHistory != null) {
-      messages.addAll(conversationHistory);
-    }
+    // Record request for cooldown
+    _recordRequest();
+
+    final url = '$_baseUrl?key=$_apiKey';
     
-    messages.add({'role': 'user', 'content': message});
-
-    final response = await http.post(
-      Uri.parse(_baseUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
-      },
-      body: jsonEncode({
-        'model': _model,
-        'messages': messages,
-        'temperature': temperature,
-        'max_tokens': maxTokens,
-      }),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('API error: ${response.statusCode} - ${response.body}');
-    }
-
-    final data = jsonDecode(response.body);
-    return data['choices'][0]['message']['content'] as String;
-  }
-
-  static Future<String> _chatGemini({
-    required String message,
-    String? systemPrompt,
-    List<Map<String, String>>? conversationHistory,
-    double temperature = 0.7,
-    int maxTokens = 2048,
-  }) async {
+    // ═══════════════════════════════════════════════════════════════════════
+    // FIX: Use Gemini's systemInstruction for proper context injection
+    // ═══════════════════════════════════════════════════════════════════════
+    
     final contents = <Map<String, dynamic>>[];
     
-    // Build conversation history
-    if (conversationHistory != null) {
+    // Add conversation history
+    if (conversationHistory != null && conversationHistory.isNotEmpty) {
       for (final msg in conversationHistory) {
         contents.add({
           'role': msg['role'] == 'assistant' ? 'model' : 'user',
@@ -161,26 +115,35 @@ class AIService {
       }
     }
     
-    // Add current message with system prompt
-    String fullMessage = message;
-    if (systemPrompt != null && contents.isEmpty) {
-      fullMessage = '$systemPrompt\n\nUser question: $message';
-    }
-    
+    // Add current message
     contents.add({
       'role': 'user',
-      'parts': [{'text': fullMessage}],
+      'parts': [{'text': message}],
     });
 
-    final url = '$_baseUrl?key=$_apiKey';
-
-    final requestBody = {
+    // Build request body with systemInstruction (THE FIX!)
+    final requestBody = <String, dynamic>{
       'contents': contents,
       'generationConfig': {
         'temperature': temperature,
         'maxOutputTokens': maxTokens,
       },
     };
+    
+    // Add system instruction if provided (THIS IS THE KEY FIX!)
+    if (systemPrompt != null && systemPrompt.isNotEmpty) {
+      requestBody['systemInstruction'] = {
+        'parts': [{'text': systemPrompt}]
+      };
+    }
+
+    print('════════════════════════════════════════════════════════');
+    print('🤖 SENDING TO GEMINI API:');
+    print('   Model: $_model');
+    print('   System prompt length: ${systemPrompt?.length ?? 0} chars');
+    print('   Message: $message');
+    print('   History: ${conversationHistory?.length ?? 0} messages');
+    print('════════════════════════════════════════════════════════');
 
     final response = await http.post(
       Uri.parse(url),
@@ -190,7 +153,15 @@ class AIService {
 
     if (response.statusCode != 200) {
       print('❌ Gemini error: ${response.body}');
-      throw Exception('Gemini API error: ${response.statusCode}');
+      
+      // Parse error for better message
+      try {
+        final errorData = jsonDecode(response.body);
+        final errorMessage = errorData['error']?['message'] ?? 'Unknown error';
+        throw Exception('Gemini API error: $errorMessage');
+      } catch (e) {
+        throw Exception('Gemini API error: ${response.statusCode}');
+      }
     }
 
     final data = jsonDecode(response.body);
@@ -212,7 +183,91 @@ class AIService {
       throw Exception('Invalid response format from AI');
     }
     
-    return candidate['content']['parts'][0]['text'] as String;
+    final responseText = candidate['content']['parts'][0]['text'] as String;
+    
+    print('✅ AI Response received: ${responseText.length} chars');
+    
+    return responseText;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 🤖 AI LEARNING CHATBOT WITH APP CONTEXT (FIXED!)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static Future<String> learningAssistantWithContext({
+    required String question,
+    required String courseName,
+    String? courseDescription,
+    String? appContext,
+    String? materialContext,
+    List<Map<String, String>>? conversationHistory,
+    String language = 'vi',
+  }) async {
+    final isVi = language == 'vi';
+    
+    // Build a comprehensive system prompt with ALL context
+    final systemPrompt = isVi ? '''
+BẠN LÀ TRỢ LÝ AI CHO HỆ THỐNG QUẢN LÝ HỌC TẬP (LMS).
+${courseDescription != null ? 'Đang xem môn: $courseDescription' : ''}
+
+══════════════════════════════════════════════════════════════════
+QUAN TRỌNG: DỮ LIỆU HỆ THỐNG BÊN DƯỚI LÀ NGUỒN THÔNG TIN CHÍNH XÁC.
+BẠN PHẢI SỬ DỤNG DỮ LIỆU NÀY ĐỂ TRẢ LỜI CÂU HỎI CỦA NGƯỜI DÙNG.
+══════════════════════════════════════════════════════════════════
+
+$appContext
+
+══════════════════════════════════════════════════════════════════
+HƯỚNG DẪN TRẢ LỜI:
+══════════════════════════════════════════════════════════════════
+1. LUÔN sử dụng dữ liệu hệ thống ở trên để trả lời
+2. Khi được hỏi về số liệu, đếm CHÍNH XÁC từ dữ liệu
+3. Khi được hỏi về sinh viên/nhóm, tìm trong phần DANH SÁCH
+4. Nếu không tìm thấy thông tin, nói rõ "Không có dữ liệu về..."
+5. KHÔNG bịa thông tin không có trong dữ liệu
+6. Trả lời ngắn gọn, dùng markdown: **bold**, *italic*, - list
+7. Khi liệt kê, dùng bullet points
+
+${materialContext != null ? 'TÀI LIỆU THAM KHẢO:\n$materialContext' : ''}
+''' : '''
+YOU ARE AN AI ASSISTANT FOR A LEARNING MANAGEMENT SYSTEM (LMS).
+${courseDescription != null ? 'Currently viewing: $courseDescription' : ''}
+
+══════════════════════════════════════════════════════════════════
+IMPORTANT: THE SYSTEM DATA BELOW IS YOUR ACCURATE SOURCE OF TRUTH.
+YOU MUST USE THIS DATA TO ANSWER USER QUESTIONS.
+══════════════════════════════════════════════════════════════════
+
+$appContext
+
+══════════════════════════════════════════════════════════════════
+RESPONSE GUIDELINES:
+══════════════════════════════════════════════════════════════════
+1. ALWAYS use the system data above to answer questions
+2. When asked about numbers, count ACCURATELY from the data
+3. When asked about students/groups, look in the LIST sections
+4. If information is not found, say "No data available for..."
+5. DO NOT make up information not in the data
+6. Keep responses concise, use markdown: **bold**, *italic*, - lists
+7. Use bullet points when listing items
+
+${materialContext != null ? 'REFERENCE MATERIALS:\n$materialContext' : ''}
+''';
+
+    print('════════════════════════════════════════════════════════');
+    print('📤 learningAssistantWithContext called');
+    print('   Question: $question');
+    print('   System prompt length: ${systemPrompt.length} chars');
+    print('   App context length: ${appContext?.length ?? 0} chars');
+    print('════════════════════════════════════════════════════════');
+
+    return await chat(
+      message: question,
+      systemPrompt: systemPrompt,
+      conversationHistory: conversationHistory,
+      temperature: 0.3, // Lower temperature for more accurate answers
+      maxTokens: 4096,
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -252,80 +307,28 @@ Hãy trả lời ngắn gọn, súc tích nhưng đầy đủ thông tin. Sử d
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 🤖 AI LEARNING CHATBOT WITH APP CONTEXT (NEW!)
-  // ══════════════════════════════════════════════════════════════════════════
-
-  static Future<String> learningAssistantWithContext({
-    required String question,
-    required String courseName,
-    String? courseDescription,
-    String? appContext,
-    String? materialContext,
-    List<Map<String, String>>? conversationHistory,
-    String language = 'vi',
-  }) async {
-    final isVi = language == 'vi';
-    
-    final systemPrompt = isVi ? '''
-Bạn là trợ lý AI thông minh cho hệ thống quản lý học tập (LMS).
-${courseDescription != null ? 'Đang xem môn: $courseDescription' : ''}
-
-**VAI TRÒ CỦA BẠN:**
-1. Trả lời câu hỏi về hệ thống LMS, môn học, bài tập, bài nộp của sinh viên
-2. Cung cấp thống kê và phân tích dữ liệu khi được hỏi
-3. Giải thích các khái niệm học tập một cách dễ hiểu
-4. Hỗ trợ giảng viên quản lý lớp học hiệu quả
-5. Trả lời bằng tiếng Việt
-
-**DỮ LIỆU HỆ THỐNG HIỆN TẠI:**
-${appContext ?? 'Không có dữ liệu'}
-
-${materialContext != null ? '**TÀI LIỆU THAM KHẢO:**\n$materialContext' : ''}
-
-**HƯỚNG DẪN TRẢ LỜI:**
-- Sử dụng dữ liệu hệ thống ở trên để trả lời câu hỏi về bài nộp, sinh viên, môn học
-- Khi được hỏi về thống kê, hãy tính toán chính xác từ dữ liệu được cung cấp
-- Trả lời ngắn gọn, súc tích, sử dụng markdown để format (**bold**, *italic*, - list)
-- Nếu không có đủ thông tin trong dữ liệu, hãy nói rõ
-- KHÔNG bịa thông tin không có trong dữ liệu
-- Khi liệt kê danh sách, sử dụng bullet points
-''' : '''
-You are an intelligent AI assistant for a Learning Management System (LMS).
-${courseDescription != null ? 'Currently viewing: $courseDescription' : ''}
-
-**YOUR ROLE:**
-1. Answer questions about the LMS, courses, assignments, and student submissions
-2. Provide statistics and data analysis when asked
-3. Explain learning concepts clearly
-4. Help instructors manage their classes effectively
-5. Respond in English
-
-**CURRENT SYSTEM DATA:**
-${appContext ?? 'No data available'}
-
-${materialContext != null ? '**REFERENCE MATERIALS:**\n$materialContext' : ''}
-
-**RESPONSE GUIDELINES:**
-- Use the system data above to answer questions about submissions, students, courses
-- When asked about statistics, calculate accurately from the provided data
-- Keep responses concise, use markdown formatting (**bold**, *italic*, - lists)
-- If information is not available in the data, say so clearly
-- DO NOT make up information not present in the data
-- Use bullet points when listing items
-''';
-
-    return await chat(
-      message: question,
-      systemPrompt: systemPrompt,
-      conversationHistory: conversationHistory,
-      temperature: 0.7,
-      maxTokens: 2048,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
   // 📝 AI QUIZ GENERATOR
   // ══════════════════════════════════════════════════════════════════════════
+// Add this after generateQuizQuestions method:
+
+  /// Validate generated questions
+  static List<Map<String, dynamic>> validateQuestions(List<Map<String, dynamic>> questions) {
+    final validated = <Map<String, dynamic>>[];
+    
+    for (final q in questions) {
+      if (q['question'] == null || (q['question'] as String).isEmpty) continue;
+      if (q['correctAnswer'] == null) continue;
+      
+      if (q['type'] == 'multipleChoice') {
+        if (q['options'] == null || (q['options'] as List).length < 2) continue;
+      }
+      
+      validated.add(q);
+    }
+    
+    return validated;
+  }
+
 
   static Future<List<Map<String, dynamic>>> generateQuizQuestions({
     required String material,
@@ -372,23 +375,17 @@ ${topic != null ? '- Chủ đề tập trung: $topic' : ''}
 CHỈ TRẢ VỀ JSON ARRAY, KHÔNG CÓ TEXT KHÁC.
 ''';
 
-    final response = await chat(
-      message: prompt,
-      temperature: 0.8,
-      maxTokens: 4096,
-    );
+    final response = await chat(message: prompt, temperature: 0.5, maxTokens: 4096);
 
     try {
       String jsonStr = response.trim();
       
-      // Remove markdown code blocks
       if (jsonStr.contains('```json')) {
         jsonStr = jsonStr.split('```json')[1].split('```')[0].trim();
       } else if (jsonStr.contains('```')) {
         jsonStr = jsonStr.split('```')[1].split('```')[0].trim();
       }
       
-      // Find JSON array
       final startIndex = jsonStr.indexOf('[');
       final endIndex = jsonStr.lastIndexOf(']');
       if (startIndex != -1 && endIndex != -1) {
@@ -398,28 +395,9 @@ CHỈ TRẢ VỀ JSON ARRAY, KHÔNG CÓ TEXT KHÁC.
       final List<dynamic> questions = jsonDecode(jsonStr);
       return questions.map((q) => Map<String, dynamic>.from(q)).toList();
     } catch (e) {
-      print('❌ Error parsing quiz questions: $e');
-      print('Raw response: $response');
-      throw Exception('Failed to parse AI response. Please try again.');
+      print('Error parsing quiz: $e');
+      return [];
     }
-  }
-
-  /// Validate generated questions
-  static List<Map<String, dynamic>> validateQuestions(List<Map<String, dynamic>> questions) {
-    final validated = <Map<String, dynamic>>[];
-    
-    for (final q in questions) {
-      if (q['question'] == null || (q['question'] as String).isEmpty) continue;
-      if (q['correctAnswer'] == null) continue;
-      
-      if (q['type'] == 'multipleChoice') {
-        if (q['options'] == null || (q['options'] as List).length < 2) continue;
-      }
-      
-      validated.add(q);
-    }
-    
-    return validated;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -446,23 +424,17 @@ Trả về JSON với format (chỉ JSON, không markdown):
 CHỈ TRẢ VỀ JSON, KHÔNG CÓ TEXT KHÁC.
 ''';
 
-    final response = await chat(
-      message: prompt,
-      temperature: 0.5,
-      maxTokens: 2048,
-    );
+    final response = await chat(message: prompt, temperature: 0.5, maxTokens: 2048);
 
     try {
       String jsonStr = response.trim();
       
-      // Remove markdown
       if (jsonStr.contains('```json')) {
         jsonStr = jsonStr.split('```json')[1].split('```')[0].trim();
       } else if (jsonStr.contains('```')) {
         jsonStr = jsonStr.split('```')[1].split('```')[0].trim();
       }
       
-      // Find JSON object
       final startIndex = jsonStr.indexOf('{');
       final endIndex = jsonStr.lastIndexOf('}');
       if (startIndex != -1 && endIndex != -1) {
@@ -479,7 +451,7 @@ CHỈ TRẢ VỀ JSON, KHÔNG CÓ TEXT KHÁC.
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 💬 SIMPLE CHAT (for general questions)
+  // 💬 SIMPLE CHAT
   // ══════════════════════════════════════════════════════════════════════════
 
   static Future<String> simpleChat({
@@ -513,51 +485,11 @@ Trả lời bằng ${language == 'vi' ? 'tiếng Việt' : 'English'}.
 Sử dụng markdown để format câu trả lời.
 ''';
 
-    final message = '''
-DỮ LIỆU:
-$data
-
-YÊU CẦU PHÂN TÍCH:
-$analysisRequest
-''';
-
     return await chat(
-      message: message,
+      message: 'DỮ LIỆU:\n$data\n\nYÊU CẦU PHÂN TÍCH:\n$analysisRequest',
       systemPrompt: systemPrompt,
       temperature: 0.5,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 📝 FEEDBACK GENERATOR
-  // ══════════════════════════════════════════════════════════════════════════
-
-  static Future<String> generateFeedback({
-    required String studentWork,
-    required String assignmentTitle,
-    String? rubric,
-    String language = 'vi',
-  }) async {
-    final systemPrompt = '''
-Bạn là giảng viên đang chấm bài và viết phản hồi cho sinh viên.
-Viết phản hồi mang tính xây dựng, cụ thể và khuyến khích.
-Chỉ ra điểm mạnh và điểm cần cải thiện.
-Trả lời bằng ${language == 'vi' ? 'tiếng Việt' : 'English'}.
-''';
-
-    final message = '''
-BÀI TẬP: $assignmentTitle
-${rubric != null ? 'RUBRIC CHẤM ĐIỂM:\n$rubric\n' : ''}
-BÀI LÀM CỦA SINH VIÊN:
-$studentWork
-
-Hãy viết phản hồi chi tiết cho bài làm này.
-''';
-
-    return await chat(
-      message: message,
-      systemPrompt: systemPrompt,
-      temperature: 0.6,
+      maxTokens: 2048,
     );
   }
 }
