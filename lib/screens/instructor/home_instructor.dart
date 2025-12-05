@@ -15,6 +15,7 @@ import '../../services/ai_service.dart';
 import '../shared/inbox_screen.dart';
 import '../shared/ai_chatbot_screen.dart';
 import 'csv_preview_screen.dart';
+import 'material_summarizer_screen.dart';
 import 'test_screen.dart';
 import 'cache_management_screen.dart';
 import 'ai_quiz_generator_screen.dart';
@@ -1079,87 +1080,15 @@ class _HomeInstructorState extends ConsumerState<HomeInstructor>
     );
   }
 
-  void _showMaterialSummarizerDialog() {
-    final isVietnamese = _isVietnamese();
-    final materialController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00BFA5).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              ),
-              child: const Icon(Icons.summarize_rounded, color: Color(0xFF00BFA5)),
-            ),
-            const SizedBox(width: 12),
-            Text(isVietnamese ? 'Tóm tắt tài liệu' : 'Summarize Material'),
-          ],
-        ),
-        content: SizedBox(
-          width: 400,
-          child: TextField(
-            controller: materialController,
-            maxLines: 8,
-            decoration: AppTheme.inputDecoration(
-              hintText: isVietnamese ? 'Dán nội dung tài liệu vào đây...' : 'Paste material content here...',
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(isVietnamese ? 'Hủy' : 'Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (materialController.text.trim().isEmpty) return;
-
-              Navigator.pop(ctx);
-
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTheme.radiusLarge)),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(color: AppTheme.primaryPurple),
-                      const SizedBox(height: 16),
-                      Text(isVietnamese ? 'AI đang tóm tắt...' : 'AI is summarizing...'),
-                    ],
-                  ),
-                ),
-              );
-
-              try {
-                final summary = await AIService.summarizeMaterial(
-                  content: materialController.text,
-                  language: isVietnamese ? 'vi' : 'en',
-                );
-
-                Navigator.pop(context);
-                _showSummaryResultDialog(summary);
-              } catch (e) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
-                );
-              }
-            },
-            style: AppTheme.primaryButtonStyle,
-            child: Text(isVietnamese ? 'Tóm tắt' : 'Summarize'),
-          ),
-        ],
-      ),
-    );
-  }
+void _showMaterialSummarizerDialog() {
+  // Navigate to the new full-screen summarizer
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const MaterialSummarizerScreen(),
+    ),
+  );
+}
 
   void _showSummaryResultDialog(Map<String, dynamic> summary) {
     final isVietnamese = _isVietnamese();
