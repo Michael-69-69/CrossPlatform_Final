@@ -1,0 +1,6 @@
+[build]
+  publish = "build/web"
+  command = "curl -sL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.0-stable.tar.xz | tar xJ && ./flutter/bin/flutter pub get && ./flutter/bin/flutter build web --release"
+
+[build.environment]
+  FLUTTER_WEB_USE_SKIA = "true"
