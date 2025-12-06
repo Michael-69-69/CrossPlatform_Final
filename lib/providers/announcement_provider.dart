@@ -25,7 +25,6 @@ class AnnouncementNotifier extends StateNotifier<List<Announcement>> {
     try {
       _isLoading = true;
       
-      // ✅ 1. Try to load from cache first
       final cacheKey = 'announcements_$courseId';
       final cached = await CacheService.getCachedCategoryData(cacheKey);
       if (cached != null && cached.isNotEmpty) {

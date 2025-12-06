@@ -1,279 +1,460 @@
-# GGClassroom – Final Project Status Report
+# 📚 GGClassroom - Cross-Platform E-Learning Application
 
-**CROSS-PLATFORM MOBILE APPLICATION DEVELOPMENT - 502071**  
-**SEMESTER 1 – ACADEMIC YEAR 2025–2026**  
-**Lecturer: Mai Van Manh**
+<div align="center">
 
----
+![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)
+![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb)
+![Gemini](https://img.shields.io/badge/Gemini-AI-4285F4?logo=google)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-## Project Overview
+**A comprehensive Learning Management System (LMS) built with Flutter**
 
-A **cross-platform Flutter E-Learning app** inspired by Google Classroom, supporting **Instructor (admin/admin)** and **Students**.  
-Built with **Flutter**, **Riverpod**, **go_router**, **Hive**, **Flutter Localizations**, and responsive design.
+[Features](#-features) • [Installation](#-installation) • [Architecture](#-architecture) • [Screenshots](#-screenshots) • [AI Features](#-ai-features)
 
-**GitHub Repository**: https://github.com/Michael-69-69/CrossPlatform_Final  
-**Current Branch**: `main` (last updated: Nov 7, 2025)
-
----
-
-## Web Platform Support
-
-### MongoDB Web Compatibility
-The app now supports web platform through an HTTP API layer:
-- **Native platforms** (Android, iOS, Windows, Linux, macOS): Direct MongoDB connection using `mongo_dart`
-- **Web platform**: HTTP API requests to a backend server
-
-### Backend API Setup
-To run the app on web, you need to set up the backend API server:
-
-1. **Navigate to backend API directory:**
-   ```bash
-   cd backend-api-example
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment:**
-   Create a `.env` file:
-   ```
-   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
-   PORT=3000
-   ```
-
-4. **Start the server:**
-   ```bash
-   npm start
-   ```
-
-5. **Update Flutter app `.env` file:**
-   Add the API base URL:
-   ```
-   API_BASE_URL=http://localhost:3000/api
-   ```
-
-6. **Run Flutter web app:**
-   ```bash
-   flutter run -d chrome
-   ```
-
-See `backend-api-example/README.md` for detailed setup and deployment instructions.
+</div>
 
 ---
 
-## Recent Updates (Latest Implementation)
+## 📋 Project Overview
 
-### Course Management System
-- **Announcements Tab**: Full announcement system with rich-text content, file attachments, scope selection (one/multiple/all groups), social media-style comments, view tracking, and download tracking
-- **Assignments Tab**: Complete assignment management with:
-  - File attachments (picker and download)
-  - Deadline management with late submission support
-  - Maximum submission attempts
-  - Real-time tracking table with filtering, sorting, and search
-  - CSV export for assignment submissions
-  - Grading interface
-- **Groups Tab**: Full group management within courses:
-  - Create, edit, and delete groups
-  - Add/remove students with automatic enforcement of one-student-per-course rule
-  - Uses all students from the dataset (not limited to course-specific students)
-- **Tab Organization**: Tabs are properly spaced with Groups as the 5th tab (after Quiz and Materials)
+**GGClassroom** is a cross-platform E-Learning application inspired by Google Classroom, designed for educational institutions. It supports two user roles: **Instructors** and **Students**, with comprehensive features for course management, assignments, quizzes, and AI-powered learning assistance.
 
-### Data Management
-- All data now stored in MongoDB Atlas (semesters, courses, groups, students, announcements, assignments)
-- Full CRUD operations for all entities
-- CSV import/export functionality
+### 🎯 Key Highlights
+
+- 🌐 **Cross-Platform**: Android, iOS, Windows, macOS, Linux, Web
+- 🤖 **AI-Powered**: Gemini AI integration for quiz generation, material summarization, and learning assistance
+- 📱 **Offline Support**: Local caching with automatic sync
+- 🌍 **Bilingual**: Full Vietnamese and English support
+- 🎨 **Modern UI**: Material Design 3 with dark mode support
+- 📧 **Notifications**: Email and in-app notification system
 
 ---
 
-## Current Project Structure
+## ✨ Features
 
-```
-lib/
-  main.dart
-  routes/
-    app_router.dart
-  screens/
-    login_screen.dart
-    home_student.dart
-    home_instructor.dart
-    classwork_screen.dart
-    assignment_detail_screen.dart
-    calendar_screen.dart
-    instructor/
-      course_detail_screen.dart
-      course_list_screen.dart
-      announcements_tab.dart
-      assignments_tab.dart
-      groups_tab.dart
-      group_detail_screen.dart
-      group_list_screen.dart
-  providers/
-    auth_provider.dart
-    semester_provider.dart
-    course_provider.dart
-    group_provider.dart
-    student_provider.dart
-    announcement_provider.dart
-    assignment_provider.dart
-  models/
-    user.dart
-    semester.dart
-    course.dart
-    group.dart
-    announcement.dart
-    assignment.dart
-    csv_preview_item.dart
-  services/
-    mongodb_service.dart
-    data_loader.dart
-  l10n/
-    app_en.arb
-    app_vi.arb
-assets/
-  images/
-    student_avatar.jpg
-    teacher1.jpg
-    ...
+### 👨‍🏫 Instructor Features
+
+| Feature | Description |
+|---------|-------------|
+| **Semester Management** | Create, edit, delete semesters with active/inactive status |
+| **Course Management** | Full CRUD with semester linking, session scheduling |
+| **Group Management** | Create groups, assign students (one student per course rule) |
+| **Student Management** | CRUD operations, CSV import, profile management |
+| **Announcements** | Rich text, file attachments, group scoping, comments, view tracking |
+| **Assignments** | Deadlines, late submissions, max attempts, file attachments, grading |
+| **Quiz System** | Question bank, difficulty levels, auto/manual question selection |
+| **Materials** | File/link attachments, view/download tracking |
+| **Forum** | Discussion topics, threaded replies, file attachments |
+| **Messaging** | Private inbox with students |
+| **Dashboard** | Course statistics, submission tracking, grading overview |
+| **Email Notifications** | Assignment reminders, grade notifications via EmailJS |
+
+### 👨‍🎓 Student Features
+
+| Feature | Description |
+|---------|-------------|
+| **Course View** | Browse enrolled courses by semester |
+| **Classwork** | View assignments, quizzes, materials |
+| **Assignment Submission** | File upload, multiple attempts, late submission support |
+| **Quiz Taking** | Timed quizzes, instant scoring, attempt tracking |
+| **Announcements** | View announcements, add comments |
+| **Forum** | Participate in discussions |
+| **Messaging** | Private inbox with instructors |
+| **Notifications** | In-app and email notifications |
+| **Dashboard** | Personal progress, upcoming deadlines |
+| **Profile** | Edit profile, change avatar |
+
+### 🤖 AI Features (Gemini Integration)
+
+| Feature | Description |
+|---------|-------------|
+| **AI Learning Assistant** | Context-aware chatbot with full LMS data access |
+| **AI Quiz Generator** | Auto-generate quizzes from materials with difficulty control |
+| **Material Summarizer** | AI-powered document summarization with key points extraction |
+| **File Text Extraction** | PDF, DOCX, TXT, MD, HTML, JSON, CSV support |
+| **Drag & Drop** | Drop files directly into AI chat or summarizer |
+
+---
+
+## 🛠 Technology Stack
+
+### Frontend
+- **Flutter 3.x** - Cross-platform UI framework
+- **Riverpod** - State management
+- **go_router** - Navigation and routing
+- **flutter_markdown** - Markdown rendering
+- **desktop_drop** - Drag & drop file support
+
+### Backend & Database
+- **MongoDB Atlas** - Cloud database
+- **mongo_dart** - Direct MongoDB connection (native platforms)
+- **HTTP API** - Web platform support
+
+### AI & Services
+- **Google Gemini AI** - Quiz generation, summarization, chatbot
+- **Syncfusion PDF** - PDF text extraction
+- **EmailJS** - Email notification service
+
+### Storage & Caching
+- **Hive** - Local caching and offline support
+- **SharedPreferences** - User preferences
+
+### Localization
+- **flutter_localizations** - i18n support
+- **Vietnamese & English** - Full bilingual support
+
+---
+
+## 📦 Installation
+
+### Prerequisites
+
+- Flutter SDK 3.x or higher
+- Dart SDK 3.x or higher
+- MongoDB Atlas account
+- Gemini API key (for AI features)
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/your-username/ggclassroom.git
+cd ggclassroom
 ```
 
----
-
-## Implemented Features (CHECKED)
-
-| Feature                        | Status   | Notes                                      |
-|--------------------------------|----------|--------------------------------------------|
-| Flutter + Cross-platform setup | CHECKED  | `flutter run` works on Android, Windows, Web |
-| Login / Register Screen        | CHECKED  | Uses MongoDB Atlas `users` collection      |
-| Role-based Homepages           | CHECKED  | `home_student.dart` & `home_instructor.dart` |
-| Student Dashboard              | CHECKED  | Shows courses, "Việc cần làm" (Classwork)  |
-| Classwork Screen               | CHECKED  | Lists assignments, filter by course/status | 
-| Assignment Detail Screen       | CHECKED  | Title, due date, score, description, comments, link |
-| Calendar Screen                | CHECKED  | Weekly view with course blocks             |
-| Localization (EN + VI)         | CHECKED  | `app_en.arb`, `app_vi.arb`, `flutter gen-l10n` |
-| go_router Navigation           | CHECKED  | With `extra` passing, redirects, aliases   |
-| Riverpod State Management      | CHECKED  | `auth_provider.dart` and all other providers |
-| User Model + Roles             | CHECKED  | `models/user.dart`                         |
-| Responsive UI                  | CHECKED  | Works on mobile, tablet, desktop           |
-| Avatar & Profile UI            | CHECKED  | Images in `assets/images/`                 |
-| Semester Management            | CHECKED  | Full CRUD with MongoDB, filter by semester |
-| Course Management              | CHECKED  | Full CRUD with MongoDB, linked to semesters |
-| Group Management               | CHECKED  | Full CRUD, one student per course rule enforced |
-| Student Management             | CHECKED  | Full CRUD, CSV import, quick create mode |
-| Announcements                  | CHECKED  | Create, view, comment, scope (one/multiple/all groups), view/download tracking |
-| Assignments (real)             | CHECKED  | Full CRUD, deadlines, late submissions, max attempts, file attachments |
-| CSV Export / Import            | CHECKED  | CSV import for students, CSV export for assignment tracking |
-| File Attachments               | CHECKED  | File picker for assignments, download functionality |
-| View/Download Tracking         | CHECKED  | Announcement view tracking, file download tracking |
-| Submission Tracking            | CHECKED  | Real-time tracking table with filtering, sorting, status |
-| Late Submission Rules          | CHECKED  | Configurable late deadlines, late submission tracking |
-| Search, Filter, Sort           | CHECKED  | Full search/filter/sort for assignments and tracking |
-
----
-
-## MISSING / UNDONE Features (CROSS)
-
-| Feature                        | Status   | Why?                                       |
-|--------------------------------|----------|---------------------------------------------|
-| Backend (Firebase / Custom)    | CROSS    | Using MongoDB Atlas directly, no custom backend server |
-| Quizzes & Question Bank        | CROSS    | Not implemented (tab placeholder exists)   |
-| Materials                      | CROSS    | Not implemented (tab placeholder exists)    |
-| Forums / Discussions           | CROSS    | No comment threads (announcements have simple comments) |
-| Private Messaging              | CROSS    | Not implemented                             |
-| Notifications (In-app / Email) | CROSS    | Not implemented                             |
-| Offline Mode (Hive/SQLite sync)| CROSS    | No offline support                          |
-| Instructor Dashboard Metrics | CROSS    | No charts, no stats                         |
-| Semester Switcher              | CROSS    | Not implemented                             |
-| Read-only Past Semesters       | CROSS    | Not implemented                             |
-| Quiz Randomization             | CROSS    | Not implemented                             |
-| APK (arm64) + Windows EXE      | CROSS    | Not built                                   |
-| Web Deployment (Firebase/GitHub Pages) | CROSS | Not deployed                        |
-| GitHub Insights (Teamwork Evidence) | CROSS | Solo repo, no team activity           |
-| Demo Video (1080p, all members)| CROSS    | Not recorded                                |
-| Bonus Folder + Evidence        | CROSS    | No bonus features                           |
-| Rubrik.docx Self-Assessment    | CROSS    | Not filled                                  |
-
----
-
-## Deployment Status
-
-| Platform                | Status | Link / File      |
-|-------------------------|--------|------------------|
-| Android APK (arm64)     | CROSS  | Not built        |
-| Windows EXE (64-bit)    | CROSS  | Not built        |
-| Web Version (Public URL)| CROSS  | Not deployed     |
-| GitHub Pages / Firebase | CROSS  | Not set up       |
-
-> **WARNING: Submission will get 0 if any of these are missing**
-
----
-
-## Running the App (Current State)
-
+### 2. Install Dependencies
 ```bash
 flutter pub get
-flutter gen-l10n   # if you modify .arb files
-flutter run        # works on Android, Windows, Web
-
-Note: User login/register uses MongoDB; the rest of the data (courses, assignments) is still mocked.
 ```
 
-### Environment Setup
+### 3. Configure Environment
 
-Create a `.env` file at project root with the MongoDB Atlas credentials:
+Create a `.env` file in the project root:
+```env
+# MongoDB Atlas Configuration
+MONGODB_USERNAME=your_username
+MONGODB_PASSWORD=your_password
+MONGODB_CLUSTER=cluster0.xxxxx.mongodb.net
+DATABASE_NAME=GoogleClassroom
 
+# Gemini AI (for AI features)
+GEMINI_API_KEY=your_gemini_api_key
+
+# EmailJS (for email notifications)
+EMAILJS_SERVICE_ID=your_service_id
+EMAILJS_TEMPLATE_ID=your_template_id
+EMAILJS_PUBLIC_KEY=your_public_key
+
+# Backend API (for web platform)
+API_BASE_URL=http://localhost:3000/api
 ```
-MONGODB_USERNAME=starboy_user
-MONGODB_PASSWORD=55359279
-MONGODB_CLUSTER=cluster0.qnn7pyq.mongodb.net
-DATABASE_NAME=GoogleClarroom
-```
 
-Ensure the cluster has a `GoogleClarroom` database and a `users` collection before running.
+### 4. Run the Application
+```bash
+# Android/iOS
+flutter run
 
----
+# Web
+flutter run -d chrome
 
-## What You MUST Do Before Submission (CHECKLIST)
+# Windows
+flutter run -d windows
 
-- [ ] Build Android APK (arm64): `flutter build apk --release --target-platform android-arm64`
-- [ ] Build Windows EXE: `flutter build windows`
-- [ ] Deploy Web: `flutter build web` → upload to Firebase Hosting or GitHub Pages
-- [ ] Get Public Web URL (e.g., `https://ggclassroom.web.app`)
-- [ ] Record 1080p Demo Video (all team members speaking)
-- [ ] Fill `Rubrik.docx` with self-assessment
-- [ ] Create `git/` folder with **GitHub Insights screenshots** (1+ month, 2+ commits/week/member)
-- [ ] Clean project: remove `build/`, `.dart_tool/`, etc.
-- [ ] Test login: `admin/admin` and at least 1 student
-- [ ] Test all screens on Web + Mobile
-
----
-
-## Submission Folder Structure (MUST MATCH)
-
-```
-textid1_fullname1_id2_fullname2/
-├── source/                  ← Full Flutter project (cleaned)
-├── bin/
-│   ├── ggclassroom.apk      ← arm64
-│   └── ggclassroom.exe      ← Windows 64-bit
-├── demo.mp4                 ← OR YouTube link in Readme.txt
-├── git/
-│   └── insights_*.png       ← GitHub Insights screenshots
-├── Readme.txt               ← Build/run instructions + URLs + logins
-├── Rubrik.docx              ← Self-assessment
-└── Bonus/                   ← (if any)
+# macOS
+flutter run -d macos
 ```
 
 ---
 
-## Final Warning
+## 🌐 Web Platform Setup
 
-- If you submit only source code without APK + EXE + Web URL → 0 points
-- If no GitHub Insights (teamwork proof) → -0.5 points
-- If no Rubrik.docx → Not graded
-- If web version crashes or needs wake-up → 0 for deployment
+The web platform requires a backend API server due to MongoDB connection limitations in browsers.
+
+### Backend Setup
+```bash
+cd backend-api-example
+npm install
+cp .env.example .env
+# Edit .env with your MongoDB URI
+npm start
+```
+
+See `backend-api-example/README.md` for detailed instructions.
 
 ---
 
-**This README now accurately reflects the current state of your project. Only features that are truly implemented are marked as CHECKED. All others remain CROSS until completed.**
+## 🏗 Architecture
+
+### Project Structure
+```
+lib/
+├── main.dart                    # App entry point
+├── routes/
+│   └── app_router.dart          # Navigation configuration
+├── models/                      # Data models
+│   ├── user.dart
+│   ├── semester.dart
+│   ├── course.dart
+│   ├── group.dart
+│   ├── assignment.dart
+│   ├── announcement.dart
+│   ├── quiz.dart
+│   ├── question.dart
+│   ├── material.dart
+│   └── ...
+├── providers/                   # Riverpod state management
+│   ├── auth_provider.dart
+│   ├── course_provider.dart
+│   ├── assignment_provider.dart
+│   ├── quiz_provider.dart
+│   └── ...
+├── services/                    # Business logic & APIs
+│   ├── database_service.dart
+│   ├── ai_service.dart
+│   ├── cache_service.dart
+│   ├── email_service.dart
+│   ├── file_text_extractor.dart
+│   └── network_service.dart
+├── screens/                     # UI screens
+│   ├── login_screen.dart
+│   ├── instructor/
+│   │   ├── home_instructor.dart
+│   │   ├── course_detail_screen.dart
+│   │   ├── assignments_tab.dart
+│   │   ├── quiz_tab.dart
+│   │   ├── ai_quiz_generator_screen.dart
+│   │   ├── material_summarizer_screen.dart
+│   │   └── ...
+│   ├── student/
+│   │   ├── student_home_screen.dart
+│   │   ├── student_course_detail_screen.dart
+│   │   ├── student_assignment_detail.dart
+│   │   ├── student_quiz_take.dart
+│   │   └── ...
+│   └── shared/
+│       ├── ai_chatbot_screen.dart
+│       ├── inbox_screen.dart
+│       └── ...
+├── widgets/                     # Reusable widgets
+├── theme/                       # App theming
+│   └── app_theme.dart
+└── utils/                       # Utilities
+    ├── file_upload_helper.dart
+    └── file_download_helper.dart
+```
+
+### State Management Flow
+```
+UI (Screens) 
+    ↓ read/watch
+Providers (Riverpod StateNotifiers)
+    ↓ call
+Services (Database, AI, Cache)
+    ↓ store/fetch
+MongoDB Atlas / Local Cache (Hive)
+```
+
+---
+
+## 🤖 AI Features
+
+### AI Learning Assistant
+
+The AI chatbot has access to all LMS data including:
+- Courses, groups, and students
+- Assignments and submissions
+- Quiz results and statistics
+
+**Example queries:**
+- "How many ungraded submissions are there?"
+- "Who submitted late for Assignment 1?"
+- "Show me statistics for WEB102"
+- "List students in Group A"
+
+### AI Quiz Generator
+
+Generate quizzes automatically from any material:
+1. Paste content or drag & drop files (PDF, DOCX, TXT)
+2. Set difficulty distribution (Easy/Medium/Hard)
+3. AI generates questions with explanations
+4. Review and edit before saving
+
+### Material Summarizer
+
+Summarize documents with AI:
+- **Summary**: Concise overview
+- **Key Points**: Main takeaways
+- **Concepts**: Terms and definitions
+- **Review Questions**: Auto-generated questions
+- **Study Tips**: Learning suggestions
+
+### Supported File Formats
+
+| Format | Extension | Notes |
+|--------|-----------|-------|
+| PDF | `.pdf` | Full text extraction |
+| Word | `.docx` | Modern Word format |
+| Text | `.txt`, `.md` | Plain text and Markdown |
+| HTML | `.html`, `.htm` | Web pages |
+| JSON | `.json` | Structured data |
+| CSV | `.csv` | Spreadsheet data |
+
+---
+
+## 🔐 Default Credentials
+
+| Role | Username | Password |
+|------|----------|----------|
+| Instructor | `admin` | `admin` |
+| Student | (varies) | (varies) |
+
+---
+
+## 📱 Build Instructions
+
+### Android APK
+```bash
+flutter build apk --release --target-platform android-arm64
+# Output: build/app/outputs/flutter-apk/app-release.apk
+```
+
+### Windows Executable
+```bash
+flutter build windows --release
+# Output: build/windows/x64/runner/Release/
+```
+
+### Web Deployment
+```bash
+flutter build web --release
+# Output: build/web/
+# Deploy to Firebase Hosting, GitHub Pages, or any static host
+```
+
+### iOS (requires macOS)
+```bash
+flutter build ios --release
+```
+
+---
+
+## 🗂 Database Collections
+
+| Collection | Description |
+|------------|-------------|
+| `users` | User accounts (instructors & students) |
+| `semesters` | Academic semesters |
+| `courses` | Course information |
+| `groups` | Student groups per course |
+| `announcements` | Course announcements |
+| `assignments` | Assignment definitions |
+| `questions` | Quiz question bank |
+| `quizzes` | Quiz configurations |
+| `quiz_submissions` | Student quiz attempts |
+| `materials` | Course materials |
+| `forum_topics` | Discussion topics |
+| `forum_replies` | Topic replies |
+| `messages` | Private messages |
+| `in_app_notifications` | User notifications |
+
+---
+
+## 🎨 Theming
+
+The app supports both light and dark themes with a modern Material Design 3 aesthetic.
+
+### Color Palette
+
+- **Primary**: Deep Purple (`#673AB7`)
+- **Success**: Green (`#4CAF50`)
+- **Warning**: Orange (`#FF9800`)
+- **Error**: Red (`#F44336`)
+- **AI Accent**: Teal (`#00BFA5`)
+
+---
+
+## 🌍 Localization
+
+Full support for:
+- 🇻🇳 **Vietnamese** (default)
+- 🇺🇸 **English**
+
+Switch languages via the language toggle in the app bar.
+
+---
+
+## Feature Checklist
+
+### Core Features
+- [x] User Authentication (Login/Register)
+- [x] Role-based Access Control
+- [x] Semester Management
+- [x] Course Management
+- [x] Group Management
+- [x] Student Management
+- [x] CSV Import/Export
+
+### Content Management
+- [x] Announcements with Comments
+- [x] Assignments with Submissions
+- [x] Quiz System with Question Bank
+- [x] Materials with Attachments
+- [x] Forum Discussions
+- [x] Private Messaging
+
+### AI Features
+- [x] AI Learning Chatbot
+- [x] AI Quiz Generator
+- [x] AI Material Summarizer
+- [x] File Text Extraction
+- [x] Drag & Drop Support
+
+### Notifications
+- [x] In-App Notifications
+- [x] Email Notifications (EmailJS)
+- [x] Assignment Reminders
+- [x] Grade Notifications
+
+### Technical
+- [x] Offline Caching (Hive)
+- [x] Cross-Platform Support
+- [x] Responsive Design
+- [x] Dark Mode
+- [x] Bilingual (VI/EN)
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👥 Team
+
+**Cross-Platform Mobile Application Development - 502071**  
+**Semester 1 – Academic Year 2025–2026**
+
+---
+
+## 📞 Support
+
+For issues and questions:
+- Open a [GitHub Issue](https://github.com/your-username/ggclassroom/issues)
+- Email: your-email@example.com
+
+---
+
+<div align="center">
+
+
+</div>

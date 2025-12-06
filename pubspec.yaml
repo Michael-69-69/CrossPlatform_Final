@@ -1,5 +1,5 @@
 name: ggclassroom
-description: "A new Flutter project."
+description: "A cross-platform E-Learning application"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -37,7 +37,7 @@ dependencies:
   google_generative_ai: ^0.4.7
   syncfusion_flutter_pdf: ^31.2.16
   desktop_drop: ^0.4.4
-
+  cupertino_icons: ^1.0.6
 
 dev_dependencies:
   flutter_test:
@@ -46,10 +46,31 @@ dev_dependencies:
   mockito: ^5.4.4
   build_runner: ^2.4.11
   json_serializable: ^6.7.1 
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.4
 
 flutter:
   generate: true
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/icons/
     - .env
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/icon.png"
+  adaptive_icon_background: "#1A73E8"
+  adaptive_icon_foreground: "assets/icons/icon.png"
+  min_sdk_android: 21
+
+
+flutter_native_splash:
+  color: "#1A73E8"
+  image: "assets/icons/icon.png"
+  android: true
+  ios: true
+  android_12:
+    color: "#1A73E8"
+    image: "assets/icons/icon.png"
